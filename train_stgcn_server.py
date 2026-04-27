@@ -25,7 +25,7 @@ TARGET_FRAMES = 100
 TRAIN_RATIO   = 0.70   # 70% train
 VAL_RATIO     = 0.15   # 15% val
 # remaining 15% → test
-EPOCHS        = 20000
+EPOCHS        = 50
 BATCH_SIZE    = 16
 LR            = 1e-3
 WEIGHT_DECAY  = 1e-4
