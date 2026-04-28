@@ -25,7 +25,7 @@ TARGET_FRAMES = 100
 TRAIN_RATIO   = 0.70   # 70% train
 VAL_RATIO     = 0.15   # 15% val
 # remaining 15% → test
-EPOCHS        = 20000
+EPOCHS        = 200
 BATCH_SIZE    = 16
 LR            = 1e-3
 WEIGHT_DECAY  = 1e-4
@@ -38,6 +38,7 @@ print(f'  DATASET_DIR : {DATASET_DIR}')
 print(f'  NPZ_KEY     : {NPZ_KEY}')
 print(f'  CAMERA_ID   : C{CAMERA_ID}')
 print(f'  EXISTS      : {os.path.exists(DATASET_DIR)}')
+
 
 # ══════════════════════════════════════════════════════════════════════════
 # Cell 2 — Imports & output folders
@@ -56,7 +57,7 @@ import torch.nn as nn
 import torch.nn.functional as F
 from torch.utils.data import Dataset, DataLoader, Subset
 from sklearn.model_selection import train_test_split
-from sklearn.metrics import confusion_matrix, ConfusionMatrixDisplay
+from sklearn.metrics import confusion_matrix, ConfusionMatrixDisplay, r2_score   # ← r2_score added
 
 # ── Create output folders ─────────────────────────────────────────────────
 PLOTS_DIR = os.path.join(OUT_DIR, "plots")
@@ -68,6 +69,7 @@ print("✓ Libraries imported")
 print("✓ Output folders created:")
 for d in [PLOTS_DIR, LOGS_DIR]:
     print("  ", d)
+
 
 # ══════════════════════════════════════════════════════════════════════════
 # Cell 3 — Explore dataset folder & one NPZ file
@@ -91,6 +93,7 @@ else:
     for k in sample.keys():
         print(f'  {k!r:20s} → shape {sample[k].shape}  dtype {sample[k].dtype}')
     print('\n▶ Update NPZ_KEY in Cell 1 if the key name differs from "keypoints_3d"')
+
 
 # ══════════════════════════════════════════════════════════════════════════
 # Cell 4 — Load CSV labels
@@ -428,6 +431,7 @@ plot_skeleton_frames(
     save_path=os.path.join(PLOTS_DIR, 'sample_skeleton_motion.png')
 )
 
+
 # ══════════════════════════════════════════════════════════════════════════
 # Cell 10 — BZUDataset
 # ══════════════════════════════════════════════════════════════════════════
@@ -618,6 +622,8 @@ def run_epoch(model, loader, optimiser, cls_fn, reg_fn,
     qp   = np.array(q_pred)
     rmse = float(np.sqrt(np.mean((qt - qp)**2)))
     mae  = float(np.mean(np.abs(qt - qp)))
+    r2   = float(r2_score(qt, qp)) if len(qt) > 1 else 0.0   # ← R² added
+
     return {
         'loss'    : tot['loss'] / n,
         'cls_loss': tot['cls']  / n,
@@ -625,6 +631,7 @@ def run_epoch(model, loader, optimiser, cls_fn, reg_fn,
         'accuracy': tot['correct'] / max(1, tot['total']) * 100,
         'rmse'    : rmse,
         'mae'     : mae,
+        'r2'      : r2,   # ← R² added
     }
 
 
@@ -708,10 +715,10 @@ def plot_loss_curves(history, save_dir):
     save_and_show(fig, os.path.join(save_dir, 'loss_curves.png'))
 
 
-def plot_accuracy_rmse_mae(history, save_dir):
+def plot_accuracy_rmse(history, save_dir):
     epochs = range(1, len(history['train_acc']) + 1)
-    fig, axes = plt.subplots(1, 3, figsize=(18, 4))
-    fig.suptitle('Accuracy, RMSE & MAE', fontsize=14, fontweight='bold')
+    fig, axes = plt.subplots(1, 2, figsize=(12, 4))
+    fig.suptitle('Accuracy & RMSE', fontsize=14, fontweight='bold')
 
     axes[0].plot(epochs, history['train_acc'], label='Train',      color='steelblue')
     axes[0].plot(epochs, history['val_acc'],   label='Validation', color='darkorange')
@@ -725,14 +732,76 @@ def plot_accuracy_rmse_mae(history, save_dir):
     axes[1].set_xlabel('Epoch'); axes[1].set_ylabel('RMSE')
     axes[1].legend(); axes[1].grid(alpha=0.3)
 
-    axes[2].plot(epochs, history['train_mae'], label='Train',      color='steelblue')
-    axes[2].plot(epochs, history['val_mae'],   label='Validation', color='darkorange')
-    axes[2].set_title('Quality Score MAE', fontweight='bold')
-    axes[2].set_xlabel('Epoch'); axes[2].set_ylabel('MAE')
-    axes[2].legend(); axes[2].grid(alpha=0.3)
+    plt.tight_layout()
+    save_and_show(fig, os.path.join(save_dir, 'accuracy_rmse.png'))
+
+
+def plot_r2_mae(history, save_dir):
+    """Plot R² and MAE curves for train and validation sets."""
+    epochs = range(1, len(history['train_r2']) + 1)
+    fig, axes = plt.subplots(1, 2, figsize=(12, 4))
+    fig.suptitle('Quality Score Regression Metrics', fontsize=14, fontweight='bold')
+
+    # ── R² ────────────────────────────────────────────────────────────────
+    axes[0].plot(epochs, history['train_r2'], label='Train',      color='steelblue')
+    axes[0].plot(epochs, history['val_r2'],   label='Validation', color='darkorange')
+    axes[0].axhline(1.0, color='gray', linestyle=':', linewidth=1, label='Perfect (R²=1)')
+    axes[0].axhline(0.0, color='red',  linestyle=':', linewidth=1, label='Baseline (R²=0)')
+    axes[0].set_title('R² Score  (higher = better)', fontweight='bold')
+    axes[0].set_xlabel('Epoch')
+    axes[0].set_ylabel('R²')
+    axes[0].legend(fontsize=8)
+    axes[0].grid(alpha=0.3)
+
+    # ── MAE ───────────────────────────────────────────────────────────────
+    axes[1].plot(epochs, history['train_mae'], label='Train',      color='steelblue')
+    axes[1].plot(epochs, history['val_mae'],   label='Validation', color='darkorange')
+    axes[1].set_title('MAE  (lower = better)', fontweight='bold')
+    axes[1].set_xlabel('Epoch')
+    axes[1].set_ylabel('MAE')
+    axes[1].legend()
+    axes[1].grid(alpha=0.3)
 
     plt.tight_layout()
-    save_and_show(fig, os.path.join(save_dir, 'accuracy_rmse_mae.png'))
+    save_and_show(fig, os.path.join(save_dir, 'r2_mae_curves.png'))
+
+
+def plot_regression_scatter(q_true, q_pred, split_name='Test', save_dir=None):
+    """
+    Scatter plot of true vs predicted quality scores for the test set.
+    Shows the identity line and annotates R², MAE, RMSE.
+    """
+    qt = np.array(q_true)
+    qp = np.array(q_pred)
+    r2   = float(r2_score(qt, qp)) if len(qt) > 1 else 0.0
+    mae  = float(np.mean(np.abs(qt - qp)))
+    rmse = float(np.sqrt(np.mean((qt - qp)**2)))
+
+    fig, ax = plt.subplots(figsize=(6, 6))
+    ax.scatter(qt, qp, alpha=0.6, edgecolors='black', linewidths=0.4,
+               color='steelblue', s=60, label='Samples')
+
+    lo, hi = min(qt.min(), qp.min()) - 0.2, max(qt.max(), qp.max()) + 0.2
+    ax.plot([lo, hi], [lo, hi], 'r--', linewidth=1.5, label='Perfect prediction')
+    ax.set_xlim(lo, hi); ax.set_ylim(lo, hi)
+    ax.set_xlabel('True Quality Score',      fontsize=12)
+    ax.set_ylabel('Predicted Quality Score', fontsize=12)
+    ax.set_title(f'{split_name} Set — True vs Predicted Quality',
+                 fontsize=13, fontweight='bold')
+    ax.legend(fontsize=9)
+    ax.grid(alpha=0.3)
+
+    textstr = f'R²   = {r2:.4f}\nMAE  = {mae:.4f}\nRMSE = {rmse:.4f}'
+    props   = dict(boxstyle='round', facecolor='wheat', alpha=0.7)
+    ax.text(0.05, 0.95, textstr, transform=ax.transAxes, fontsize=10,
+            verticalalignment='top', bbox=props)
+
+    plt.tight_layout()
+    if save_dir:
+        path = os.path.join(save_dir, f'regression_scatter_{split_name.lower()}.png')
+        save_and_show(fig, path)
+    else:
+        plt.close(fig)
 
 
 def plot_confusion_matrix(all_true, all_pred, save_dir):
@@ -790,18 +859,23 @@ optimiser = torch.optim.AdamW(model.parameters(), lr=LR, weight_decay=WEIGHT_DEC
 scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(
                 optimiser, T_max=EPOCHS, eta_min=1e-5)
 
+# ── History dict now includes r2 ──────────────────────────────────────────
 history = {k: [] for k in [
     'train_loss','val_loss','test_loss',
     'train_cls_loss','val_cls_loss',
     'train_reg_loss','val_reg_loss',
-    'train_acc','val_acc','train_rmse','val_rmse',
-    'train_mae','val_mae']}
+    'train_acc','val_acc',
+    'train_rmse','val_rmse',
+    'train_mae','val_mae',
+    'train_r2','val_r2',      # ← R² added
+]}
 
 best_val_acc   = 0.0
 best_model_wts = None
 best_epoch     = 1
 best_val_rmse  = float('inf')
 best_val_mae   = float('inf')
+best_val_r2    = -float('inf')   # ← track best R² too
 
 print(f'\n{"═"*60}')
 print(f'  Train:{len(train_df)}  Val:{len(val_df)}  Test:{len(test_df)}')
@@ -814,57 +888,73 @@ for epoch in range(1, EPOCHS+1):
     te = run_epoch(model, test_loader,  optimiser, cls_fn, reg_fn, is_train=False, cls_w=1.0, reg_w=0.2)
     scheduler.step()
 
-    for k,v in [('train_loss',tr['loss']),('val_loss',vl['loss']),
-                ('test_loss',te['loss']),('train_cls_loss',tr['cls_loss']),
-                ('val_cls_loss',vl['cls_loss']),('train_reg_loss',tr['reg_loss']),
-                ('val_reg_loss',vl['reg_loss']),('train_acc',tr['accuracy']),
-                ('val_acc',vl['accuracy']),('train_rmse',tr['rmse']),
-                ('val_rmse',vl['rmse']),('train_mae',tr['mae']),
-                ('val_mae',vl['mae'])]:
+    for k, v in [
+        ('train_loss',    tr['loss']),     ('val_loss',    vl['loss']),
+        ('test_loss',     te['loss']),     ('train_cls_loss', tr['cls_loss']),
+        ('val_cls_loss',  vl['cls_loss']), ('train_reg_loss', tr['reg_loss']),
+        ('val_reg_loss',  vl['reg_loss']), ('train_acc',   tr['accuracy']),
+        ('val_acc',       vl['accuracy']), ('train_rmse',  tr['rmse']),
+        ('val_rmse',      vl['rmse']),     ('train_mae',   tr['mae']),
+        ('val_mae',       vl['mae']),      ('train_r2',    tr['r2']),   # ← R²
+        ('val_r2',        vl['r2']),                                     # ← R²
+    ]:
         history[k].append(v)
 
     msg = (f'  Ep {epoch:3d}/{EPOCHS} | '
-           f'Train loss={tr["loss"]:.3f} acc={tr["accuracy"]:.1f}% rmse={tr["rmse"]:.3f} mae={tr["mae"]:.3f} | '
-           f'Val   loss={vl["loss"]:.3f} acc={vl["accuracy"]:.1f}% rmse={vl["rmse"]:.3f} mae={vl["mae"]:.3f} | '
-           f'Test  acc={te["accuracy"]:.1f}%')
+           f'Train loss={tr["loss"]:.3f} acc={tr["accuracy"]:.1f}% '
+           f'mae={tr["mae"]:.3f} r2={tr["r2"]:.3f} | '
+           f'Val   loss={vl["loss"]:.3f} acc={vl["accuracy"]:.1f}% '
+           f'mae={vl["mae"]:.3f} r2={vl["r2"]:.3f} | '
+           f'Test  acc={te["accuracy"]:.1f}% mae={te["mae"]:.3f} r2={te["r2"]:.3f}')
     print(msg); log.info(msg)
 
     if vl['accuracy'] > best_val_acc:
         best_val_acc   = vl['accuracy']
         best_val_rmse  = vl['rmse']
         best_val_mae   = vl['mae']
+        best_val_r2    = vl['r2']   # ← save R² at best checkpoint
         best_epoch     = epoch
         best_model_wts = copy.deepcopy(model.state_dict())
-        print(f'    ✓ Best weights updated  val_acc={best_val_acc:.1f}%')
+        print(f'    ✓ Best weights updated  val_acc={best_val_acc:.1f}%  '
+              f'val_mae={best_val_mae:.4f}  val_r2={best_val_r2:.4f}')
 
 print('\n✓ Training complete!')
 
 # ── Final evaluation with best weights ────────────────────────────────────
 model.load_state_dict(best_model_wts)
-final_te = run_epoch(model, test_loader, optimiser, cls_fn, reg_fn, is_train=False, cls_w=1.0, reg_w=0.2)
+final_te = run_epoch(model, test_loader, optimiser, cls_fn, reg_fn,
+                     is_train=False, cls_w=1.0, reg_w=0.2)
 
 print(f'\n  ── Final Test Results (best epoch = {best_epoch}) ──────────────────────────')
 print(f'  Accuracy : {final_te["accuracy"]:.2f}%')
 print(f'  RMSE     : {final_te["rmse"]:.4f}')
 print(f'  MAE      : {final_te["mae"]:.4f}')
+print(f'  R²       : {final_te["r2"]:.4f}')    # ← R² printed
 print(f'  Loss     : {final_te["loss"]:.4f}')
 
-# Confusion matrix
+# ── Confusion matrix + collect quality predictions for scatter ─────────────
 model.eval()
 all_true_cls, all_pred_cls = [], []
+all_true_q,   all_pred_q   = [], []
+
 with torch.no_grad():
-    for skels, ex_ids, _ in test_loader:
+    for skels, ex_ids, qualities in test_loader:
         skels = centre_and_scale(skels.to(DEVICE))
-        cls_logits, _ = model(skels)
+        cls_logits, qpred = model(skels)
         all_true_cls.extend([rev_map[e] for e in ex_ids.numpy()])
         all_pred_cls.extend([rev_map[p] for p in cls_logits.argmax(1).cpu().numpy()])
+        all_true_q.extend(qualities.numpy())
+        all_pred_q.extend(qpred.squeeze(1).cpu().numpy())
 
-# Save all plots
+# ── Save all plots ─────────────────────────────────────────────────────────
 plot_loss_curves(history, PLOTS_DIR)
-plot_accuracy_rmse_mae(history, PLOTS_DIR)
+plot_accuracy_rmse(history, PLOTS_DIR)
+plot_r2_mae(history, PLOTS_DIR)                                      # ← new plot
+plot_regression_scatter(all_true_q, all_pred_q,
+                        split_name='Test', save_dir=PLOTS_DIR)       # ← new scatter
 plot_confusion_matrix(all_true_cls, all_pred_cls, PLOTS_DIR)
 
-# Save history JSON
+# ── Save history JSON ──────────────────────────────────────────────────────
 json_path = os.path.join(LOGS_DIR, 'training_history.json')
 with open(json_path, 'w') as f:
     json.dump(history, f, indent=2)
@@ -882,16 +972,19 @@ print(f'  Best Epoch       : {best_epoch}')
 print(f'  Best Val Acc     : {best_val_acc:.2f}%')
 print(f'  Best Val RMSE    : {best_val_rmse:.4f}')
 print(f'  Best Val MAE     : {best_val_mae:.4f}')
+print(f'  Best Val R²      : {best_val_r2:.4f}')    # ← R² added
 print('─'*60)
 print(f'  Test Accuracy    : {final_te["accuracy"]:.2f}%')
 print(f'  Test RMSE        : {final_te["rmse"]:.4f}')
 print(f'  Test MAE         : {final_te["mae"]:.4f}')
+print(f'  Test R²          : {final_te["r2"]:.4f}')  # ← R² added
 print('='*60)
 
 log.info(f'Best Epoch    : {best_epoch}')
 log.info(f'Test Accuracy : {final_te["accuracy"]:.2f}%')
 log.info(f'Test RMSE     : {final_te["rmse"]:.4f}')
 log.info(f'Test MAE      : {final_te["mae"]:.4f}')
+log.info(f'Test R²       : {final_te["r2"]:.4f}')    # ← R² logged
 
 summary_path = os.path.join(OUT_DIR, 'training_summary.csv')
 pd.DataFrame([{
@@ -899,9 +992,11 @@ pd.DataFrame([{
     'val_acc'     : best_val_acc,
     'val_rmse'    : best_val_rmse,
     'val_mae'     : best_val_mae,
+    'val_r2'      : best_val_r2,          # ← R² added
     'test_acc'    : final_te['accuracy'],
     'test_rmse'   : final_te['rmse'],
     'test_mae'    : final_te['mae'],
+    'test_r2'     : final_te['r2'],        # ← R² added
 }]).to_csv(summary_path, index=False)
 print(f'\n✓ Summary CSV saved → {summary_path}')
 
