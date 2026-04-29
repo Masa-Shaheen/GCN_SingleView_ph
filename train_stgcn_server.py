@@ -19,10 +19,9 @@ LR            = 1e-3
 WEIGHT_DECAY  = 1e-4
 OUT_DIR       = "/mvdlph/masa/GCN_SingleView_Results"
 
-# ══════════════════════ EARLY STOPPING CONFIG ═════════════════════════════
-PATIENCE      = 20    # عدد epochs بدون تحسن قبل الوقوف
-MIN_DELTA     = 1e-4  # أقل تحسن يُعتبر "تحسن حقيقي"
-# ═════════════════════════════════════════════════════════════════════════
+# ── Early Stopping ────────────────────────────────────────────────────────
+PATIENCE  = 20      # epochs بدون تحسن قبل الوقوف
+MIN_DELTA = 1e-4    # أقل تحسن يُعتبر حقيقي
 
 print('✓ Configuration loaded')
 print(f'  DATASET_DIR : {DATASET_DIR}')
@@ -36,13 +35,12 @@ print(f'  PATIENCE    : {PATIENCE} epochs')
 # Cell 2 — Imports & output folders
 # ══════════════════════════════════════════════════════════════════════════
 
-import os, re, glob, json, logging, datetime, copy
+import os, re, glob, json, logging, datetime, copy, sys, io
 import numpy as np
 import pandas as pd
 import matplotlib
 matplotlib.use('Agg')
 import matplotlib.pyplot as plt
-from matplotlib.gridspec import GridSpec
 
 import torch
 import torch.nn as nn
@@ -56,7 +54,7 @@ for d in [PLOTS_DIR, LOGS_DIR]:
     os.makedirs(d, exist_ok=True)
 
 print("✓ Libraries imported")
-print("✓ Output folders created:")
+print("✓ Output folders ready:")
 for d in [PLOTS_DIR, LOGS_DIR]:
     print("  ", d)
 
@@ -87,8 +85,6 @@ else:
 # Cell 4 — Load CSV labels
 # ══════════════════════════════════════════════════════════════════════════
 
-import io
-
 df_csv = None
 
 if os.path.exists(CSV_PATH):
@@ -112,7 +108,7 @@ else:
     print(f'⚠️  CSV not found at: {CSV_PATH}')
 
 if df_csv is None:
-    raise FileNotFoundError(f'\n❌ CSV not found or could not be loaded from: {CSV_PATH}')
+    raise FileNotFoundError(f'\n❌ CSV not loaded from: {CSV_PATH}')
 
 print(f'\nColumns : {df_csv.columns.tolist()}')
 print(f'Shape   : {df_csv.shape}')
@@ -123,12 +119,12 @@ print(df_csv.to_string())
 # Cell 5 — Logging setup
 # ══════════════════════════════════════════════════════════════════════════
 
-import sys
-
 timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
 log_file  = os.path.join(LOGS_DIR, f"training_{timestamp}.log")
 
+
 class Tee:
+    """Mirrors stdout to a log file simultaneously."""
     def __init__(self, console, filepath):
         self.console  = console
         self._logfile = open(filepath, 'a', encoding='utf-8', buffering=1)
@@ -145,6 +141,7 @@ class Tee:
         sys.stdout = self.console
         self._logfile.close()
 
+
 if not isinstance(sys.stdout, Tee):
     sys.stdout = Tee(sys.stdout, log_file)
 print(f'✓ stdout → also writing to {log_file}')
@@ -160,8 +157,9 @@ logging.basicConfig(
 log = logging.getLogger("GCN-SingleView")
 log.info("=" * 70)
 log.info("ST-GCN Single-View Baseline | BZU Physiotherapy Dataset")
-log.info(f"Camera : C{CAMERA_ID}  |  Split : {int(TRAIN_RATIO*100)}/{int(VAL_RATIO*100)}"
-         f"/{int((1-TRAIN_RATIO-VAL_RATIO)*100)}  |  Epochs : {EPOCHS}  |  Patience : {PATIENCE}")
+log.info(f"Camera : C{CAMERA_ID}  |  Split : {int(TRAIN_RATIO*100)}/"
+         f"{int(VAL_RATIO*100)}/{int((1-TRAIN_RATIO-VAL_RATIO)*100)}"
+         f"  |  Epochs : {EPOCHS}  |  Patience : {PATIENCE}")
 log.info(f"Log file : {log_file}")
 log.info("=" * 70)
 
@@ -170,40 +168,51 @@ log.info("=" * 70)
 # Cell 6 — Filename parser & skeleton loader
 # ══════════════════════════════════════════════════════════════════════════
 
+# Filename pattern: E4_P10_T6_C2_seg9_MMPose_human3d_motionbert_3D.npz
+
 def parse_filename(fpath):
     base = os.path.basename(fpath)
-    m = re.match(r"E(\d+)_P(\d+)_T(\d+)_C(\d+)_seg(\d+)", base)
+    m    = re.match(r"E(\d+)_P(\d+)_T(\d+)_C(\d+)_seg(\d+)", base)
     if m is None:
         return None
     return {
-        "exercise"   : int(m.group(1)),
-        "person"     : f"P{m.group(2)}",
-        "trial_num"  : int(m.group(3)),
-        "trial_id"   : f"T{m.group(3)}",
-        "camera"     : int(m.group(4)),
-        "segment"    : int(m.group(5)),
-        "filepath"   : fpath,
+        "exercise" : int(m.group(1)),
+        "person"   : f"P{m.group(2)}",
+        "trial_num": int(m.group(3)),
+        "trial_id" : f"T{m.group(3)}",
+        "camera"   : int(m.group(4)),
+        "segment"  : int(m.group(5)),
+        "filepath" : fpath,
     }
 
 
 def load_skeleton(fpath, key=NPZ_KEY):
     """
-    Load skeleton → always returns (T, 17, 3) float32.
-    Handles shape variants: (T,51), (1,T,17,3), (T,17,3).
-    Fixes MotionBERT axis convention: Z=up → Y=up.
+    Load skeleton from NPZ → always returns (T, 17, 3) float32.
+
+    Shape variants handled:
+      (T, 51)      → reshape to (T, 17, 3)
+      (1, T, 17, 3)→ squeeze axis 0
+      (T, 17, 3)   → used as-is
+
+    Axis fix (MotionBERT exports Z=up):
+      swap columns [0,2,1]  →  X stays, old-Y becomes new-Z, old-Z becomes new-Y
+      flip new-Y            →  up = positive
     """
     data = np.load(fpath, allow_pickle=True)
     arr  = data[key] if key in data else data[list(data.keys())[0]]
     arr  = arr.astype(np.float32)
 
-    if arr.ndim == 2:
+    if arr.ndim == 2:       # (T, 51)
         arr = arr.reshape(arr.shape[0], 17, 3)
-    elif arr.ndim == 4:
+    elif arr.ndim == 4:     # (1, T, 17, 3)
         arr = arr.squeeze(0)
-    # ndim == 3 → already correct
+    # ndim == 3 → already (T, 17, 3)
 
-    arr = arr[:, :, [0, 2, 1]]   # swap Y↔Z
-    arr[:, :, 1] *= -1            # flip Y so up = positive
+    # MotionBERT: original axes are (X, depth, up)
+    # After [0,2,1]: (X, up, depth)  → flip up so positive = up
+    arr          = arr[:, :, [0, 2, 1]]
+    arr[:, :, 1] *= -1
     return arr
 
 
@@ -215,7 +224,12 @@ print('✓ parse_filename and load_skeleton defined')
 # ══════════════════════════════════════════════════════════════════════════
 
 def build_index(dataset_dir, camera_id, df_csv):
-    df_csv = df_csv.copy()
+    """
+    Scan all NPZ files for the chosen camera and merge quality labels from CSV.
+    trial_key = 'Pxx_Tyy' used as grouping key to prevent data leakage.
+    Missing quality scores are filled with split-conditional means.
+    """
+    df_csv         = df_csv.copy()
     df_csv.columns = df_csv.columns.str.strip()
 
     all_files = sorted(glob.glob(
@@ -234,19 +248,13 @@ def build_index(dataset_dir, camera_id, df_csv):
         if camera_id is not None and meta['camera'] != camera_id:
             continue
 
-        ex_str = f"E{meta['exercise']}"
-        tr_str = meta['trial_id']
-        pr_str = meta['person']
-
         row = df_csv[
-            (df_csv['exercise'] == ex_str) &
-            (df_csv['person']   == pr_str) &
-            (df_csv['trial']    == tr_str)
+            (df_csv['exercise'] == f"E{meta['exercise']}") &
+            (df_csv['person']   == meta['person'])          &
+            (df_csv['trial']    == meta['trial_id'])
         ]
-        quality = float(row.iloc[0]['mean']) if len(row) > 0 else np.nan
-
-        meta['quality']   = quality
-        meta['trial_key'] = f"{pr_str}_{tr_str}"
+        meta['quality']   = float(row.iloc[0]['mean']) if len(row) > 0 else np.nan
+        meta['trial_key'] = f"{meta['person']}_{meta['trial_id']}"
         records.append(meta)
 
     if not records:
@@ -255,12 +263,16 @@ def build_index(dataset_dir, camera_id, df_csv):
 
     df = pd.DataFrame(records)
 
-    correct_mean   = df[df['trial_num'] <= 2]['quality'].mean()
-    erroneous_mean = df[df['trial_num'] >= 3]['quality'].mean()
+    # Fill NaN quality scores with split-conditional means
+    correct_mean   = df.loc[df['trial_num'] <= 2, 'quality'].mean()
+    erroneous_mean = df.loc[df['trial_num'] >= 3, 'quality'].mean()
     if np.isnan(correct_mean):   correct_mean   = 4.0
     if np.isnan(erroneous_mean): erroneous_mean = 2.5
-    df.loc[(df['quality'].isna()) & (df['trial_num'] <= 2), 'quality'] = correct_mean
-    df.loc[(df['quality'].isna()) & (df['trial_num'] >= 3), 'quality'] = erroneous_mean
+
+    mask_correct   = df['quality'].isna() & (df['trial_num'] <= 2)
+    mask_erroneous = df['quality'].isna() & (df['trial_num'] >= 3)
+    df.loc[mask_correct,   'quality'] = correct_mean
+    df.loc[mask_erroneous, 'quality'] = erroneous_mean
 
     print(f'\n✓ Total samples  (C{camera_id}) : {len(df)}')
     print(f'✓ Unique trials              : {df["trial_key"].nunique()}')
@@ -274,7 +286,7 @@ df_index = build_index(DATASET_DIR, CAMERA_ID, df_csv)
 
 if len(df_index) > 0:
     print('\n── Sample rows ──')
-    print(df_index[['exercise','person','trial_id','segment','quality']].head(15))
+    print(df_index[['exercise', 'person', 'trial_id', 'segment', 'quality']].head(15))
 
 print(df_index['camera'].value_counts().sort_index())
 print(f'\nTotal samples: {len(df_index)}')
@@ -284,13 +296,14 @@ print(f'\nTotal samples: {len(df_index)}')
 # Cell 8 — Skeleton visualisation helpers
 # ══════════════════════════════════════════════════════════════════════════
 
+# Human3.6M joint ordering (MotionBERT)
 SKELETON_EDGES = [
-    (0, 1), (1, 2), (2, 3),
-    (0, 4), (4, 5), (5, 6),
-    (0, 7), (7, 8), (8, 9),
-    (9, 10),
-    (8, 11), (11, 12), (12, 13),
-    (8, 14), (14, 15), (15, 16),
+    (0, 1), (1, 2),  (2, 3),           # right leg:  Hip→RHip→RKnee→RAnkle
+    (0, 4), (4, 5),  (5, 6),           # left leg:   Hip→LHip→LKnee→LAnkle
+    (0, 7), (7, 8),  (8, 9),           # spine:      Hip→Spine→Thorax→Neck
+    (9, 10),                            # Neck→Head
+    (8, 11), (11, 12), (12, 13),       # left arm:   Thorax→LShoulder→LElbow→LWrist
+    (8, 14), (14, 15), (15, 16),       # right arm:  Thorax→RShoulder→RElbow→RWrist
 ]
 
 JOINT_NAMES = [
@@ -302,27 +315,28 @@ JOINT_NAMES = [
 ]
 
 JOINT_COLORS = {
-    'head'  : [9, 10],
-    'arms'  : [11, 12, 13, 14, 15, 16],
-    'torso' : [0, 7, 8],
-    'legs'  : [1, 2, 3, 4, 5, 6],
+    'head' : [9, 10],
+    'arms' : [11, 12, 13, 14, 15, 16],
+    'torso': [0, 7, 8],
+    'legs' : [1, 2, 3, 4, 5, 6],
 }
 PART_COLOR = {
-    'head':'gold', 'arms':'dodgerblue', 'torso':'limegreen', 'legs':'tomato'
+    'head': 'gold', 'arms': 'dodgerblue',
+    'torso': 'limegreen', 'legs': 'tomato',
 }
 
 
 def plot_skeleton_3d(skel, frame_idx=0, title='Skeleton Sanity Check', save_path=None):
     pts = skel[frame_idx]
-    x, y, z = pts[:,0], pts[:,1], pts[:,2]
+    x, y, z = pts[:, 0], pts[:, 1], pts[:, 2]
     fig, axes = plt.subplots(1, 3, figsize=(15, 6))
     fig.suptitle(title, fontsize=13, fontweight='bold', y=1.01)
     views = [
-        (axes[0], x,  y,  'Front View  (X–Y)', 'X (left/right)', 'Y (up/down)', True),
-        (axes[1], z,  y,  'Side View   (Z–Y)', 'Z (depth)',       'Y (up/down)', True),
-        (axes[2], x, -z,  'Top View    (X–Z)', 'X (left/right)', '-Z (forward)', False),
+        (axes[0], x,  y,  'Front View  (X–Y)', 'X (left/right)', 'Y (up/down)',   True),
+        (axes[1], z,  y,  'Side View   (Z–Y)', 'Z (depth)',       'Y (up/down)',   True),
+        (axes[2], x, -z,  'Top View    (X–Z)', 'X (left/right)', '-Z (forward)',  False),
     ]
-    for ax, hx, hy, view_title, xlabel, ylabel, do_invert_y in views:
+    for ax, hx, hy, view_title, xlabel, ylabel, invert_y in views:
         for (i, j) in SKELETON_EDGES:
             ax.plot([hx[i], hx[j]], [hy[i], hy[j]], color='dimgray', lw=2, zorder=1)
         for part, idxs in JOINT_COLORS.items():
@@ -331,7 +345,7 @@ def plot_skeleton_3d(skel, frame_idx=0, title='Skeleton Sanity Check', save_path
         ax.set_title(view_title, fontweight='bold', fontsize=10)
         ax.set_xlabel(xlabel); ax.set_ylabel(ylabel)
         ax.set_aspect('equal'); ax.grid(alpha=0.3)
-        if do_invert_y:
+        if invert_y:
             ax.invert_yaxis()
     axes[0].legend(loc='lower right', fontsize=7, framealpha=0.7)
     plt.tight_layout()
@@ -343,15 +357,15 @@ def plot_skeleton_3d(skel, frame_idx=0, title='Skeleton Sanity Check', save_path
 
 def plot_skeleton_frames(skel, n_frames=5, title='Skeleton Motion', save_path=None):
     T    = skel.shape[0]
-    idxs = np.linspace(0, T-1, n_frames, dtype=int)
-    fig, axes = plt.subplots(1, n_frames, figsize=(4*n_frames, 5))
+    idxs = np.linspace(0, T - 1, n_frames, dtype=int)
+    fig, axes = plt.subplots(1, n_frames, figsize=(4 * n_frames, 5))
     fig.suptitle(title, fontsize=12, fontweight='bold')
     for col, fi in enumerate(idxs):
         ax  = axes[col]
         pts = skel[fi]
-        x, y = pts[:,0], pts[:,1]
+        x, y = pts[:, 0], pts[:, 1]
         for (i, j) in SKELETON_EDGES:
-            ax.plot([x[i],x[j]], [y[i],y[j]], color='dimgray', lw=2)
+            ax.plot([x[i], x[j]], [y[i], y[j]], color='dimgray', lw=2)
         for part, pidxs in JOINT_COLORS.items():
             ax.scatter(x[pidxs], y[pidxs], c=PART_COLOR[part],
                        s=60, edgecolors='black', linewidths=0.4, zorder=3)
@@ -371,7 +385,7 @@ print('✓ Skeleton visualisation helpers defined')
 # Cell 9 — Visualise a sample skeleton
 # ══════════════════════════════════════════════════════════════════════════
 
-idx = 10
+idx         = 10
 sample_skel = load_skeleton(df_index.iloc[idx]['filepath'])
 
 print(df_index.iloc[idx][['person', 'exercise', 'trial_id', 'segment', 'filepath']])
@@ -382,13 +396,13 @@ print(f'Z range : [{sample_skel[:,:,2].min():.3f}, {sample_skel[:,:,2].max():.3f
 
 plot_skeleton_3d(
     sample_skel, frame_idx=0,
-    title=f"Skeleton · {df_index.iloc[idx]['trial_key']} · Exercise E{df_index.iloc[idx]['exercise']}",
-    save_path=os.path.join(PLOTS_DIR, 'sample_skeleton_3views.png')
+    title=f"Skeleton · {df_index.iloc[idx]['trial_key']} · E{df_index.iloc[idx]['exercise']}",
+    save_path=os.path.join(PLOTS_DIR, 'sample_skeleton_3views.png'),
 )
 plot_skeleton_frames(
     sample_skel, n_frames=5,
     title=f"Motion Sequence · {df_index.iloc[idx]['trial_key']}",
-    save_path=os.path.join(PLOTS_DIR, 'sample_skeleton_motion.png')
+    save_path=os.path.join(PLOTS_DIR, 'sample_skeleton_motion.png'),
 )
 
 
@@ -407,16 +421,17 @@ class BZUDataset(Dataset):
 
     def __getitem__(self, idx):
         row     = self.df.iloc[idx]
-        skel    = load_skeleton(row["filepath"])
+        skel    = load_skeleton(row['filepath'])
         skel    = self._normalise_length(skel)
         if self.augment:
             skel = self._augment(skel)
-        skel    = torch.tensor(skel,            dtype=torch.float32)
-        ex_id   = torch.tensor(row["exercise"], dtype=torch.long)
-        quality = torch.tensor(row["quality"],  dtype=torch.float32)
+        skel    = torch.tensor(skel,             dtype=torch.float32)
+        ex_id   = torch.tensor(row['exercise'],  dtype=torch.long)
+        quality = torch.tensor(row['quality'],   dtype=torch.float32)
         return skel, ex_id, quality
 
     def _normalise_length(self, skel):
+        """Temporally resample skeleton to TARGET_FRAMES using linear interpolation."""
         T = skel.shape[0]
         if T == self.target_frames:
             return skel
@@ -429,13 +444,14 @@ class BZUDataset(Dataset):
         return out
 
     def _augment(self, skel):
+        """Speed jitter + Gaussian noise + horizontal flip."""
         T     = skel.shape[0]
         speed = np.random.uniform(0.8, 1.2)
         idxs  = np.linspace(0, T - 1, max(10, int(T * speed))).astype(int)
-        skel  = self._normalise_length(skel[idxs])
-        skel  += np.random.randn(*skel.shape).astype(np.float32) * 0.005
+        skel  = self._normalise_length(skel[idxs])           # resample to TARGET_FRAMES
+        skel += np.random.randn(*skel.shape).astype(np.float32) * 0.005
         if np.random.rand() < 0.5:
-            skel[:, :, 0] *= -1.0
+            skel[:, :, 0] *= -1.0                             # mirror X axis
         return skel
 
 
@@ -447,6 +463,10 @@ print('✓ BZUDataset defined')
 # ══════════════════════════════════════════════════════════════════════════
 
 def build_adj(num_joints, edges):
+    """
+    Symmetric normalised adjacency matrix D^{-1/2} A D^{-1/2}
+    with self-loops (identity added before normalisation).
+    """
     A = np.eye(num_joints, dtype=np.float32)
     for i, j in edges:
         A[i, j] = 1.0
@@ -457,68 +477,120 @@ def build_adj(num_joints, edges):
 
 
 class STGCNBlock(nn.Module):
+    """
+    One ST-GCN layer:
+      1. Spatial GCN:   A · X · W_s   (graph convolution over joints)
+      2. Temporal Conv: 1-D conv over time dimension
+      3. Residual skip connection
+    Input/output shape: (B, C, T, J)
+    """
     def __init__(self, in_ch, out_ch, A, t_kernel=9, stride=1, dropout=0.0):
         super().__init__()
         self.register_buffer('A', A)
         pad = (t_kernel - 1) // 2
+
         self.W_s    = nn.Linear(in_ch, out_ch, bias=False)
         self.bn_s   = nn.BatchNorm2d(out_ch)
         self.t_conv = nn.Sequential(
             nn.Conv2d(out_ch, out_ch,
-                      kernel_size=(t_kernel, 1), padding=(pad, 0),
-                      stride=(stride, 1), bias=False),
+                      kernel_size=(t_kernel, 1),
+                      padding=(pad, 0),
+                      stride=(stride, 1),
+                      bias=False),
             nn.BatchNorm2d(out_ch),
             nn.Dropout(dropout),
         )
+        # Residual: project channels + downsample time if stride>1
         self.res = (
             nn.Sequential(
-                nn.Conv2d(in_ch, out_ch, 1, stride=(stride, 1), bias=False),
+                nn.Conv2d(in_ch, out_ch, kernel_size=1,
+                          stride=(stride, 1), bias=False),
                 nn.BatchNorm2d(out_ch),
             ) if (in_ch != out_ch or stride != 1) else nn.Identity()
         )
 
     def forward(self, x):
+        # x: (B, C, T, J)
         B, C, T, J = x.shape
-        xs = x.permute(0,2,3,1).reshape(B*T, J, C)
-        xs = torch.bmm(self.A.unsqueeze(0).expand(B*T,-1,-1), xs)
-        xs = self.W_s(xs).reshape(B, T, J, -1).permute(0,3,1,2)
+
+        # ── Spatial GCN ───────────────────────────────────────────────────
+        # reshape to (B*T, J, C) → apply A → linear projection → back to (B, C', T, J)
+        xs = x.permute(0, 2, 3, 1).reshape(B * T, J, C)          # (B*T, J, C)
+        xs = torch.bmm(self.A.unsqueeze(0).expand(B * T, -1, -1), xs)  # (B*T, J, C)
+        xs = self.W_s(xs).reshape(B, T, J, -1).permute(0, 3, 1, 2)     # (B, C', T, J)
         xs = F.relu(self.bn_s(xs))
+
+        # ── Temporal Conv + residual ──────────────────────────────────────
         return F.relu(self.t_conv(xs) + self.res(x))
 
 
 class STGCN_SingleView(nn.Module):
+    """
+    ST-GCN with dual head:
+      cls_head → exercise classification  (cross-entropy)
+      reg_head → quality score regression (SmoothL1, output ∈ (1, 5))
+
+    Input: (B, T, J, C) = (B, 100, 17, 3)
+    """
     def __init__(self, num_classes, dropout=0.3):
         super().__init__()
         A = build_adj(NUM_JOINTS, SKELETON_EDGES)
-        self.data_bn  = nn.BatchNorm1d(NUM_JOINTS * 3)
-        cfg = [(3,64,1),(64,64,1),(64,128,2),(128,128,1),(128,256,2),(256,256,1)]
-        self.blocks   = nn.ModuleList(
-            [STGCNBlock(ic, oc, A, stride=s, dropout=dropout) for ic, oc, s in cfg])
+
+        # Input batch-norm operates on flattened joints × coords
+        self.data_bn = nn.BatchNorm1d(NUM_JOINTS * 3)
+
+        # Progressive channel expansion with temporal downsampling at stride=2
+        cfg = [
+            (3,   64,  1),
+            (64,  64,  1),
+            (64,  128, 2),   # T: 100 → 50
+            (128, 128, 1),
+            (128, 256, 2),   # T:  50 → 25
+            (256, 256, 1),
+        ]
+        self.blocks = nn.ModuleList(
+            [STGCNBlock(ic, oc, A, stride=s, dropout=dropout)
+             for ic, oc, s in cfg]
+        )
         self.drop     = nn.Dropout(dropout)
         self.cls_head = nn.Linear(256, num_classes)
         self.reg_head = nn.Sequential(
-            nn.Linear(256, 64), nn.ReLU(), nn.Dropout(0.2), nn.Linear(64, 1))
+            nn.Linear(256, 64),
+            nn.ReLU(),
+            nn.Dropout(0.2),
+            nn.Linear(64, 1),
+        )
         self._init_weights()
 
     def _init_weights(self):
         for m in self.modules():
             if isinstance(m, nn.Linear):
                 nn.init.xavier_uniform_(m.weight)
-                if m.bias is not None: nn.init.zeros_(m.bias)
+                if m.bias is not None:
+                    nn.init.zeros_(m.bias)
             elif isinstance(m, (nn.BatchNorm1d, nn.BatchNorm2d)):
-                nn.init.ones_(m.weight); nn.init.zeros_(m.bias)
+                nn.init.ones_(m.weight)
+                nn.init.zeros_(m.bias)
 
     def forward(self, x):
+        # x: (B, T, J, C)
         B, T, J, C = x.shape
-        xbn = x.reshape(B*T, J*C)
+
+        # ── Input normalisation ───────────────────────────────────────────
+        xbn = x.reshape(B * T, J * C)          # (B*T, J*C)
         xbn = self.data_bn(xbn)
-        x   = xbn.reshape(B, T, J, C).permute(0,3,1,2)   # (B,C,T,J)
+        x   = xbn.reshape(B, T, J, C).permute(0, 3, 1, 2)  # (B, C, T, J)
+
+        # ── ST-GCN blocks ─────────────────────────────────────────────────
         for blk in self.blocks:
             x = blk(x)
-        x   = x.mean(dim=[2, 3])
-        x   = self.drop(x)
-        cls = self.cls_head(x)
-        qua = 1.0 + 4.0 * torch.sigmoid(self.reg_head(x))   # → [1, 5]
+
+        # ── Global average pooling over T and J ───────────────────────────
+        x = x.mean(dim=[2, 3])    # (B, 256)
+        x = self.drop(x)
+
+        cls = self.cls_head(x)                          # (B, num_classes)
+        qua = 1.0 + 4.0 * torch.sigmoid(self.reg_head(x))  # (B, 1) ∈ (1, 5)
         return cls, qua
 
 
@@ -526,7 +598,7 @@ print('✓ ST-GCN model defined')
 
 
 # ══════════════════════════════════════════════════════════════════════════
-# Cell 12 — Normalisation & run_epoch
+# Cell 12 — Device, normalisation & run_epoch
 # ══════════════════════════════════════════════════════════════════════════
 
 DEVICE = 'cuda' if torch.cuda.is_available() else 'cpu'
@@ -536,19 +608,33 @@ if DEVICE == 'cuda':
 
 
 def centre_and_scale(x):
-    """Root-relative normalisation + torso-height scaling. x: (B,T,J,3)"""
-    hip     = (x[:,:,1:2,:] + x[:,:,4:5,:]) / 2.0
+    """
+    Root-relative normalisation + torso-height scaling.
+    x: (B, T, J, 3)
+
+    Steps:
+      1. Compute mid-hip = mean(RHip[j=1], LHip[j=4])
+      2. Subtract mid-hip from all joints  → root-relative
+      3. Compute mid-shoulder = mean(LShoulder[j=11], RShoulder[j=14])
+      4. Torso height = mean over T of ||mid-shoulder||
+      5. Divide all coords by torso height  → scale-invariant
+    """
+    hip     = (x[:, :, 1:2, :] + x[:, :, 4:5, :]) / 2.0   # (B,T,1,3)
     x       = x - hip
-    shoulder = (x[:,:,11:12,:] + x[:,:,14:15,:]) / 2.0
-    torso_h  = shoulder.norm(dim=-1, keepdim=True)
-    torso_h  = torso_h.mean(dim=1, keepdim=True).clamp(min=1e-6)
+    shoulder = (x[:, :, 11:12, :] + x[:, :, 14:15, :]) / 2.0   # (B,T,1,3)
+    torso_h  = shoulder.norm(dim=-1, keepdim=True)               # (B,T,1,1)
+    torso_h  = torso_h.mean(dim=1, keepdim=True).clamp(min=1e-6) # (B,1,1,1)
     return x / torso_h
 
 
 def run_epoch(model, loader, optimiser, cls_fn, reg_fn,
-              is_train=True, cls_w=1.0, reg_w=0.5):
+              is_train=True, cls_w=1.0, reg_w=0.2):
+    """
+    One full pass over loader.
+    Returns dict with: loss, cls_loss, reg_loss, accuracy, rmse, mae, r2
+    """
     model.train() if is_train else model.eval()
-    tot = dict(loss=0, cls=0, reg=0, correct=0, total=0)
+    tot = dict(loss=0.0, cls=0.0, reg=0.0, correct=0, total=0)
     q_true, q_pred = [], []
 
     ctx = torch.enable_grad() if is_train else torch.no_grad()
@@ -577,21 +663,18 @@ def run_epoch(model, loader, optimiser, cls_fn, reg_fn,
             q_true.extend(qualities.cpu().numpy())
             q_pred.extend(qpred.squeeze(1).detach().cpu().numpy())
 
-    n    = max(1, len(loader))
-    qt   = np.array(q_true)
-    qp   = np.array(q_pred)
-    rmse = float(np.sqrt(np.mean((qt - qp)**2)))
-    mae  = float(np.mean(np.abs(qt - qp)))
-    r2   = float(r2_score(qt, qp)) if len(qt) > 1 else 0.0
+    n   = max(1, len(loader))
+    qt  = np.array(q_true)
+    qp  = np.array(q_pred)
 
     return {
-        'loss'    : tot['loss']    / n,
-        'cls_loss': tot['cls']     / n,
-        'reg_loss': tot['reg']     / n,
+        'loss'    : tot['loss'] / n,
+        'cls_loss': tot['cls']  / n,
+        'reg_loss': tot['reg']  / n,
         'accuracy': tot['correct'] / max(1, tot['total']) * 100,
-        'rmse'    : rmse,
-        'mae'     : mae,
-        'r2'      : r2,
+        'rmse'    : float(np.sqrt(np.mean((qt - qp) ** 2))),
+        'mae'     : float(np.mean(np.abs(qt - qp))),
+        'r2'      : float(r2_score(qt, qp)) if len(qt) > 1 else 0.0,
     }
 
 
@@ -599,13 +682,17 @@ print('✓ centre_and_scale and run_epoch defined')
 
 
 # ══════════════════════════════════════════════════════════════════════════
-# Cell 13 — Trial-based split
+# Cell 13 — Trial-based train / val / test split
 # ══════════════════════════════════════════════════════════════════════════
 
 def get_trial_split(df, train_ratio=TRAIN_RATIO, val_ratio=VAL_RATIO, random_state=42):
+    """
+    Split at the trial level (not sample level) to prevent data leakage.
+    Trials from the same person × trial_id always land in the same split.
+    """
     trial_keys = df['trial_key'].unique()
-    np.random.seed(random_state)
-    np.random.shuffle(trial_keys)
+    rng        = np.random.default_rng(random_state)
+    rng.shuffle(trial_keys)
 
     n_total = len(trial_keys)
     n_test  = max(1, int((1.0 - train_ratio - val_ratio) * n_total))
@@ -613,7 +700,11 @@ def get_trial_split(df, train_ratio=TRAIN_RATIO, val_ratio=VAL_RATIO, random_sta
     n_train = n_total - n_val - n_test
 
     if n_train < 1:
-        raise ValueError(f'Not enough trials: train={n_train}, val={n_val}, test={n_test}')
+        raise ValueError(
+            f'Not enough trials for requested split '
+            f'(train={n_train}, val={n_val}, test={n_test}). '
+            f'Reduce VAL_RATIO or collect more data.'
+        )
 
     train_keys = trial_keys[:n_train]
     val_keys   = trial_keys[n_train:n_train + n_val]
@@ -624,18 +715,18 @@ def get_trial_split(df, train_ratio=TRAIN_RATIO, val_ratio=VAL_RATIO, random_sta
     test_df  = df[df['trial_key'].isin(test_keys)].reset_index(drop=True)
 
     print(f'Total unique trials : {n_total}')
-    print(f'  Train : {len(train_keys)} trials → {len(train_df)} samples')
-    print(f'  Val   : {len(val_keys)}   trials → {len(val_df)} samples')
-    print(f'  Test  : {len(test_keys)}  trials → {len(test_df)} samples')
+    print(f'  Train : {len(train_keys):3d} trials → {len(train_df):4d} samples')
+    print(f'  Val   : {len(val_keys):3d} trials → {len(val_df):4d} samples')
+    print(f'  Test  : {len(test_keys):3d} trials → {len(test_df):4d} samples')
     return train_df, val_df, test_df
 
 
 train_df, val_df, test_df = get_trial_split(df_index)
-print('\n✓ Single train/val/test split ready')
+print('\n✓ Train / Val / Test split ready')
 
 
 # ══════════════════════════════════════════════════════════════════════════
-# Cell 14 — Plotting helpers  ← TEST added to all curves
+# Cell 14 — Plotting helpers
 # ══════════════════════════════════════════════════════════════════════════
 
 def save_and_show(fig, path):
@@ -646,8 +737,8 @@ def save_and_show(fig, path):
 
 def plot_loss_curves(history, save_dir):
     epochs = range(1, len(history['train_loss']) + 1)
-    fig, axes = plt.subplots(1, 3, figsize=(16, 4))
-    fig.suptitle('Loss Curves', fontsize=14, fontweight='bold')
+    fig, axes = plt.subplots(1, 3, figsize=(18, 5))
+    fig.suptitle('Loss Curves — Train / Val / Test', fontsize=14, fontweight='bold')
 
     # ── Total loss ────────────────────────────────────────────────────────
     axes[0].plot(epochs, history['train_loss'], label='Train',      color='steelblue')
@@ -675,13 +766,23 @@ def plot_loss_curves(history, save_dir):
     plt.tight_layout()
     save_and_show(fig, os.path.join(save_dir, 'loss_curves.png'))
 
+    # ── Print last-epoch loss table ───────────────────────────────────────
+    print('\n  ── Loss Summary (last recorded epoch) ──────────────────────')
+    print(f'  {"Split":<12} {"Total":>8} {"Cls":>8} {"Reg":>8}')
+    print(f'  {"─"*40}')
+    for split in ['train', 'val', 'test']:
+        print(f'  {split.capitalize():<12} '
+              f'{history[f"{split}_loss"][-1]:>8.4f} '
+              f'{history[f"{split}_cls_loss"][-1]:>8.4f} '
+              f'{history[f"{split}_reg_loss"][-1]:>8.4f}')
+    print(f'  {"─"*40}')
+
 
 def plot_accuracy_rmse(history, save_dir):
     epochs = range(1, len(history['train_acc']) + 1)
     fig, axes = plt.subplots(1, 2, figsize=(12, 4))
-    fig.suptitle('Accuracy & RMSE', fontsize=14, fontweight='bold')
+    fig.suptitle('Accuracy & RMSE — Train / Val / Test', fontsize=14, fontweight='bold')
 
-    # ── Accuracy ──────────────────────────────────────────────────────────
     axes[0].plot(epochs, history['train_acc'],  label='Train',      color='steelblue')
     axes[0].plot(epochs, history['val_acc'],    label='Validation', color='darkorange')
     axes[0].plot(epochs, history['test_acc'],   label='Test',       color='green', linestyle='--')
@@ -689,7 +790,6 @@ def plot_accuracy_rmse(history, save_dir):
     axes[0].set_xlabel('Epoch'); axes[0].set_ylabel('Accuracy (%)')
     axes[0].legend(); axes[0].grid(alpha=0.3)
 
-    # ── RMSE ──────────────────────────────────────────────────────────────
     axes[1].plot(epochs, history['train_rmse'], label='Train',      color='steelblue')
     axes[1].plot(epochs, history['val_rmse'],   label='Validation', color='darkorange')
     axes[1].plot(epochs, history['test_rmse'],  label='Test',       color='green', linestyle='--')
@@ -704,9 +804,8 @@ def plot_accuracy_rmse(history, save_dir):
 def plot_r2_mae(history, save_dir):
     epochs = range(1, len(history['train_r2']) + 1)
     fig, axes = plt.subplots(1, 2, figsize=(12, 4))
-    fig.suptitle('Quality Score Regression Metrics', fontsize=14, fontweight='bold')
+    fig.suptitle('Regression Metrics — Train / Val / Test', fontsize=14, fontweight='bold')
 
-    # ── R² ────────────────────────────────────────────────────────────────
     axes[0].plot(epochs, history['train_r2'], label='Train',      color='steelblue')
     axes[0].plot(epochs, history['val_r2'],   label='Validation', color='darkorange')
     axes[0].plot(epochs, history['test_r2'],  label='Test',       color='green', linestyle='--')
@@ -716,7 +815,6 @@ def plot_r2_mae(history, save_dir):
     axes[0].set_xlabel('Epoch'); axes[0].set_ylabel('R²')
     axes[0].legend(fontsize=8); axes[0].grid(alpha=0.3)
 
-    # ── MAE ───────────────────────────────────────────────────────────────
     axes[1].plot(epochs, history['train_mae'], label='Train',      color='steelblue')
     axes[1].plot(epochs, history['val_mae'],   label='Validation', color='darkorange')
     axes[1].plot(epochs, history['test_mae'],  label='Test',       color='green', linestyle='--')
@@ -729,11 +827,11 @@ def plot_r2_mae(history, save_dir):
 
 
 def plot_regression_scatter(q_true, q_pred, split_name='Test', save_dir=None):
-    qt = np.array(q_true)
-    qp = np.array(q_pred)
+    qt   = np.array(q_true)
+    qp   = np.array(q_pred)
     r2   = float(r2_score(qt, qp)) if len(qt) > 1 else 0.0
     mae  = float(np.mean(np.abs(qt - qp)))
-    rmse = float(np.sqrt(np.mean((qt - qp)**2)))
+    rmse = float(np.sqrt(np.mean((qt - qp) ** 2)))
 
     fig, ax = plt.subplots(figsize=(6, 6))
     ax.scatter(qt, qp, alpha=0.6, edgecolors='black', linewidths=0.4,
@@ -742,17 +840,19 @@ def plot_regression_scatter(q_true, q_pred, split_name='Test', save_dir=None):
     hi = max(qt.max(), qp.max()) + 0.2
     ax.plot([lo, hi], [lo, hi], 'r--', linewidth=1.5, label='Perfect prediction')
     ax.set_xlim(lo, hi); ax.set_ylim(lo, hi)
-    ax.set_xlabel('True Quality Score', fontsize=12)
+    ax.set_xlabel('True Quality Score',      fontsize=12)
     ax.set_ylabel('Predicted Quality Score', fontsize=12)
     ax.set_title(f'{split_name} Set — True vs Predicted Quality',
                  fontsize=13, fontweight='bold')
     ax.legend(fontsize=9); ax.grid(alpha=0.3)
     textstr = f'R²   = {r2:.4f}\nMAE  = {mae:.4f}\nRMSE = {rmse:.4f}'
     ax.text(0.05, 0.95, textstr, transform=ax.transAxes, fontsize=10,
-            verticalalignment='top', bbox=dict(boxstyle='round', facecolor='wheat', alpha=0.7))
+            verticalalignment='top',
+            bbox=dict(boxstyle='round', facecolor='wheat', alpha=0.7))
     plt.tight_layout()
     if save_dir:
-        save_and_show(fig, os.path.join(save_dir, f'regression_scatter_{split_name.lower()}.png'))
+        save_and_show(fig, os.path.join(save_dir,
+                      f'regression_scatter_{split_name.lower()}.png'))
     else:
         plt.close(fig)
 
@@ -770,19 +870,16 @@ def plot_confusion_matrix(all_true, all_pred, save_dir):
 
 
 def plot_early_stop(history, stopped_epoch, best_epoch, save_dir):
-    """Visual showing when early stopping fired and where the best epoch was."""
+    """Accuracy curves annotated with best epoch and early-stop epoch."""
     epochs = range(1, len(history['val_acc']) + 1)
     fig, ax = plt.subplots(figsize=(10, 4))
-    ax.plot(epochs, history['train_acc'], label='Train Acc',
-            color='steelblue')
-    ax.plot(epochs, history['val_acc'],   label='Val Acc',
-            color='darkorange')
-    ax.plot(epochs, history['test_acc'],  label='Test Acc',
-            color='green', linestyle='--')
-    ax.axvline(best_epoch,    color='purple', linestyle=':',
-               linewidth=2, label=f'Best epoch ({best_epoch})')
-    ax.axvline(stopped_epoch, color='red',    linestyle='--',
-               linewidth=2, label=f'Early stop ({stopped_epoch})')
+    ax.plot(epochs, history['train_acc'], label='Train Acc', color='steelblue')
+    ax.plot(epochs, history['val_acc'],   label='Val Acc',   color='darkorange')
+    ax.plot(epochs, history['test_acc'],  label='Test Acc',  color='green', linestyle='--')
+    ax.axvline(best_epoch,    color='purple', linestyle=':',  linewidth=2,
+               label=f'Best epoch ({best_epoch})')
+    ax.axvline(stopped_epoch, color='red',    linestyle='--', linewidth=2,
+               label=f'Early stop ({stopped_epoch})')
     ax.set_title('Accuracy + Early Stopping', fontsize=13, fontweight='bold')
     ax.set_xlabel('Epoch'); ax.set_ylabel('Accuracy (%)')
     ax.legend(); ax.grid(alpha=0.3)
@@ -790,19 +887,23 @@ def plot_early_stop(history, stopped_epoch, best_epoch, save_dir):
     save_and_show(fig, os.path.join(save_dir, 'early_stopping.png'))
 
 
-print('✓ Plotting helpers defined (all curves now include Test)')
+print('✓ All plotting helpers defined')
 
 
 # ══════════════════════════════════════════════════════════════════════════
-# Cell 15 — Early Stopping class
+# Cell 15 — Early Stopping
 # ══════════════════════════════════════════════════════════════════════════
 
 class EarlyStopping:
     """
     Monitors val_accuracy (higher = better).
-    Saves the best model weights internally.
-    Call .step(val_acc, model) each epoch.
-    .should_stop → True when patience is exhausted.
+
+    Usage:
+        stop, improved = early_stop.step(val_acc, model, epoch)
+
+    Returns:
+        stop     (bool) — True when training should stop
+        improved (bool) — True when this epoch set a new best
     """
     def __init__(self, patience=PATIENCE, min_delta=MIN_DELTA):
         self.patience   = patience
@@ -814,21 +915,16 @@ class EarlyStopping:
 
     def step(self, val_acc, model, epoch):
         if val_acc > self.best_acc + self.min_delta:
-            # Genuine improvement
+            # ── Genuine improvement ───────────────────────────────────────
             self.best_acc   = val_acc
             self.counter    = 0
             self.best_wts   = copy.deepcopy(model.state_dict())
             self.best_epoch = epoch
-            return False   # don't stop
+            return False, True       # (stop=False, improved=True)
         else:
+            # ── No improvement ────────────────────────────────────────────
             self.counter += 1
-            if self.counter >= self.patience:
-                return True  # stop!
-            return False
-
-    @property
-    def should_stop(self):
-        return self.counter >= self.patience
+            return self.counter >= self.patience, False
 
 
 print('✓ EarlyStopping defined')
@@ -838,15 +934,17 @@ print('✓ EarlyStopping defined')
 # Cell 16 — Training Loop
 # ══════════════════════════════════════════════════════════════════════════
 
+# ── Map exercise IDs to contiguous 0-based indices ───────────────────────
 actual_classes = sorted(df_index['exercise'].unique())
 n_classes      = len(actual_classes)
 ex_map         = {v: i for i, v in enumerate(actual_classes)}
 rev_map        = {i: v for v, i in ex_map.items()}
-print(f'Classes in data : E{actual_classes}  →  mapped 0..{n_classes-1}')
+print(f'Classes in data : E{actual_classes}  →  mapped 0..{n_classes - 1}')
+print(f'Model output size: {n_classes}')
 
-log.info('='*70)
+log.info('=' * 70)
 log.info('STARTING TRAINING  (with Early Stopping)')
-log.info('='*70)
+log.info('=' * 70)
 
 cls_fn = nn.CrossEntropyLoss()
 reg_fn = nn.SmoothL1Loss()
@@ -861,41 +959,40 @@ def make_ds(df, aug):
 train_loader = DataLoader(make_ds(train_df, True),
                           batch_size=min(BATCH_SIZE, len(train_df)),
                           shuffle=True,  num_workers=0,
-                          pin_memory=(DEVICE=='cuda'))
+                          pin_memory=(DEVICE == 'cuda'))
 val_loader   = DataLoader(make_ds(val_df, False),
                           batch_size=min(BATCH_SIZE, len(val_df)),
                           shuffle=False, num_workers=0,
-                          pin_memory=(DEVICE=='cuda'))
+                          pin_memory=(DEVICE == 'cuda'))
 test_loader  = DataLoader(make_ds(test_df, False),
                           batch_size=min(BATCH_SIZE, len(test_df)),
                           shuffle=False, num_workers=0,
-                          pin_memory=(DEVICE=='cuda'))
+                          pin_memory=(DEVICE == 'cuda'))
 
-model     = STGCN_SingleView(num_classes=n_classes, dropout=0.3).to(DEVICE)
-optimiser = torch.optim.AdamW(model.parameters(), lr=LR, weight_decay=WEIGHT_DECAY)
-scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(
-                optimiser, T_max=EPOCHS, eta_min=1e-5)
+model      = STGCN_SingleView(num_classes=n_classes, dropout=0.3).to(DEVICE)
+optimiser  = torch.optim.AdamW(model.parameters(), lr=LR, weight_decay=WEIGHT_DECAY)
+# T_max = EPOCHS (max possible epochs); eta_min = floor LR
+scheduler  = torch.optim.lr_scheduler.CosineAnnealingLR(
+                 optimiser, T_max=EPOCHS, eta_min=1e-5)
 early_stop = EarlyStopping(patience=PATIENCE, min_delta=MIN_DELTA)
 
-# ── History — all three splits tracked ────────────────────────────────────
-history = {k: [] for k in [
-    'train_loss', 'val_loss',  'test_loss',
-    'train_cls_loss', 'val_cls_loss', 'test_cls_loss',
-    'train_reg_loss', 'val_reg_loss', 'test_reg_loss',
-    'train_acc',  'val_acc',   'test_acc',
-    'train_rmse', 'val_rmse',  'test_rmse',
-    'train_mae',  'val_mae',   'test_mae',
-    'train_r2',   'val_r2',    'test_r2',
-]}
+# ── History — 21 keys: 3 splits × 7 metrics ──────────────────────────────
+SPLITS  = ['train', 'val', 'test']
+METRICS = ['loss', 'cls_loss', 'reg_loss', 'acc', 'rmse', 'mae', 'r2']
+history = {f'{s}_{m}': [] for s in SPLITS for m in METRICS}
 
-stopped_epoch = EPOCHS   # updated if early stop fires
+stopped_epoch = EPOCHS   # updated if early stopping fires
 
-print(f'\n{"═"*60}')
-print(f'  Train:{len(train_df)}  Val:{len(val_df)}  Test:{len(test_df)}')
-print(f'  Patience : {PATIENCE} epochs | Min Δ : {MIN_DELTA}')
-print(f'{"═"*60}')
+print(f'\n{"═"*68}')
+print(f'  Train : {len(train_df):4d} samples  |  '
+      f'Val : {len(val_df):4d} samples  |  '
+      f'Test : {len(test_df):4d} samples')
+print(f'  Patience : {PATIENCE} epochs  |  Min Δ : {MIN_DELTA}')
+print(f'{"═"*68}')
+log.info(f'train={len(train_df)} val={len(val_df)} test={len(test_df)}')
 
 for epoch in range(1, EPOCHS + 1):
+
     tr = run_epoch(model, train_loader, optimiser, cls_fn, reg_fn,
                    is_train=True,  cls_w=1.0, reg_w=0.2)
     vl = run_epoch(model, val_loader,   optimiser, cls_fn, reg_fn,
@@ -904,7 +1001,7 @@ for epoch in range(1, EPOCHS + 1):
                    is_train=False, cls_w=1.0, reg_w=0.2)
     scheduler.step()
 
-    # ── Record all metrics for all three splits ───────────────────────────
+    # ── Record all metrics ────────────────────────────────────────────────
     for split, res in [('train', tr), ('val', vl), ('test', te)]:
         history[f'{split}_loss'].append(res['loss'])
         history[f'{split}_cls_loss'].append(res['cls_loss'])
@@ -914,23 +1011,29 @@ for epoch in range(1, EPOCHS + 1):
         history[f'{split}_mae'].append(res['mae'])
         history[f'{split}_r2'].append(res['r2'])
 
-    msg = (f'  Ep {epoch:3d}/{EPOCHS} | '
-           f'Tr loss={tr["loss"]:.3f} acc={tr["accuracy"]:.1f}% '
-           f'mae={tr["mae"]:.3f} r2={tr["r2"]:.3f} | '
-           f'Vl loss={vl["loss"]:.3f} acc={vl["accuracy"]:.1f}% '
-           f'mae={vl["mae"]:.3f} r2={vl["r2"]:.3f} | '
-           f'Te acc={te["accuracy"]:.1f}% mae={te["mae"]:.3f} r2={te["r2"]:.3f} | '
-           f'ES {early_stop.counter}/{PATIENCE}')
+    # ── Early stopping check (BEFORE printing so star is correct) ─────────
+    stop, improved = early_stop.step(vl['accuracy'], model, epoch)
+
+    # ── Print epoch summary ───────────────────────────────────────────────
+    star = ' ★' if improved else ''
+    msg  = (f'  Ep {epoch:3d}/{EPOCHS} | '
+            f'Tr loss={tr["loss"]:.3f} acc={tr["accuracy"]:.1f}% '
+            f'mae={tr["mae"]:.3f} r2={tr["r2"]:.3f} | '
+            f'Vl loss={vl["loss"]:.3f} acc={vl["accuracy"]:.1f}% '
+            f'mae={vl["mae"]:.3f} r2={vl["r2"]:.3f} | '
+            f'Te loss={te["loss"]:.3f} acc={te["accuracy"]:.1f}% '
+            f'mae={te["mae"]:.3f} r2={te["r2"]:.3f} | '
+            f'ES {early_stop.counter}/{PATIENCE}{star}')
     print(msg)
     log.info(msg)
 
-    # ── Early stopping check ──────────────────────────────────────────────
-    stop = early_stop.step(vl['accuracy'], model, epoch)
-    if vl['accuracy'] >= early_stop.best_acc and early_stop.counter == 0:
-        print(f'    ✓ Best weights updated  val_acc={early_stop.best_acc:.1f}%')
+    if improved:
+        print(f'    ★ New best  val_acc={early_stop.best_acc:.2f}%  '
+              f'val_mae={vl["mae"]:.4f}  val_r2={vl["r2"]:.4f}')
+
     if stop:
         stopped_epoch = epoch
-        print(f'\n  ⏹  Early stopping fired at epoch {epoch}  '
+        print(f'\n  ⏹  Early stopping at epoch {epoch}  '
               f'(best={early_stop.best_epoch}, patience={PATIENCE})')
         log.info(f'Early stopping at epoch {epoch}  best={early_stop.best_epoch}')
         break
@@ -941,18 +1044,18 @@ print('\n✓ Training complete!')
 model.load_state_dict(early_stop.best_wts)
 best_epoch = early_stop.best_epoch
 
-# ── Final evaluation ──────────────────────────────────────────────────────
+# ── Final evaluation with best weights ───────────────────────────────────
 final_te = run_epoch(model, test_loader, optimiser, cls_fn, reg_fn,
                      is_train=False, cls_w=1.0, reg_w=0.2)
 
-print(f'\n  ── Final Test Results (best epoch = {best_epoch}) ──────────────────────────')
+print(f'\n  ── Final Test Results (best epoch = {best_epoch}) ──────────────────')
 print(f'  Accuracy : {final_te["accuracy"]:.2f}%')
 print(f'  RMSE     : {final_te["rmse"]:.4f}')
 print(f'  MAE      : {final_te["mae"]:.4f}')
 print(f'  R²       : {final_te["r2"]:.4f}')
 print(f'  Loss     : {final_te["loss"]:.4f}')
 
-# ── Collect predictions for scatter + confusion matrix ────────────────────
+# ── Collect predictions for confusion matrix & scatter ────────────────────
 model.eval()
 all_true_cls, all_pred_cls = [], []
 all_true_q,   all_pred_q   = [], []
@@ -966,7 +1069,7 @@ with torch.no_grad():
         all_true_q.extend(qualities.numpy())
         all_pred_q.extend(qpred.squeeze(1).cpu().numpy())
 
-# ── Save all plots ─────────────────────────────────────────────────────────
+# ── Save all plots ────────────────────────────────────────────────────────
 plot_loss_curves(history, PLOTS_DIR)
 plot_accuracy_rmse(history, PLOTS_DIR)
 plot_r2_mae(history, PLOTS_DIR)
@@ -974,7 +1077,7 @@ plot_regression_scatter(all_true_q, all_pred_q, split_name='Test', save_dir=PLOT
 plot_confusion_matrix(all_true_cls, all_pred_cls, PLOTS_DIR)
 plot_early_stop(history, stopped_epoch, best_epoch, PLOTS_DIR)
 
-# ── Save history JSON ──────────────────────────────────────────────────────
+# ── Save history JSON ─────────────────────────────────────────────────────
 json_path = os.path.join(LOGS_DIR, 'training_history.json')
 with open(json_path, 'w') as f:
     json.dump(history, f, indent=2)
@@ -985,33 +1088,32 @@ print(f'  ✓ History → {json_path}')
 # Cell 17 — Final Summary
 # ══════════════════════════════════════════════════════════════════════════
 
-# ── Best val metrics at best_epoch ────────────────────────────────────────
-bv_idx = best_epoch - 1   # 0-based index into history lists
-best_val_acc  = history['val_acc'][bv_idx]
-best_val_rmse = history['val_rmse'][bv_idx]
-best_val_mae  = history['val_mae'][bv_idx]
-best_val_r2   = history['val_r2'][bv_idx]
+bv            = best_epoch - 1   # 0-based index into history lists
+best_val_acc  = history['val_acc'][bv]
+best_val_rmse = history['val_rmse'][bv]
+best_val_mae  = history['val_mae'][bv]
+best_val_r2   = history['val_r2'][bv]
 
-print('='*60)
+print('=' * 60)
 print('  TRAINING SUMMARY — ST-GCN Single View')
-print('='*60)
+print('=' * 60)
 print(f'  Best Epoch       : {best_epoch}  (stopped at {stopped_epoch})')
 print(f'  Best Val Acc     : {best_val_acc:.2f}%')
 print(f'  Best Val RMSE    : {best_val_rmse:.4f}')
 print(f'  Best Val MAE     : {best_val_mae:.4f}')
 print(f'  Best Val R²      : {best_val_r2:.4f}')
-print('─'*60)
+print('─' * 60)
 print(f'  Test Accuracy    : {final_te["accuracy"]:.2f}%')
 print(f'  Test RMSE        : {final_te["rmse"]:.4f}')
 print(f'  Test MAE         : {final_te["mae"]:.4f}')
 print(f'  Test R²          : {final_te["r2"]:.4f}')
-print('='*60)
+print('=' * 60)
 
-log.info(f'Best Epoch    : {best_epoch}  stopped_epoch={stopped_epoch}')
-log.info(f'Test Accuracy : {final_te["accuracy"]:.2f}%')
-log.info(f'Test RMSE     : {final_te["rmse"]:.4f}')
-log.info(f'Test MAE      : {final_te["mae"]:.4f}')
-log.info(f'Test R²       : {final_te["r2"]:.4f}')
+log.info(f'Best Epoch={best_epoch}  stopped_epoch={stopped_epoch}')
+log.info(f'Test Accuracy={final_te["accuracy"]:.2f}%')
+log.info(f'Test RMSE={final_te["rmse"]:.4f}')
+log.info(f'Test MAE={final_te["mae"]:.4f}')
+log.info(f'Test R²={final_te["r2"]:.4f}')
 
 summary_path = os.path.join(OUT_DIR, 'training_summary.csv')
 pd.DataFrame([{
