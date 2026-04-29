@@ -1048,4 +1048,4 @@ print(f'\n✓ Summary CSV saved → {summary_path}')
 log.info('✓ All done!')
 
 sys.stdout.restore()
-print('✓ Log file closed and saved.')1~t  ^T To
+print('✓ Log file closed and saved.')
