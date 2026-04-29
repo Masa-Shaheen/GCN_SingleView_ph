@@ -194,17 +194,16 @@ def load_skeleton(fpath, key=NPZ_KEY):
         arr  = arr.astype(np.float32)
 
         if arr.ndim == 1:
-            return None   # corrupted file
+            return None
         if arr.ndim == 2:
             arr = arr.reshape(arr.shape[0], 17, 3)
         elif arr.ndim == 4:
             arr = arr.squeeze(0)
 
         if arr.shape[1] != 17 or arr.shape[2] != 3:
-            return None   # wrong shape
+            return None
 
-        arr          = arr[:, :, [0, 2, 1]]
-        arr[:, :, 1] *= -1
+        # لا تغيير في المحاور — استخدم البيانات كما هي من MotionBERT
         return arr
     except Exception:
         return None
@@ -538,17 +537,18 @@ class STGCN_SingleView(nn.Module):
         self.data_bn = nn.BatchNorm1d(3)
 
         cfg = [
-            (3,   64,  1),
-            (64,  64,  1),
-            (64,  128, 2),
-            (128, 128, 1),
-            (128, 256, 2),
-            (256, 256, 1),
+            (3,   64,  1, 3),    # ← t_kernel=3 في الطبقة الأولى
+            (64,  64,  1, 9),
+            (64,  128, 2, 9),
+            (128, 128, 1, 9),
+            (128, 256, 2, 9),
+            (256, 256, 1, 9),
         ]
         self.blocks = nn.ModuleList(
-            [STGCNBlock(ic, oc, A, stride=s, dropout=dropout)
-             for ic, oc, s in cfg]
+            [STGCNBlock(ic, oc, A, t_kernel=tk, stride=s, dropout=dropout)
+            for ic, oc, s, tk in cfg]
         )
+
         self.drop     = nn.Dropout(dropout)
         self.cls_head = nn.Linear(256, num_classes)
         self.reg_head = nn.Sequential(
@@ -1043,7 +1043,7 @@ best_epoch = early_stop.best_epoch
 
 # ── Final evaluation with best weights ───────────────────────────────────
 final_te = run_epoch(model, test_loader, optimiser, cls_fn, reg_fn,
-                     is_train=False, cls_w=1.0, reg_w=0.2)
+                     is_train=False, cls_w=1.0, reg_w=0.5)
 
 print(f'\n  ── Final Test Results (best epoch = {best_epoch}) ──────────────────')
 print(f'  Accuracy : {final_te["accuracy"]:.2f}%')
@@ -1099,6 +1099,8 @@ axis_var = defaultdict(list)
 
 for _, row in df_index.sample(min(300, len(df_index)), random_state=0).iterrows():
     skel = load_skeleton(row['filepath'])   # (T,17,3)
+    if skel is None:         
+        continue
     axis_var[row['exercise']].append({
         'x_var': skel[:,:,0].var(),
         'y_var': skel[:,:,1].var(),

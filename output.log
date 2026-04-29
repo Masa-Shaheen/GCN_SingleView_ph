@@ -552,17 +552,50 @@ Shape   : (531, 7)
 527       E9    P15    T3     C1            4  4.4250  1.3566
 528       E9    P15    T4     C1            4  3.6500  1.7029
 529       E9    P15    T5     C1            4  2.7750  1.7466
-530       E9    P15    T6     C1            4  3.3750  1.90392026-04-29 11:34:12,705 | INFO | ======================================================================
-2026-04-29 11:34:12,705 | INFO | ST-GCN Single-View Baseline | BZU Physiotherapy Dataset
-2026-04-29 11:34:12,705 | INFO | Camera : C1  |  Split : 70/15/15  |  Epochs : 200  |  Patience : 30
-2026-04-29 11:34:12,705 | INFO | Log file : /mvdlph/masa/GCN_SingleView_Results/logs/training_20260429_113412.log
-2026-04-29 11:34:12,705 | INFO | ======================================================================
-2026-04-29 11:34:18,697 | INFO | ======================================================================
-2026-04-29 11:34:18,697 | INFO | STARTING TRAINING  (with Early Stopping)
-2026-04-29 11:34:18,698 | INFO | ======================================================================
-2026-04-29 11:34:20,029 | INFO | train=3778 val=686 test=638
+530       E9    P15    T6     C1            4  3.3750  1.90392026-04-29 11:42:01,669 | INFO | ======================================================================
+2026-04-29 11:42:01,669 | INFO | ST-GCN Single-View Baseline | BZU Physiotherapy Dataset
+2026-04-29 11:42:01,670 | INFO | Camera : C1  |  Split : 70/15/15  |  Epochs : 200  |  Patience : 30
+2026-04-29 11:42:01,670 | INFO | Log file : /mvdlph/masa/GCN_SingleView_Results/logs/training_20260429_114201.log
+2026-04-29 11:42:01,670 | INFO | ======================================================================
+2026-04-29 11:42:12,958 | INFO | ======================================================================
+2026-04-29 11:42:12,959 | INFO | STARTING TRAINING  (with Early Stopping + Class Weights)
+2026-04-29 11:42:12,959 | INFO | ======================================================================
+2026-04-29 11:42:12,959 | INFO | train=3777 val=686 test=638
+2026-04-29 11:42:28,168 | INFO |   Ep   1/200 | Tr acc=10.3% mae=0.832 r2=-0.955 | Vl acc=11.8% mae=0.385 r2=0.536 | Te acc=10.7% mae=0.653 r2=-0.899 | ES 0/30 ★
+2026-04-29 11:42:42,107 | INFO |   Ep   2/200 | Tr acc=10.7% mae=0.659 r2=-0.182 | Vl acc=12.5% mae=0.349 r2=0.609 | Te acc=13.8% mae=0.576 r2=-0.602 | ES 0/30 ★
+2026-04-29 11:42:55,988 | INFO |   Ep   3/200 | Tr acc=11.6% mae=0.564 r2=0.162 | Vl acc=11.1% mae=0.401 r2=0.560 | Te acc=7.2% mae=0.572 r2=-0.321 | ES 1/30
+2026-04-29 11:43:10,031 | INFO |   Ep   4/200 | Tr acc=11.9% mae=0.515 r2=0.307 | Vl acc=11.2% mae=0.408 r2=0.539 | Te acc=12.2% mae=0.598 r2=-0.466 | ES 2/30
+2026-04-29 11:43:24,125 | INFO |   Ep   5/200 | Tr acc=15.9% mae=0.506 r2=0.319 | Vl acc=18.2% mae=0.369 r2=0.607 | Te acc=18.7% mae=0.462 r2=0.057 | ES 0/30 ★
+2026-04-29 11:43:38,099 | INFO |   Ep   6/200 | Tr acc=17.6% mae=0.496 r2=0.347 | Vl acc=18.2% mae=0.672 r2=0.007 | Te acc=19.3% mae=0.607 r2=-0.400 | ES 1/30
+2026-04-29 11:43:52,203 | INFO |   Ep   7/200 | Tr acc=18.7% mae=0.486 r2=0.361 | Vl acc=18.4% mae=0.567 r2=0.251 | Te acc=19.9% mae=0.521 r2=-0.100 | ES 0/30 ★
+2026-04-29 11:44:06,242 | INFO |   Ep   8/200 | Tr acc=18.1% mae=0.480 r2=0.375 | Vl acc=14.1% mae=0.568 r2=0.226 | Te acc=16.5% mae=0.536 r2=-0.150 | ES 1/30
+2026-04-29 11:44:20,403 | INFO |   Ep   9/200 | Tr acc=19.9% mae=0.477 r2=0.382 | Vl acc=20.8% mae=0.511 r2=0.337 | Te acc=27.0% mae=0.539 r2=-0.177 | ES 0/30 ★
+2026-04-29 11:44:34,513 | INFO |   Ep  10/200 | Tr acc=22.2% mae=0.482 r2=0.377 | Vl acc=18.4% mae=0.664 r2=0.058 | Te acc=23.5% mae=0.617 r2=-0.379 | ES 1/30
+2026-04-29 11:44:48,546 | INFO |   Ep  11/200 | Tr acc=22.1% mae=0.474 r2=0.386 | Vl acc=21.6% mae=0.535 r2=0.363 | Te acc=23.7% mae=0.501 r2=0.034 | ES 0/30 ★
+2026-04-29 11:45:02,771 | INFO |   Ep  12/200 | Tr acc=23.5% mae=0.469 r2=0.403 | Vl acc=22.0% mae=0.590 r2=0.262 | Te acc=23.0% mae=0.574 r2=-0.184 | ES 0/30 ★
+2026-04-29 11:45:17,118 | INFO |   Ep  13/200 | Tr acc=24.4% mae=0.469 r2=0.400 | Vl acc=22.6% mae=0.476 r2=0.454 | Te acc=24.1% mae=0.496 r2=0.027 | ES 0/30 ★
+2026-04-29 11:45:31,169 | INFO |   Ep  14/200 | Tr acc=24.6% mae=0.462 r2=0.418 | Vl acc=23.2% mae=0.677 r2=0.030 | Te acc=21.0% mae=0.676 r2=-0.590 | ES 0/30 ★
+2026-04-29 11:45:45,085 | INFO |   Ep  15/200 | Tr acc=24.3% mae=0.463 r2=0.419 | Vl acc=21.1% mae=0.566 r2=0.295 | Te acc=23.0% mae=0.571 r2=-0.192 | ES 1/30
+2026-04-29 11:45:59,157 | INFO |   Ep  16/200 | Tr acc=24.9% mae=0.460 r2=0.419 | Vl acc=24.1% mae=0.459 r2=0.494 | Te acc=27.9% mae=0.516 r2=-0.066 | ES 0/30 ★
+2026-04-29 11:46:13,287 | INFO |   Ep  17/200 | Tr acc=23.9% mae=0.456 r2=0.433 | Vl acc=20.6% mae=0.556 r2=0.342 | Te acc=21.5% mae=0.580 r2=-0.217 | ES 1/30
+2026-04-29 11:46:27,331 | INFO |   Ep  18/200 | Tr acc=23.2% mae=0.460 r2=0.422 | Vl acc=22.2% mae=0.502 r2=0.430 | Te acc=24.9% mae=0.510 r2=-0.009 | ES 2/30
+2026-04-29 11:46:41,566 | INFO |   Ep  19/200 | Tr acc=23.4% mae=0.459 r2=0.423 | Vl acc=25.4% mae=0.523 r2=0.394 | Te acc=27.7% mae=0.525 r2=-0.058 | ES 0/30 ★
+2026-04-29 11:46:55,707 | INFO |   Ep  20/200 | Tr acc=25.4% mae=0.453 r2=0.438 | Vl acc=22.6% mae=0.530 r2=0.374 | Te acc=16.9% mae=0.536 r2=-0.118 | ES 1/30
+2026-04-29 11:47:09,742 | INFO |   Ep  21/200 | Tr acc=24.1% mae=0.451 r2=0.440 | Vl acc=22.2% mae=0.493 r2=0.438 | Te acc=23.0% mae=0.507 r2=-0.034 | ES 2/30
+2026-04-29 11:47:23,783 | INFO |   Ep  22/200 | Tr acc=25.5% mae=0.451 r2=0.440 | Vl acc=24.6% mae=0.706 r2=-0.006 | Te acc=24.3% mae=0.626 r2=-0.362 | ES 3/30
+2026-04-29 11:47:37,795 | INFO |   Ep  23/200 | Tr acc=25.1% mae=0.448 r2=0.443 | Vl acc=24.6% mae=0.457 r2=0.505 | Te acc=23.0% mae=0.488 r2=0.070 | ES 4/30
+2026-04-29 11:47:51,754 | INFO |   Ep  24/200 | Tr acc=25.4% mae=0.450 r2=0.437 | Vl acc=23.6% mae=0.490 r2=0.443 | Te acc=24.9% mae=0.514 r2=-0.065 | ES 5/30
+2026-04-29 11:48:05,824 | INFO |   Ep  25/200 | Tr acc=24.7% mae=0.454 r2=0.438 | Vl acc=25.7% mae=0.415 r2=0.576 | Te acc=21.2% mae=0.478 r2=0.043 | ES 0/30 ★
+2026-04-29 11:48:19,787 | INFO |   Ep  26/200 | Tr acc=25.6% mae=0.450 r2=0.447 | Vl acc=24.3% mae=0.513 r2=0.397 | Te acc=24.6% mae=0.501 r2=0.008 | ES 1/30
+2026-04-29 11:48:33,864 | INFO |   Ep  27/200 | Tr acc=26.0% mae=0.450 r2=0.443 | Vl acc=28.0% mae=0.454 r2=0.501 | Te acc=28.4% mae=0.493 r2=0.019 | ES 0/30 ★
+2026-04-29 11:48:47,862 | INFO |   Ep  28/200 | Tr acc=25.4% mae=0.447 r2=0.446 | Vl acc=27.1% mae=0.390 r2=0.611 | Te acc=29.3% mae=0.457 r2=0.086 | ES 1/30
+2026-04-29 11:49:01,921 | INFO |   Ep  29/200 | Tr acc=26.3% mae=0.448 r2=0.444 | Vl acc=26.2% mae=0.375 r2=0.609 | Te acc=24.5% mae=0.456 r2=0.069 | ES 2/30
+2026-04-29 11:49:16,029 | INFO |   Ep  30/200 | Tr acc=26.1% mae=0.444 r2=0.458 | Vl acc=24.2% mae=0.446 r2=0.510 | Te acc=19.0% mae=0.470 r2=0.062 | ES 3/30
+2026-04-29 11:49:30,198 | INFO |   Ep  31/200 | Tr acc=25.4% mae=0.446 r2=0.455 | Vl acc=27.4% mae=0.418 r2=0.544 | Te acc=28.1% mae=0.476 r2=0.044 | ES 4/30
+2026-04-29 11:49:44,267 | INFO |   Ep  32/200 | Tr acc=26.6% mae=0.445 r2=0.450 | Vl acc=28.7% mae=0.422 r2=0.537 | Te acc=26.5% mae=0.461 r2=0.084 | ES 0/30 ★
+2026-04-29 11:49:58,291 | INFO |   Ep  33/200 | Tr acc=26.5% mae=0.442 r2=0.458 | Vl acc=25.4% mae=0.462 r2=0.469 | Te acc=21.0% mae=0.464 r2=0.115 | ES 1/30
 
-✓ stdout → also writing to /mvdlph/masa/GCN_SingleView_Results/logs/training_20260429_113412.log
+✓ stdout → also writing to /mvdlph/masa/GCN_SingleView_Results/logs/training_20260429_114201.log
 ✓ parse_filename and load_skeleton defined
 NPZ files found (all cameras) : 15375
 
@@ -582,6 +615,10 @@ NPZ files found (all cameras) : 15375
 8    430
 9    445
 Name: exercise, dtype: int64
+Checking for corrupted files...
+  Removing 1 corrupted files from index
+    BAD: /mvdlph/Dataset_CVDLPT_Videos_Segments_P0P15_MMPose_human3d_motionbert_H36M_3D_1_2026/E4_P12_T3_C1_seg5_MMPose_human3d_motionbert_3D.npz
+  Clean samples remaining: 5101
 
 ── Sample rows ──
     exercise person trial_id  segment  quality
@@ -600,10 +637,10 @@ Name: exercise, dtype: int64
 12         0     P0       T1        2   4.2600
 13         0     P0       T1        3   4.2600
 14         0     P0       T1        4   4.2600
-1    5102
+1    5101
 Name: camera, dtype: int64
 
-Total samples: 5102
+Total samples: 5101
 ✓ Skeleton visualisation helpers defined
 person                                                     P0
 exercise                                                    0
@@ -624,33 +661,219 @@ GPU    : Tesla V100-PCIE-32GB
 ✓ centre_and_scale and run_epoch defined
 Correct trials:   36 → train=26, val=5, test=5
 Erroneous trials: 25 → train=19, val=3, test=3
-  Train: 3778 samples | Val: 686 | Test: 638
+  Train: 3777 samples | Val: 686 | Test: 638
 
 ✓ Train / Val / Test split ready
 ✓ All plotting helpers defined
 ✓ EarlyStopping defined
 Classes in data : E[0, 1, 2, 3, 4, 5, 6, 7, 8, 9]  →  mapped 0..9
-Model output size: 10
+
+Class weights:
+  E0: 0.874
+  E1: 0.933
+  E2: 1.085
+  E3: 0.926
+  E4: 0.961
+  E5: 0.991
+  E6: 0.978
+  E7: 0.984
+  E8: 1.131
+  E9: 1.234
 
 ════════════════════════════════════════════════════════════════════
-  Train : 3778 samples  |  Val :  686 samples  |  Test :  638 samples
-  Patience : 30 epochs  |  Min Δ : 0.0001
+  Camera C1  |  Train: 3777  Val: 686  Test: 638
+  Patience: 30  |  LR: 0.0003  |  Batch: 48
 ════════════════════════════════════════════════════════════════════
-Traceback (most recent call last):
-  File "train_stgcn_server.py", line 986, in <module>
-    tr = run_epoch(model, train_loader, optimiser, cls_fn, reg_fn,
-  File "train_stgcn_server.py", line 624, in run_epoch
-    for skels, ex_ids, qualities in loader:
-  File "/usr/local/lib/python3.8/dist-packages/torch/utils/data/dataloader.py", line 628, in __next__
-    data = self._next_data()
-  File "/usr/local/lib/python3.8/dist-packages/torch/utils/data/dataloader.py", line 671, in _next_data
-    data = self._dataset_fetcher.fetch(index)  # may raise StopIteration
-  File "/usr/local/lib/python3.8/dist-packages/torch/utils/data/_utils/fetch.py", line 58, in fetch
-    data = [self.dataset[idx] for idx in possibly_batched_index]
-  File "/usr/local/lib/python3.8/dist-packages/torch/utils/data/_utils/fetch.py", line 58, in <listcomp>
-    data = [self.dataset[idx] for idx in possibly_batched_index]
-  File "train_stgcn_server.py", line 425, in __getitem__
-    skel    = load_skeleton(row['filepath'])
-  File "train_stgcn_server.py", line 215, in load_skeleton
-    arr          = arr[:, :, [0, 2, 1]]
-IndexError: too many indices for array: array is 1-dimensional, but 3 were indexed
+  Ep   1/200 | Tr acc=10.3% mae=0.832 r2=-0.955 | Vl acc=11.8% mae=0.385 r2=0.536 | Te acc=10.7% mae=0.653 r2=-0.899 | ES 0/30 ★
+    ★ val_acc=11.81%  mae=0.3854  r2=0.5358
+  Ep   2/200 | Tr acc=10.7% mae=0.659 r2=-0.182 | Vl acc=12.5% mae=0.349 r2=0.609 | Te acc=13.8% mae=0.576 r2=-0.602 | ES 0/30 ★
+    ★ val_acc=12.54%  mae=0.3492  r2=0.6086
+  Ep   3/200 | Tr acc=11.6% mae=0.564 r2=0.162 | Vl acc=11.1% mae=0.401 r2=0.560 | Te acc=7.2% mae=0.572 r2=-0.321 | ES 1/30
+  Ep   4/200 | Tr acc=11.9% mae=0.515 r2=0.307 | Vl acc=11.2% mae=0.408 r2=0.539 | Te acc=12.2% mae=0.598 r2=-0.466 | ES 2/30
+  Ep   5/200 | Tr acc=15.9% mae=0.506 r2=0.319 | Vl acc=18.2% mae=0.369 r2=0.607 | Te acc=18.7% mae=0.462 r2=0.057 | ES 0/30 ★
+    ★ val_acc=18.22%  mae=0.3686  r2=0.6066
+  Ep   6/200 | Tr acc=17.6% mae=0.496 r2=0.347 | Vl acc=18.2% mae=0.672 r2=0.007 | Te acc=19.3% mae=0.607 r2=-0.400 | ES 1/30
+  Ep   7/200 | Tr acc=18.7% mae=0.486 r2=0.361 | Vl acc=18.4% mae=0.567 r2=0.251 | Te acc=19.9% mae=0.521 r2=-0.100 | ES 0/30 ★
+    ★ val_acc=18.37%  mae=0.5666  r2=0.2514
+  Ep   8/200 | Tr acc=18.1% mae=0.480 r2=0.375 | Vl acc=14.1% mae=0.568 r2=0.226 | Te acc=16.5% mae=0.536 r2=-0.150 | ES 1/30
+  Ep   9/200 | Tr acc=19.9% mae=0.477 r2=0.382 | Vl acc=20.8% mae=0.511 r2=0.337 | Te acc=27.0% mae=0.539 r2=-0.177 | ES 0/30 ★
+    ★ val_acc=20.85%  mae=0.5110  r2=0.3369
+  Ep  10/200 | Tr acc=22.2% mae=0.482 r2=0.377 | Vl acc=18.4% mae=0.664 r2=0.058 | Te acc=23.5% mae=0.617 r2=-0.379 | ES 1/30
+  Ep  11/200 | Tr acc=22.1% mae=0.474 r2=0.386 | Vl acc=21.6% mae=0.535 r2=0.363 | Te acc=23.7% mae=0.501 r2=0.034 | ES 0/30 ★
+    ★ val_acc=21.57%  mae=0.5345  r2=0.3629
+  Ep  12/200 | Tr acc=23.5% mae=0.469 r2=0.403 | Vl acc=22.0% mae=0.590 r2=0.262 | Te acc=23.0% mae=0.574 r2=-0.184 | ES 0/30 ★
+    ★ val_acc=22.01%  mae=0.5904  r2=0.2622
+  Ep  13/200 | Tr acc=24.4% mae=0.469 r2=0.400 | Vl acc=22.6% mae=0.476 r2=0.454 | Te acc=24.1% mae=0.496 r2=0.027 | ES 0/30 ★
+    ★ val_acc=22.59%  mae=0.4755  r2=0.4539
+  Ep  14/200 | Tr acc=24.6% mae=0.462 r2=0.418 | Vl acc=23.2% mae=0.677 r2=0.030 | Te acc=21.0% mae=0.676 r2=-0.590 | ES 0/30 ★
+    ★ val_acc=23.18%  mae=0.6769  r2=0.0301
+  Ep  15/200 | Tr acc=24.3% mae=0.463 r2=0.419 | Vl acc=21.1% mae=0.566 r2=0.295 | Te acc=23.0% mae=0.571 r2=-0.192 | ES 1/30
+  Ep  16/200 | Tr acc=24.9% mae=0.460 r2=0.419 | Vl acc=24.1% mae=0.459 r2=0.494 | Te acc=27.9% mae=0.516 r2=-0.066 | ES 0/30 ★
+    ★ val_acc=24.05%  mae=0.4592  r2=0.4937
+  Ep  17/200 | Tr acc=23.9% mae=0.456 r2=0.433 | Vl acc=20.6% mae=0.556 r2=0.342 | Te acc=21.5% mae=0.580 r2=-0.217 | ES 1/30
+  Ep  18/200 | Tr acc=23.2% mae=0.460 r2=0.422 | Vl acc=22.2% mae=0.502 r2=0.430 | Te acc=24.9% mae=0.510 r2=-0.009 | ES 2/30
+  Ep  19/200 | Tr acc=23.4% mae=0.459 r2=0.423 | Vl acc=25.4% mae=0.523 r2=0.394 | Te acc=27.7% mae=0.525 r2=-0.058 | ES 0/30 ★
+    ★ val_acc=25.36%  mae=0.5232  r2=0.3937
+  Ep  20/200 | Tr acc=25.4% mae=0.453 r2=0.438 | Vl acc=22.6% mae=0.530 r2=0.374 | Te acc=16.9% mae=0.536 r2=-0.118 | ES 1/30
+  Ep  21/200 | Tr acc=24.1% mae=0.451 r2=0.440 | Vl acc=22.2% mae=0.493 r2=0.438 | Te acc=23.0% mae=0.507 r2=-0.034 | ES 2/30
+  Ep  22/200 | Tr acc=25.5% mae=0.451 r2=0.440 | Vl acc=24.6% mae=0.706 r2=-0.006 | Te acc=24.3% mae=0.626 r2=-0.362 | ES 3/30
+  Ep  23/200 | Tr acc=25.1% mae=0.448 r2=0.443 | Vl acc=24.6% mae=0.457 r2=0.505 | Te acc=23.0% mae=0.488 r2=0.070 | ES 4/30
+  Ep  24/200 | Tr acc=25.4% mae=0.450 r2=0.437 | Vl acc=23.6% mae=0.490 r2=0.443 | Te acc=24.9% mae=0.514 r2=-0.065 | ES 5/30
+  Ep  25/200 | Tr acc=24.7% mae=0.454 r2=0.438 | Vl acc=25.7% mae=0.415 r2=0.576 | Te acc=21.2% mae=0.478 r2=0.043 | ES 0/30 ★
+    ★ val_acc=25.66%  mae=0.4155  r2=0.5755
+  Ep  26/200 | Tr acc=25.6% mae=0.450 r2=0.447 | Vl acc=24.3% mae=0.513 r2=0.397 | Te acc=24.6% mae=0.501 r2=0.008 | ES 1/30
+  Ep  27/200 | Tr acc=26.0% mae=0.450 r2=0.443 | Vl acc=28.0% mae=0.454 r2=0.501 | Te acc=28.4% mae=0.493 r2=0.019 | ES 0/30 ★
+    ★ val_acc=27.99%  mae=0.4543  r2=0.5015
+  Ep  28/200 | Tr acc=25.4% mae=0.447 r2=0.446 | Vl acc=27.1% mae=0.390 r2=0.611 | Te acc=29.3% mae=0.457 r2=0.086 | ES 1/30
+  Ep  29/200 | Tr acc=26.3% mae=0.448 r2=0.444 | Vl acc=26.2% mae=0.375 r2=0.609 | Te acc=24.5% mae=0.456 r2=0.069 | ES 2/30
+  Ep  30/200 | Tr acc=26.1% mae=0.444 r2=0.458 | Vl acc=24.2% mae=0.446 r2=0.510 | Te acc=19.0% mae=0.470 r2=0.062 | ES 3/30
+  Ep  31/200 | Tr acc=25.4% mae=0.446 r2=0.455 | Vl acc=27.4% mae=0.418 r2=0.544 | Te acc=28.1% mae=0.476 r2=0.044 | ES 4/30
+  Ep  32/200 | Tr acc=26.6% mae=0.445 r2=0.450 | Vl acc=28.7% mae=0.422 r2=0.537 | Te acc=26.5% mae=0.461 r2=0.084 | ES 0/30 ★
+    ★ val_acc=28.72%  mae=0.4221  r2=0.5367
+  Ep  33/200 | Tr acc=26.5% mae=0.442 r2=0.458 | Vl acc=25.4% mae=0.462 r2=0.469 | Te acc=21.0% mae=0.464 r2=0.115 | ES 1/30
+2026-04-29 11:50:12,403 | INFO |   Ep  34/200 | Tr acc=25.9% mae=0.440 r2=0.460 | Vl acc=24.3% mae=0.394 r2=0.575 | Te acc=24.6% mae=0.450 r2=0.097 | ES 2/30
+2026-04-29 11:50:26,417 | INFO |   Ep  35/200 | Tr acc=26.1% mae=0.444 r2=0.451 | Vl acc=28.1% mae=0.460 r2=0.483 | Te acc=27.9% mae=0.508 r2=-0.043 | ES 3/30
+2026-04-29 11:50:40,523 | INFO |   Ep  36/200 | Tr acc=26.9% mae=0.439 r2=0.462 | Vl acc=26.8% mae=0.464 r2=0.464 | Te acc=26.5% mae=0.480 r2=0.043 | ES 4/30
+2026-04-29 11:50:54,658 | INFO |   Ep  37/200 | Tr acc=25.5% mae=0.443 r2=0.454 | Vl acc=26.7% mae=0.444 r2=0.470 | Te acc=27.1% mae=0.479 r2=0.055 | ES 5/30
+2026-04-29 11:51:08,652 | INFO |   Ep  38/200 | Tr acc=24.8% mae=0.437 r2=0.467 | Vl acc=24.9% mae=0.463 r2=0.470 | Te acc=22.7% mae=0.502 r2=-0.047 | ES 6/30
+2026-04-29 11:51:22,833 | INFO |   Ep  39/200 | Tr acc=26.8% mae=0.438 r2=0.463 | Vl acc=24.1% mae=0.386 r2=0.601 | Te acc=19.4% mae=0.445 r2=0.123 | ES 7/30
+2026-04-29 11:51:36,887 | INFO |   Ep  40/200 | Tr acc=25.9% mae=0.440 r2=0.458 | Vl acc=25.9% mae=0.436 r2=0.503 | Te acc=27.1% mae=0.443 r2=0.129 | ES 8/30
+2026-04-29 11:51:50,963 | INFO |   Ep  41/200 | Tr acc=26.1% mae=0.442 r2=0.457 | Vl acc=21.6% mae=0.479 r2=0.447 | Te acc=15.0% mae=0.520 r2=-0.079 | ES 9/30
+2026-04-29 11:52:04,910 | INFO |   Ep  42/200 | Tr acc=25.6% mae=0.440 r2=0.463 | Vl acc=26.4% mae=0.424 r2=0.538 | Te acc=25.2% mae=0.449 r2=0.129 | ES 10/30
+2026-04-29 11:52:18,877 | INFO |   Ep  43/200 | Tr acc=27.0% mae=0.439 r2=0.462 | Vl acc=27.1% mae=0.425 r2=0.534 | Te acc=30.3% mae=0.456 r2=0.067 | ES 11/30
+2026-04-29 11:52:32,885 | INFO |   Ep  44/200 | Tr acc=26.8% mae=0.437 r2=0.464 | Vl acc=28.1% mae=0.393 r2=0.568 | Te acc=22.4% mae=0.415 r2=0.225 | ES 12/30
+2026-04-29 11:52:46,863 | INFO |   Ep  45/200 | Tr acc=26.6% mae=0.441 r2=0.461 | Vl acc=25.2% mae=0.436 r2=0.525 | Te acc=21.6% mae=0.476 r2=0.058 | ES 13/30
+2026-04-29 11:53:00,781 | INFO |   Ep  46/200 | Tr acc=26.6% mae=0.436 r2=0.470 | Vl acc=24.3% mae=0.462 r2=0.456 | Te acc=29.2% mae=0.468 r2=0.078 | ES 14/30
+2026-04-29 11:53:14,814 | INFO |   Ep  47/200 | Tr acc=27.0% mae=0.436 r2=0.468 | Vl acc=24.3% mae=0.371 r2=0.605 | Te acc=25.5% mae=0.437 r2=0.150 | ES 15/30
+2026-04-29 11:53:28,890 | INFO |   Ep  48/200 | Tr acc=25.2% mae=0.435 r2=0.472 | Vl acc=25.4% mae=0.425 r2=0.529 | Te acc=26.6% mae=0.438 r2=0.160 | ES 16/30
+2026-04-29 11:53:42,881 | INFO |   Ep  49/200 | Tr acc=26.8% mae=0.438 r2=0.470 | Vl acc=27.3% mae=0.416 r2=0.536 | Te acc=24.0% mae=0.416 r2=0.235 | ES 17/30
+2026-04-29 11:53:56,873 | INFO |   Ep  50/200 | Tr acc=26.7% mae=0.437 r2=0.466 | Vl acc=24.8% mae=0.403 r2=0.568 | Te acc=22.6% mae=0.449 r2=0.069 | ES 18/30
+2026-04-29 11:54:10,941 | INFO |   Ep  51/200 | Tr acc=26.3% mae=0.434 r2=0.467 | Vl acc=27.1% mae=0.394 r2=0.577 | Te acc=26.3% mae=0.429 r2=0.169 | ES 19/30
+2026-04-29 11:54:24,912 | INFO |   Ep  52/200 | Tr acc=26.0% mae=0.438 r2=0.467 | Vl acc=25.5% mae=0.381 r2=0.599 | Te acc=23.8% mae=0.444 r2=0.139 | ES 20/30
+2026-04-29 11:54:38,994 | INFO |   Ep  53/200 | Tr acc=26.2% mae=0.435 r2=0.472 | Vl acc=25.7% mae=0.425 r2=0.538 | Te acc=24.3% mae=0.472 r2=0.098 | ES 21/30
+2026-04-29 11:54:53,002 | INFO |   Ep  54/200 | Tr acc=26.6% mae=0.434 r2=0.472 | Vl acc=25.8% mae=0.405 r2=0.550 | Te acc=23.5% mae=0.432 r2=0.136 | ES 22/30
+2026-04-29 11:55:06,967 | INFO |   Ep  55/200 | Tr acc=27.2% mae=0.433 r2=0.475 | Vl acc=25.4% mae=0.441 r2=0.515 | Te acc=23.7% mae=0.453 r2=0.090 | ES 23/30
+2026-04-29 11:55:20,937 | INFO |   Ep  56/200 | Tr acc=26.4% mae=0.434 r2=0.472 | Vl acc=25.5% mae=0.371 r2=0.612 | Te acc=21.2% mae=0.429 r2=0.175 | ES 24/30
+2026-04-29 11:55:35,029 | INFO |   Ep  57/200 | Tr acc=26.4% mae=0.438 r2=0.466 | Vl acc=24.1% mae=0.379 r2=0.600 | Te acc=22.9% mae=0.412 r2=0.234 | ES 25/30
+2026-04-29 11:55:49,278 | INFO |   Ep  58/200 | Tr acc=26.9% mae=0.438 r2=0.473 | Vl acc=26.4% mae=0.409 r2=0.566 | Te acc=26.6% mae=0.464 r2=0.097 | ES 26/30
+2026-04-29 11:56:03,348 | INFO |   Ep  59/200 | Tr acc=27.0% mae=0.433 r2=0.475 | Vl acc=27.3% mae=0.396 r2=0.555 | Te acc=22.6% mae=0.443 r2=0.104 | ES 27/30
+2026-04-29 11:56:17,337 | INFO |   Ep  60/200 | Tr acc=26.5% mae=0.431 r2=0.477 | Vl acc=27.8% mae=0.391 r2=0.558 | Te acc=26.2% mae=0.423 r2=0.161 | ES 28/30
+2026-04-29 11:56:31,283 | INFO |   Ep  61/200 | Tr acc=26.3% mae=0.438 r2=0.465 | Vl acc=24.5% mae=0.367 r2=0.593 | Te acc=20.2% mae=0.425 r2=0.150 | ES 29/30
+2026-04-29 11:56:45,271 | INFO |   Ep  62/200 | Tr acc=26.5% mae=0.438 r2=0.472 | Vl acc=26.5% mae=0.378 r2=0.593 | Te acc=26.2% mae=0.438 r2=0.150 | ES 30/30
+2026-04-29 11:56:45,271 | INFO | Early stopping at epoch 62 best=32
+2026-04-29 11:56:51,051 | INFO | Best Epoch=32  stopped_epoch=62
+2026-04-29 11:56:51,052 | INFO | Test Accuracy=26.49%
+2026-04-29 11:56:51,052 | INFO | Test RMSE=0.5963
+2026-04-29 11:56:51,052 | INFO | Test MAE=0.4609
+2026-04-29 11:56:51,052 | INFO | Test R²=0.0841
+2026-04-29 11:56:51,056 | INFO | ✓ All done!
+  Ep  34/200 | Tr acc=25.9% mae=0.440 r2=0.460 | Vl acc=24.3% mae=0.394 r2=0.575 | Te acc=24.6% mae=0.450 r2=0.097 | ES 2/30
+  Ep  35/200 | Tr acc=26.1% mae=0.444 r2=0.451 | Vl acc=28.1% mae=0.460 r2=0.483 | Te acc=27.9% mae=0.508 r2=-0.043 | ES 3/30
+  Ep  36/200 | Tr acc=26.9% mae=0.439 r2=0.462 | Vl acc=26.8% mae=0.464 r2=0.464 | Te acc=26.5% mae=0.480 r2=0.043 | ES 4/30
+  Ep  37/200 | Tr acc=25.5% mae=0.443 r2=0.454 | Vl acc=26.7% mae=0.444 r2=0.470 | Te acc=27.1% mae=0.479 r2=0.055 | ES 5/30
+  Ep  38/200 | Tr acc=24.8% mae=0.437 r2=0.467 | Vl acc=24.9% mae=0.463 r2=0.470 | Te acc=22.7% mae=0.502 r2=-0.047 | ES 6/30
+  Ep  39/200 | Tr acc=26.8% mae=0.438 r2=0.463 | Vl acc=24.1% mae=0.386 r2=0.601 | Te acc=19.4% mae=0.445 r2=0.123 | ES 7/30
+  Ep  40/200 | Tr acc=25.9% mae=0.440 r2=0.458 | Vl acc=25.9% mae=0.436 r2=0.503 | Te acc=27.1% mae=0.443 r2=0.129 | ES 8/30
+  Ep  41/200 | Tr acc=26.1% mae=0.442 r2=0.457 | Vl acc=21.6% mae=0.479 r2=0.447 | Te acc=15.0% mae=0.520 r2=-0.079 | ES 9/30
+  Ep  42/200 | Tr acc=25.6% mae=0.440 r2=0.463 | Vl acc=26.4% mae=0.424 r2=0.538 | Te acc=25.2% mae=0.449 r2=0.129 | ES 10/30
+  Ep  43/200 | Tr acc=27.0% mae=0.439 r2=0.462 | Vl acc=27.1% mae=0.425 r2=0.534 | Te acc=30.3% mae=0.456 r2=0.067 | ES 11/30
+  Ep  44/200 | Tr acc=26.8% mae=0.437 r2=0.464 | Vl acc=28.1% mae=0.393 r2=0.568 | Te acc=22.4% mae=0.415 r2=0.225 | ES 12/30
+  Ep  45/200 | Tr acc=26.6% mae=0.441 r2=0.461 | Vl acc=25.2% mae=0.436 r2=0.525 | Te acc=21.6% mae=0.476 r2=0.058 | ES 13/30
+  Ep  46/200 | Tr acc=26.6% mae=0.436 r2=0.470 | Vl acc=24.3% mae=0.462 r2=0.456 | Te acc=29.2% mae=0.468 r2=0.078 | ES 14/30
+  Ep  47/200 | Tr acc=27.0% mae=0.436 r2=0.468 | Vl acc=24.3% mae=0.371 r2=0.605 | Te acc=25.5% mae=0.437 r2=0.150 | ES 15/30
+  Ep  48/200 | Tr acc=25.2% mae=0.435 r2=0.472 | Vl acc=25.4% mae=0.425 r2=0.529 | Te acc=26.6% mae=0.438 r2=0.160 | ES 16/30
+  Ep  49/200 | Tr acc=26.8% mae=0.438 r2=0.470 | Vl acc=27.3% mae=0.416 r2=0.536 | Te acc=24.0% mae=0.416 r2=0.235 | ES 17/30
+  Ep  50/200 | Tr acc=26.7% mae=0.437 r2=0.466 | Vl acc=24.8% mae=0.403 r2=0.568 | Te acc=22.6% mae=0.449 r2=0.069 | ES 18/30
+  Ep  51/200 | Tr acc=26.3% mae=0.434 r2=0.467 | Vl acc=27.1% mae=0.394 r2=0.577 | Te acc=26.3% mae=0.429 r2=0.169 | ES 19/30
+  Ep  52/200 | Tr acc=26.0% mae=0.438 r2=0.467 | Vl acc=25.5% mae=0.381 r2=0.599 | Te acc=23.8% mae=0.444 r2=0.139 | ES 20/30
+  Ep  53/200 | Tr acc=26.2% mae=0.435 r2=0.472 | Vl acc=25.7% mae=0.425 r2=0.538 | Te acc=24.3% mae=0.472 r2=0.098 | ES 21/30
+  Ep  54/200 | Tr acc=26.6% mae=0.434 r2=0.472 | Vl acc=25.8% mae=0.405 r2=0.550 | Te acc=23.5% mae=0.432 r2=0.136 | ES 22/30
+  Ep  55/200 | Tr acc=27.2% mae=0.433 r2=0.475 | Vl acc=25.4% mae=0.441 r2=0.515 | Te acc=23.7% mae=0.453 r2=0.090 | ES 23/30
+  Ep  56/200 | Tr acc=26.4% mae=0.434 r2=0.472 | Vl acc=25.5% mae=0.371 r2=0.612 | Te acc=21.2% mae=0.429 r2=0.175 | ES 24/30
+  Ep  57/200 | Tr acc=26.4% mae=0.438 r2=0.466 | Vl acc=24.1% mae=0.379 r2=0.600 | Te acc=22.9% mae=0.412 r2=0.234 | ES 25/30
+  Ep  58/200 | Tr acc=26.9% mae=0.438 r2=0.473 | Vl acc=26.4% mae=0.409 r2=0.566 | Te acc=26.6% mae=0.464 r2=0.097 | ES 26/30
+  Ep  59/200 | Tr acc=27.0% mae=0.433 r2=0.475 | Vl acc=27.3% mae=0.396 r2=0.555 | Te acc=22.6% mae=0.443 r2=0.104 | ES 27/30
+  Ep  60/200 | Tr acc=26.5% mae=0.431 r2=0.477 | Vl acc=27.8% mae=0.391 r2=0.558 | Te acc=26.2% mae=0.423 r2=0.161 | ES 28/30
+  Ep  61/200 | Tr acc=26.3% mae=0.438 r2=0.465 | Vl acc=24.5% mae=0.367 r2=0.593 | Te acc=20.2% mae=0.425 r2=0.150 | ES 29/30
+  Ep  62/200 | Tr acc=26.5% mae=0.438 r2=0.472 | Vl acc=26.5% mae=0.378 r2=0.593 | Te acc=26.2% mae=0.438 r2=0.150 | ES 30/30
+
+  ⏹  Early stopping at epoch 62 (best=32)
+
+✓ Training complete!
+
+  ── Final Test Results (best epoch = 32) ──────────────────
+  Accuracy : 26.49%
+  RMSE     : 0.5963
+  MAE      : 0.4609
+  R²       : 0.0841
+  Loss     : 1.9816
+  ✓ Saved → /mvdlph/masa/GCN_SingleView_Results/plots/loss_curves.png
+
+  ── Loss Summary (last recorded epoch) ──────────────────────
+  Split           Total      Cls      Reg
+  ────────────────────────────────────────
+  Train          1.9044   1.8204   0.1681
+  Val            1.8626   1.8065   0.1123
+  Test           1.9838   1.9063   0.1551
+  ────────────────────────────────────────
+  ✓ Saved → /mvdlph/masa/GCN_SingleView_Results/plots/accuracy_rmse.png
+  ✓ Saved → /mvdlph/masa/GCN_SingleView_Results/plots/r2_mae_curves.png
+  ✓ Saved → /mvdlph/masa/GCN_SingleView_Results/plots/regression_scatter_test.png
+  ✓ Saved → /mvdlph/masa/GCN_SingleView_Results/plots/confusion_matrix.png
+  ✓ Saved → /mvdlph/masa/GCN_SingleView_Results/plots/early_stopping.png
+  ✓ History → /mvdlph/masa/GCN_SingleView_Results/logs/training_history.json
+============================================================
+DIAGNOSTIC 1: Per-class skeleton variance (C0)
+============================================================
+  Exercise      X-var      Y-var      Z-var  Z/X ratio
+-------------------------------------------------------
+        E0     0.0410     0.0595     0.0066      0.161
+        E1     0.0453     0.0614     0.0069      0.151
+        E2     0.0427     0.0633     0.0079      0.185
+        E3     0.0430     0.0608     0.0068      0.159
+        E4     0.0427     0.0610     0.0070      0.163
+        E5     0.0420     0.0610     0.0070      0.166
+        E6     0.0376     0.0591     0.0059      0.157
+        E7     0.0469     0.0682     0.0086      0.183
+        E8     0.0487     0.0654     0.0081      0.165
+        E9     0.0485     0.0687     0.0092      0.190
+
+============================================================
+DIAGNOSTIC 2: Per-class accuracy on test set
+============================================================
+  Exercise  Correct    Total     Acc%
+--------------------------------------
+        E0       53       78    67.9%
+        E1       11       67    16.4%
+        E2       30       37    81.1%
+        E3        5       67     7.5%
+        E4       12       69    17.4%
+        E5        0       57     0.0%
+        E6       18       67    26.9%
+        E7        0       70     0.0%
+        E8       17       58    29.3%
+        E9       23       68    33.8%
+
+============================================================
+DIAGNOSTIC 3: Quality score distribution per split
+============================================================
+ Train: mean=4.086 std=0.824 min=1.34 max=5.00 | correct=2350 erroneous=1427
+   Val: mean=4.211 std=0.774 min=2.00 max=5.00 | correct=465 erroneous=221
+  Test: mean=4.213 std=0.624 min=2.18 max=5.00 | correct=455 erroneous=183
+============================================================
+  TRAINING SUMMARY — ST-GCN Single View
+============================================================
+  Best Epoch       : 32  (stopped at 62)
+  Best Val Acc     : 28.72%
+  Best Val RMSE    : 0.5264
+  Best Val MAE     : 0.4221
+  Best Val R²      : 0.5367
+────────────────────────────────────────────────────────────
+  Test Accuracy    : 26.49%
+  Test RMSE        : 0.5963
+  Test MAE         : 0.4609
+  Test R²          : 0.0841
+============================================================
+
+✓ Summary CSV saved → /mvdlph/masa/GCN_SingleView_Results/training_summary.csv
+✓ Log file closed and saved.
