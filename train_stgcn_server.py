@@ -11,14 +11,14 @@ NUM_JOINTS    = 17
 TARGET_FRAMES = 100
 TRAIN_RATIO   = 0.70
 VAL_RATIO     = 0.15
-EPOCHS        = 30
+EPOCHS        = 300
 LR            = 3e-4
 BATCH_SIZE    = 48
 WEIGHT_DECAY  = 1e-4
 OUT_DIR       = "/mvdlph/masa/GCN_SingleView_Regression_Results"
 
 # ── Early Stopping ────────────────────────────────────────────────────────
-PATIENCE  = 30
+PATIENCE  = 50
 MIN_DELTA = 1e-4
 WARMUP_EPOCHS = 10
 
