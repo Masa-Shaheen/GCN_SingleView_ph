@@ -14,14 +14,15 @@ TARGET_FRAMES = 100
 TRAIN_RATIO   = 0.70
 VAL_RATIO     = 0.15
 EPOCHS        = 200
-BATCH_SIZE    = 16
-LR            = 1e-3
+LR            = 3e-4      # was 1e-3 — too high for AdamW on this data
+BATCH_SIZE    = 48        # was 16 — too noisy for BatchNorm
 WEIGHT_DECAY  = 1e-4
 OUT_DIR       = "/mvdlph/masa/GCN_SingleView_Results"
 
 # ── Early Stopping ────────────────────────────────────────────────────────
-PATIENCE  = 20      # epochs بدون تحسن قبل الوقوف
+PATIENCE  = 30      # epochs بدون تحسن قبل الوقوف
 MIN_DELTA = 1e-4    # أقل تحسن يُعتبر حقيقي
+WARMUP_EPOCHS = 10        # new — linear LR warmup
 
 print('✓ Configuration loaded')
 print(f'  DATASET_DIR : {DATASET_DIR}')
@@ -611,18 +612,15 @@ def centre_and_scale(x):
     """
     Root-relative normalisation + torso-height scaling.
     x: (B, T, J, 3)
-
-    Steps:
-      1. Compute mid-hip = mean(RHip[j=1], LHip[j=4])
-      2. Subtract mid-hip from all joints  → root-relative
-      3. Compute mid-shoulder = mean(LShoulder[j=11], RShoulder[j=14])
-      4. Torso height = mean over T of ||mid-shoulder||
-      5. Divide all coords by torso height  → scale-invariant
     """
-    hip     = (x[:, :, 1:2, :] + x[:, :, 4:5, :]) / 2.0   # (B,T,1,3)
-    x       = x - hip
+    # Step 1: center on mid-hip
+    hip  = (x[:, :, 1:2, :] + x[:, :, 4:5, :]) / 2.0   # (B,T,1,3)
+    x    = x - hip
+
+    # Step 2: compute torso height as Y-distance from hip to mid-shoulder
+    # (Y is the vertical axis after your axis swap in load_skeleton)
     shoulder = (x[:, :, 11:12, :] + x[:, :, 14:15, :]) / 2.0   # (B,T,1,3)
-    torso_h  = shoulder.norm(dim=-1, keepdim=True)               # (B,T,1,1)
+    torso_h  = shoulder[:, :, :, 1:2].abs()                      # Y-coord only (B,T,1,1)
     torso_h  = torso_h.mean(dim=1, keepdim=True).clamp(min=1e-6) # (B,1,1,1)
     return x / torso_h
 
@@ -687,39 +685,39 @@ print('✓ centre_and_scale and run_epoch defined')
 
 def get_trial_split(df, train_ratio=TRAIN_RATIO, val_ratio=VAL_RATIO, random_state=42):
     """
-    Split at the trial level (not sample level) to prevent data leakage.
-    Trials from the same person × trial_id always land in the same split.
+    Stratified split: ensure both correct (T0-T2) and erroneous (T3-T6)
+    trial types appear proportionally in every split.
     """
-    trial_keys = df['trial_key'].unique()
-    rng        = np.random.default_rng(random_state)
-    rng.shuffle(trial_keys)
+    rng = np.random.default_rng(random_state)
 
-    n_total = len(trial_keys)
-    n_test  = max(1, int((1.0 - train_ratio - val_ratio) * n_total))
-    n_val   = max(1, int(val_ratio * n_total))
-    n_train = n_total - n_val - n_test
+    # Separate correct vs erroneous trial keys
+    correct_keys   = df[df['trial_num'] <= 2]['trial_key'].unique()
+    erroneous_keys = df[df['trial_num'] >= 3]['trial_key'].unique()
+    rng.shuffle(correct_keys)
+    rng.shuffle(erroneous_keys)
 
-    if n_train < 1:
-        raise ValueError(
-            f'Not enough trials for requested split '
-            f'(train={n_train}, val={n_val}, test={n_test}). '
-            f'Reduce VAL_RATIO or collect more data.'
-        )
+    def split_keys(keys):
+        n = len(keys)
+        n_test  = max(1, int((1.0 - train_ratio - val_ratio) * n))
+        n_val   = max(1, int(val_ratio * n))
+        n_train = n - n_val - n_test
+        return keys[:n_train], keys[n_train:n_train+n_val], keys[n_train+n_val:]
 
-    train_keys = trial_keys[:n_train]
-    val_keys   = trial_keys[n_train:n_train + n_val]
-    test_keys  = trial_keys[n_train + n_val:]
+    tr_c, vl_c, te_c = split_keys(correct_keys)
+    tr_e, vl_e, te_e = split_keys(erroneous_keys)
+
+    train_keys = np.concatenate([tr_c, tr_e])
+    val_keys   = np.concatenate([vl_c, vl_e])
+    test_keys  = np.concatenate([te_c, te_e])
 
     train_df = df[df['trial_key'].isin(train_keys)].reset_index(drop=True)
     val_df   = df[df['trial_key'].isin(val_keys)].reset_index(drop=True)
     test_df  = df[df['trial_key'].isin(test_keys)].reset_index(drop=True)
 
-    print(f'Total unique trials : {n_total}')
-    print(f'  Train : {len(train_keys):3d} trials → {len(train_df):4d} samples')
-    print(f'  Val   : {len(val_keys):3d} trials → {len(val_df):4d} samples')
-    print(f'  Test  : {len(test_keys):3d} trials → {len(test_df):4d} samples')
+    print(f'Correct trials:   {len(correct_keys)} → train={len(tr_c)}, val={len(vl_c)}, test={len(te_c)}')
+    print(f'Erroneous trials: {len(erroneous_keys)} → train={len(tr_e)}, val={len(vl_e)}, test={len(te_e)}')
+    print(f'  Train: {len(train_df)} samples | Val: {len(val_df)} | Test: {len(test_df)}')
     return train_df, val_df, test_df
-
 
 train_df, val_df, test_df = get_trial_split(df_index)
 print('\n✓ Train / Val / Test split ready')
@@ -974,6 +972,14 @@ optimiser  = torch.optim.AdamW(model.parameters(), lr=LR, weight_decay=WEIGHT_DE
 # T_max = EPOCHS (max possible epochs); eta_min = floor LR
 scheduler  = torch.optim.lr_scheduler.CosineAnnealingLR(
                  optimiser, T_max=EPOCHS, eta_min=1e-5)
+def lr_lambda(epoch):
+    if epoch < WARMUP_EPOCHS:
+        return (epoch + 1) / WARMUP_EPOCHS        # linear warmup
+    progress = (epoch - WARMUP_EPOCHS) / max(1, EPOCHS - WARMUP_EPOCHS)
+    return 0.5 * (1.0 + np.cos(np.pi * progress)) # cosine decay
+
+scheduler = torch.optim.lr_scheduler.LambdaLR(optimiser, lr_lambda)
+
 early_stop = EarlyStopping(patience=PATIENCE, min_delta=MIN_DELTA)
 
 # ── History — 21 keys: 3 splits × 7 metrics ──────────────────────────────
