@@ -664,7 +664,12 @@ def run_epoch(model, loader, optimiser, reg_fn, is_train=True):
 
 print('✓ centre_and_scale and run_epoch (regression) defined')
 
-
+def lr_lambda(epoch):
+    # Warmup
+    if epoch < WARMUP_EPOCHS:
+        return float(epoch + 1) / float(WARMUP_EPOCHS)
+    # بعد الـ warmup → decay خفيف
+    return max(0.1, 0.95 ** (epoch - WARMUP_EPOCHS))
 # ══════════════════════════════════════════════════════════════════
 # Cell 13-NEW — LOPO-CV Training Loop
 # ══════════════════════════════════════════════════════════════════
