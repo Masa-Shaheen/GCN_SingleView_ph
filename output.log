@@ -1,5 +1,9 @@
 nohup: ignoring input
-  File "train_stgcn_server.py", line 1051
-    print('✓ Log file closed and saved.')1~t  ^T To
-                                         ^
-SyntaxError: invalid syntax
+✓ Configuration loaded
+  DATASET_DIR : /mvdlph/Dataset_CVDLPT_Videos_Segments_P0P15_MMPose_human3d_motionbert_H36M_3D_1_2026
+  NPZ_KEY     : keypoints_3d
+  CAMERA_ID   : C1
+Traceback (most recent call last):
+  File "train_stgcn_server.py", line 28, in <module>
+    print(f'  EXISTS      : {os.path.exists(DATASET_DIR)}')
+NameError: name 'os' is not defined

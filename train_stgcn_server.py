@@ -1,6 +1,7 @@
 # ══════════════════════════════════════════════════════════════════════════
 # Cell 1 — Configuration
 # ══════════════════════════════════════════════════════════════════════════
+import os 
 
 DATASET_DIR   = "/mvdlph/Dataset_CVDLPT_Videos_Segments_P0P15_MMPose_human3d_motionbert_H36M_3D_1_2026"
 CSV_PATH      = "/mvdlph/label_events_20260129_155122_stats_short.csv"
