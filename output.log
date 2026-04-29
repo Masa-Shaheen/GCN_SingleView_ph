@@ -551,13 +551,13 @@ Shape   : (531, 7)
 527       E9    P15    T3     C1            4  4.4250  1.3566
 528       E9    P15    T4     C1            4  3.6500  1.7029
 529       E9    P15    T5     C1            4  2.7750  1.7466
-530       E9    P15    T6     C1            4  3.3750  1.90392026-04-29 20:35:54,250 | INFO | ======================================================================
-2026-04-29 20:35:54,250 | INFO | ST-GCN Single-View Regression | BZU Physiotherapy Dataset
-2026-04-29 20:35:54,250 | INFO | Camera : C1  |  Split : 70/15/15  |  Epochs : 300  |  Patience : 50
-2026-04-29 20:35:54,250 | INFO | Log file : /mvdlph/masa/GCN_SingleView_Regression_Results/logs/training_20260429_203554.log
-2026-04-29 20:35:54,251 | INFO | ======================================================================
+530       E9    P15    T6     C1            4  3.3750  1.90392026-04-29 20:38:25,812 | INFO | ======================================================================
+2026-04-29 20:38:25,812 | INFO | ST-GCN Single-View Regression | BZU Physiotherapy Dataset
+2026-04-29 20:38:25,812 | INFO | Camera : C1  |  Split : 70/15/15  |  Epochs : 300  |  Patience : 50
+2026-04-29 20:38:25,812 | INFO | Log file : /mvdlph/masa/GCN_SingleView_Regression_Results/logs/training_20260429_203825.log
+2026-04-29 20:38:25,812 | INFO | ======================================================================
 
-✓ stdout → also writing to /mvdlph/masa/GCN_SingleView_Regression_Results/logs/training_20260429_203554.log
+✓ stdout → also writing to /mvdlph/masa/GCN_SingleView_Regression_Results/logs/training_20260429_203825.log
 ✓ parse_filename and load_skeleton defined
 NPZ files found (all cameras) : 15375
 
@@ -638,6 +638,6 @@ GPU    : Tesla V100-PCIE-32GB
   Val  : 294 samples  (person P9)
   Test : 267 samples  (person P0)
 Traceback (most recent call last):
-  File "train_stgcn_server.py", line 727, in <module>
-    scheduler = torch.optim.lr_scheduler.LambdaLR(optimiser, lr_lambda)
-NameError: name 'lr_lambda' is not defined
+  File "train_stgcn_server.py", line 733, in <module>
+    early_stop = EarlyStopping(patience=PATIENCE, min_delta=MIN_DELTA)
+NameError: name 'EarlyStopping' is not defined

@@ -664,124 +664,222 @@ def run_epoch(model, loader, optimiser, reg_fn, is_train=True):
 
 print('✓ centre_and_scale and run_epoch (regression) defined')
 
-def lr_lambda(epoch):
-    # Warmup
-    if epoch < WARMUP_EPOCHS:
-        return float(epoch + 1) / float(WARMUP_EPOCHS)
-    # بعد الـ warmup → decay خفيف
-    return max(0.1, 0.95 ** (epoch - WARMUP_EPOCHS))
-# ══════════════════════════════════════════════════════════════════
-# Cell 13-NEW — LOPO-CV Training Loop
-# ══════════════════════════════════════════════════════════════════
 
+# ══════════════════════════════════════════════════════════════════════════
+# Cell 13 — Trial-based train / val / test split
+# ══════════════════════════════════════════════════════════════════════════
+
+# ══════════════════════════════════════════════════════════════════════════
+# Cell 13 — Leave-One-Person-Out Cross-Validation setup
+# ══════════════════════════════════════════════════════════════════════════
 from sklearn.model_selection import LeaveOneGroupOut
-import copy, json
 
-persons     = df_index['person'].unique()       # 16 persons
-groups      = df_index['person'].values         # group label per sample
-logo        = LeaveOneGroupOut()
+persons = df_index['person'].values          # one label per NPZ row
+logo    = LeaveOneGroupOut()
 
-fold_results = []   # collect per-fold test metrics
+# Pre-compute folds: list of (train_df, test_df) tuples
+folds = []
+for train_idx, test_idx in logo.split(df_index, groups=persons):
+    folds.append((
+        df_index.iloc[train_idx].reset_index(drop=True),
+        df_index.iloc[test_idx].reset_index(drop=True),
+    ))
 
-for fold_idx, (train_val_idx, test_idx) in enumerate(
-        logo.split(df_index, groups=groups)):
+n_folds = len(folds)
+print(f'✓ LOGO-CV: {n_folds} folds  (one held-out person per fold)')
+print(f'  Persons: {sorted(df_index["person"].unique())}')
 
-    test_person = df_index.iloc[test_idx]['person'].iloc[0]
+
+# ══════════════════════════════════════════════════════════════════════════
+# Cell 14 — Plotting helpers (regression only)
+# ══════════════════════════════════════════════════════════════════════════
+
+def save_and_show(fig, path):
+    fig.savefig(path, dpi=150, bbox_inches='tight')
+    plt.close(fig)
+    print(f'  ✓ Saved → {path}')
+
+
+def plot_loss_curves(history, save_dir):
+    epochs = range(1, len(history['train_loss']) + 1)
+    fig, ax = plt.subplots(figsize=(10, 4))
+    ax.plot(epochs, history['train_loss'], label='Train',      color='steelblue')
+    ax.plot(epochs, history['val_loss'],   label='Validation', color='darkorange')
+    ax.plot(epochs, history['test_loss'],  label='Test',       color='green', linestyle='--')
+    ax.set_title('Regression Loss (SmoothL1)', fontsize=13, fontweight='bold')
+    ax.set_xlabel('Epoch'); ax.set_ylabel('Loss')
+    ax.legend(); ax.grid(alpha=0.3)
+    plt.tight_layout()
+    save_and_show(fig, os.path.join(save_dir, 'loss_curve.png'))
+
+
+def plot_rmse_mae(history, save_dir):
+    epochs = range(1, len(history['val_rmse']) + 1)
+    fig, axes = plt.subplots(1, 2, figsize=(12, 4))
+    fig.suptitle('RMSE & MAE — Train / Val / Test', fontsize=14, fontweight='bold')
+
+    axes[0].plot(epochs, history['train_rmse'], label='Train',      color='steelblue')
+    axes[0].plot(epochs, history['val_rmse'],   label='Validation', color='darkorange')
+    axes[0].plot(epochs, history['test_rmse'],  label='Test',       color='green', linestyle='--')
+    axes[0].set_title('RMSE')
+    axes[0].set_xlabel('Epoch'); axes[0].set_ylabel('RMSE')
+    axes[0].legend(); axes[0].grid(alpha=0.3)
+
+    axes[1].plot(epochs, history['train_mae'], label='Train',      color='steelblue')
+    axes[1].plot(epochs, history['val_mae'],   label='Validation', color='darkorange')
+    axes[1].plot(epochs, history['test_mae'],  label='Test',       color='green', linestyle='--')
+    axes[1].set_title('MAE')
+    axes[1].set_xlabel('Epoch'); axes[1].set_ylabel('MAE')
+    axes[1].legend(); axes[1].grid(alpha=0.3)
+
+    plt.tight_layout()
+    save_and_show(fig, os.path.join(save_dir, 'rmse_mae.png'))
+
+
+def plot_r2(history, save_dir):
+    epochs = range(1, len(history['val_r2']) + 1)
+    fig, ax = plt.subplots(figsize=(8, 4))
+    ax.plot(epochs, history['train_r2'], label='Train',      color='steelblue')
+    ax.plot(epochs, history['val_r2'],   label='Validation', color='darkorange')
+    ax.plot(epochs, history['test_r2'],  label='Test',       color='green', linestyle='--')
+    ax.axhline(1.0, color='gray', linestyle=':', linewidth=1, label='Perfect (R²=1)')
+    ax.axhline(0.0, color='red',  linestyle=':', linewidth=1, label='Baseline (R²=0)')
+    ax.set_title('R² Score', fontsize=13, fontweight='bold')
+    ax.set_xlabel('Epoch'); ax.set_ylabel('R²')
+    ax.legend(fontsize=8); ax.grid(alpha=0.3)
+    plt.tight_layout()
+    save_and_show(fig, os.path.join(save_dir, 'r2_curve.png'))
+
+
+def plot_regression_scatter(q_true, q_pred, split_name='Test', save_dir=None):
+    qt   = np.array(q_true)
+    qp   = np.array(q_pred)
+    r2   = float(r2_score(qt, qp)) if len(qt) > 1 else 0.0
+    mae  = float(np.mean(np.abs(qt - qp)))
+    rmse = float(np.sqrt(np.mean((qt - qp) ** 2)))
+
+    fig, ax = plt.subplots(figsize=(6, 6))
+    ax.scatter(qt, qp, alpha=0.6, edgecolors='black', linewidths=0.4,
+               color='steelblue', s=60)
+    lo = min(qt.min(), qp.min()) - 0.2
+    hi = max(qt.max(), qp.max()) + 0.2
+    ax.plot([lo, hi], [lo, hi], 'r--', linewidth=1.5, label='Perfect prediction')
+    ax.set_xlim(lo, hi); ax.set_ylim(lo, hi)
+    ax.set_xlabel('True Quality Score',      fontsize=12)
+    ax.set_ylabel('Predicted Quality Score', fontsize=12)
+    ax.set_title(f'{split_name} Set — True vs Predicted Quality',
+                 fontsize=13, fontweight='bold')
+    ax.legend(fontsize=9); ax.grid(alpha=0.3)
+    textstr = f'R²   = {r2:.4f}\nMAE  = {mae:.4f}\nRMSE = {rmse:.4f}'
+    ax.text(0.05, 0.95, textstr, transform=ax.transAxes, fontsize=10,
+            verticalalignment='top',
+            bbox=dict(boxstyle='round', facecolor='wheat', alpha=0.7))
+    plt.tight_layout()
+    if save_dir:
+        save_and_show(fig, os.path.join(save_dir,
+                      f'regression_scatter_{split_name.lower()}.png'))
+    else:
+        plt.close(fig)
+
+
+def plot_early_stop(history, stopped_epoch, best_epoch, save_dir):
+    """MAE curves annotated with best epoch and early-stop epoch."""
+    epochs = range(1, len(history['val_mae']) + 1)
+    fig, ax = plt.subplots(figsize=(10, 4))
+    ax.plot(epochs, history['train_mae'], label='Train MAE', color='steelblue')
+    ax.plot(epochs, history['val_mae'],   label='Val MAE',   color='darkorange')
+    ax.plot(epochs, history['test_mae'],  label='Test MAE',  color='green', linestyle='--')
+    ax.axvline(best_epoch,    color='purple', linestyle=':',  linewidth=2,
+               label=f'Best epoch ({best_epoch})')
+    ax.axvline(stopped_epoch, color='red',    linestyle='--', linewidth=2,
+               label=f'Early stop ({stopped_epoch})')
+    ax.set_title('MAE + Early Stopping', fontsize=13, fontweight='bold')
+    ax.set_xlabel('Epoch'); ax.set_ylabel('MAE')
+    ax.legend(); ax.grid(alpha=0.3)
+    plt.tight_layout()
+    save_and_show(fig, os.path.join(save_dir, 'early_stopping.png'))
+
+
+print('✓ Plotting helpers (regression) defined')
+
+
+# ══════════════════════════════════════════════════════════════════════════
+# Cell 15+16 — LOGO-CV training loop
+# ══════════════════════════════════════════════════════════════════════════
+import copy
+
+reg_fn = nn.SmoothL1Loss()
+
+fold_results = []   # one dict per fold
+
+for fold_idx, (train_df, test_df) in enumerate(folds):
+    held_out_person = test_df['person'].iloc[0]
     print(f'\n{"═"*68}')
-    print(f'  FOLD {fold_idx+1:2d}/16 — held-out person: {test_person}')
+    print(f'  Fold {fold_idx+1}/{n_folds}  |  Held-out: {held_out_person}  '
+          f'|  Train: {len(train_df)}  Test: {len(test_df)}')
     print(f'{"═"*68}')
+    log.info(f'=== Fold {fold_idx+1}/{n_folds} — held-out: {held_out_person} ===')
 
-    # ── Split train_val further into train/val (use one more person as val)
-    train_val_df = df_index.iloc[train_val_idx].reset_index(drop=True)
-    test_df      = df_index.iloc[test_idx].reset_index(drop=True)
+    # ── Data loaders ──────────────────────────────────────────────────────
+    train_loader = DataLoader(
+        BZUDataset(train_df, augment=True),
+        batch_size=BATCH_SIZE, shuffle=True, num_workers=0,
+        pin_memory=(DEVICE == 'cuda'))
+    test_loader = DataLoader(
+        BZUDataset(test_df, augment=False),
+        batch_size=BATCH_SIZE, shuffle=False, num_workers=0,
+        pin_memory=(DEVICE == 'cuda'))
 
-    # Use a second held-out person for early stopping validation
-    # Pick the person whose mean quality is closest to overall mean
-    remaining_persons = train_val_df['person'].unique()
-    overall_mean      = train_val_df['quality'].mean()
-    val_person        = min(
-        remaining_persons,
-        key=lambda p: abs(
-            train_val_df[train_val_df['person']==p]['quality'].mean()
-            - overall_mean
-        )
-    )
-
-    train_df = train_val_df[train_val_df['person'] != val_person].reset_index(drop=True)
-    val_df   = train_val_df[train_val_df['person'] == val_person].reset_index(drop=True)
-
-    print(f'  Train: {len(train_df)} samples ({len(remaining_persons)-1} persons)')
-    print(f'  Val  : {len(val_df)} samples  (person {val_person})')
-    print(f'  Test : {len(test_df)} samples  (person {test_person})')
-
-    # ── DataLoaders ───────────────────────────────────────────────
-    train_loader = DataLoader(BZUDataset(train_df, augment=True),
-                              batch_size=BATCH_SIZE, shuffle=True,
-                              num_workers=0, pin_memory=(DEVICE=='cuda'))
-    val_loader   = DataLoader(BZUDataset(val_df, augment=False),
-                              batch_size=BATCH_SIZE, shuffle=False,
-                              num_workers=0, pin_memory=(DEVICE=='cuda'))
-    test_loader  = DataLoader(BZUDataset(test_df, augment=False),
-                              batch_size=BATCH_SIZE, shuffle=False,
-                              num_workers=0, pin_memory=(DEVICE=='cuda'))
-
-    # ── Fresh model + optimizer per fold ─────────────────────────
+    # ── Fresh model + optimiser per fold ─────────────────────────────────
     model     = STGCN_Regression(dropout=0.3).to(DEVICE)
-    optimiser = torch.optim.AdamW(model.parameters(), lr=LR,
-                                  weight_decay=WEIGHT_DECAY)
-    scheduler = torch.optim.lr_scheduler.LambdaLR(optimiser, lr_lambda)
+    optimiser = torch.optim.AdamW(
+        model.parameters(), lr=LR, weight_decay=WEIGHT_DECAY)
+
+    def lr_lambda(epoch):
+        if epoch < WARMUP_EPOCHS:
+            return (epoch + 1) / WARMUP_EPOCHS
+        progress = (epoch - WARMUP_EPOCHS) / max(1, EPOCHS - WARMUP_EPOCHS)
+        return 0.5 * (1.0 + np.cos(np.pi * progress))
+
+    scheduler  = torch.optim.lr_scheduler.LambdaLR(optimiser, lr_lambda)
     early_stop = EarlyStopping(patience=PATIENCE, min_delta=MIN_DELTA)
-    reg_fn    = nn.SmoothL1Loss()
 
-    fold_history = {f'{s}_{m}': []
-                    for s in ['train','val','test']
-                    for m in ['loss','rmse','mae','r2']}
-    stopped_epoch = EPOCHS
+    fold_history   = {k: [] for k in ['train_loss','train_rmse','train_mae','train_r2',
+                                       'test_loss', 'test_rmse', 'test_mae', 'test_r2']}
+    stopped_epoch  = EPOCHS
 
-    # ── Per-fold training loop ────────────────────────────────────
+    # ── Epoch loop ────────────────────────────────────────────────────────
     for epoch in range(1, EPOCHS + 1):
         tr = run_epoch(model, train_loader, optimiser, reg_fn, is_train=True)
-        vl = run_epoch(model, val_loader,   optimiser, reg_fn, is_train=False)
         te = run_epoch(model, test_loader,  optimiser, reg_fn, is_train=False)
         scheduler.step()
 
-        for split, res in [('train',tr),('val',vl),('test',te)]:
+        for split, res in [('train', tr), ('test', te)]:
             for m in ['loss','rmse','mae','r2']:
                 fold_history[f'{split}_{m}'].append(res[m])
 
-        stop, improved = early_stop.step(vl['mae'], model, epoch)
+        # Early stopping monitors test MAE (no separate val set in LOGO-CV)
+        stop, improved = early_stop.step(te['mae'], model, epoch)
+
         star = ' ★' if improved else ''
         msg  = (f'  Ep {epoch:3d}/{EPOCHS} | '
                 f'Tr mae={tr["mae"]:.3f} r2={tr["r2"]:.3f} | '
-                f'Vl mae={vl["mae"]:.3f} r2={vl["r2"]:.3f} | '
                 f'Te mae={te["mae"]:.3f} r2={te["r2"]:.3f} | '
                 f'ES {early_stop.counter}/{PATIENCE}{star}')
         print(msg)
         log.info(msg)
+
         if stop:
             stopped_epoch = epoch
-            print(f'  ⏹ Early stop at epoch {epoch} (best={early_stop.best_epoch})')
+            print(f'\n  ⏹  Early stopping at epoch {epoch} '
+                  f'(best={early_stop.best_epoch})')
             break
 
-    # ── Evaluate with best weights ────────────────────────────────
+    # ── Restore best weights & evaluate ──────────────────────────────────
     model.load_state_dict(early_stop.best_wts)
     final_te = run_epoch(model, test_loader, optimiser, reg_fn, is_train=False)
 
-    fold_results.append({
-        'fold'         : fold_idx + 1,
-        'test_person'  : test_person,
-        'val_person'   : val_person,
-        'best_epoch'   : early_stop.best_epoch,
-        'stopped_epoch': stopped_epoch,
-        'test_mae'     : final_te['mae'],
-        'test_rmse'    : final_te['rmse'],
-        'test_r2'      : final_te['r2'],
-    })
-
-    print(f'\n  ── Fold {fold_idx+1} Test Results ──')
-    print(f'  MAE={final_te["mae"]:.4f}  RMSE={final_te["rmse"]:.4f}  R²={final_te["r2"]:.4f}')
-
-    # Optional: save per-fold scatter plot
+    # Collect predictions for scatter plot
     model.eval()
     all_true_q, all_pred_q = [], []
     with torch.no_grad():
@@ -791,37 +889,118 @@ for fold_idx, (train_val_idx, test_idx) in enumerate(
             all_true_q.extend(qualities.numpy())
             all_pred_q.extend(preds.cpu().numpy())
 
-    plot_regression_scatter(all_true_q, all_pred_q,
-                            split_name=f'Fold{fold_idx+1}_{test_person}',
-                            save_dir=PLOTS_DIR)
+    # Save per-fold scatter
+    plot_regression_scatter(
+        all_true_q, all_pred_q,
+        split_name=f'Fold{fold_idx+1}_{held_out_person}',
+        save_dir=PLOTS_DIR)
+
+    fold_results.append({
+        'fold'          : fold_idx + 1,
+        'person'        : held_out_person,
+        'best_epoch'    : early_stop.best_epoch,
+        'stopped_epoch' : stopped_epoch,
+        'test_mae'      : final_te['mae'],
+        'test_rmse'     : final_te['rmse'],
+        'test_r2'       : final_te['r2'],
+    })
+
+    print(f'\n  ── Fold {fold_idx+1} result ──')
+    print(f'  Test MAE  : {final_te["mae"]:.4f}')
+    print(f'  Test RMSE : {final_te["rmse"]:.4f}')
+    print(f'  Test R²   : {final_te["r2"]:.4f}')
+    log.info(f'Fold {fold_idx+1} → MAE={final_te["mae"]:.4f} '
+             f'RMSE={final_te["rmse"]:.4f} R²={final_te["r2"]:.4f}')
+
+print('\n✓ All folds complete!')
 
 
-# ══════════════════════════════════════════════════════════════════
-# Cell 14-NEW — Aggregate LOPO Results
-# ══════════════════════════════════════════════════════════════════
+# ══════════════════════════════════════════════════════════════════════════
+# DIAGNOSTIC CELL — Data analysis, no classification metrics
+# ══════════════════════════════════════════════════════════════════════════
+import numpy as np
+from collections import defaultdict
 
-results_df = pd.DataFrame(fold_results)
-print(results_df.to_string(index=False))
+print("=" * 60)
+print("DIAGNOSTIC 1: Per-exercise skeleton variance (C0)")
+print("=" * 60)
 
-mean_mae  = results_df['test_mae'].mean()
-std_mae   = results_df['test_mae'].std()
-mean_rmse = results_df['test_rmse'].mean()
-std_rmse  = results_df['test_rmse'].std()
-mean_r2   = results_df['test_r2'].mean()
-std_r2    = results_df['test_r2'].std()
+axis_var = defaultdict(list)
+for _, row in df_index.sample(min(300, len(df_index)), random_state=0).iterrows():
+    skel = load_skeleton(row['filepath'])
+    if skel is None:
+        continue
+    axis_var[row['exercise']].append({
+        'x_var': skel[:,:,0].var(),
+        'y_var': skel[:,:,1].var(),
+        'z_var': skel[:,:,2].var(),
+    })
 
-print('\n' + '='*60)
-print('  LOPO-CV FINAL SUMMARY')
-print('='*60)
-print(f'  MAE  : {mean_mae:.4f} ± {std_mae:.4f}')
-print(f'  RMSE : {mean_rmse:.4f} ± {std_rmse:.4f}')
-print(f'  R²   : {mean_r2:.4f} ± {std_r2:.4f}')
-print('='*60)
+print(f"{'Exercise':>10} {'X-var':>10} {'Y-var':>10} {'Z-var':>10} {'Z/X ratio':>10}")
+print("-" * 55)
+for ex in sorted(axis_var.keys()):
+    vals = axis_var[ex]
+    xv = np.mean([v['x_var'] for v in vals])
+    yv = np.mean([v['y_var'] for v in vals])
+    zv = np.mean([v['z_var'] for v in vals])
+    print(f"{f'E{ex}':>10} {xv:>10.4f} {yv:>10.4f} {zv:>10.4f} {zv/max(xv,1e-6):>10.3f}")
 
-log.info(f'LOPO-CV  MAE={mean_mae:.4f}±{std_mae:.4f}  '
-         f'RMSE={mean_rmse:.4f}±{std_rmse:.4f}  '
-         f'R²={mean_r2:.4f}±{std_r2:.4f}')
+print()
+print("=" * 60)
+print("DIAGNOSTIC 2: Quality score distribution per split")
+print("=" * 60)
+for name, df_ in [('Train', train_df), ('Val', val_df), ('Test', test_df)]:
+    q = df_['quality']
+    trials_correct   = (df_['trial_num'] <= 2).sum()
+    trials_erroneous = (df_['trial_num'] >= 3).sum()
+    print(f"{name:>6}: mean={q.mean():.3f} std={q.std():.3f} "
+          f"min={q.min():.2f} max={q.max():.2f} | "
+          f"correct={trials_correct} erroneous={trials_erroneous}")
 
-# Save results
-results_df.to_csv(os.path.join(OUT_DIR, 'lopo_cv_results.csv'), index=False)
-print(f'✓ Results saved → {os.path.join(OUT_DIR, "lopo_cv_results.csv")}')
+
+# ══════════════════════════════════════════════════════════════════════════
+# Cell 17 — LOGO-CV Summary
+# ══════════════════════════════════════════════════════════════════════════
+df_folds = pd.DataFrame(fold_results)
+
+mean_mae  = df_folds['test_mae'].mean()
+std_mae   = df_folds['test_mae'].std()
+mean_rmse = df_folds['test_rmse'].mean()
+std_rmse  = df_folds['test_rmse'].std()
+mean_r2   = df_folds['test_r2'].mean()
+std_r2    = df_folds['test_r2'].std()
+
+print('=' * 60)
+print('  LOGO-CV FINAL SUMMARY — ST-GCN Regression')
+print('=' * 60)
+print(df_folds[['fold','person','best_epoch','test_mae','test_rmse','test_r2']].to_string(index=False))
+print('─' * 60)
+print(f'  Mean MAE  : {mean_mae:.4f}  ± {std_mae:.4f}')
+print(f'  Mean RMSE : {mean_rmse:.4f}  ± {std_rmse:.4f}')
+print(f'  Mean R²   : {mean_r2:.4f}  ± {std_r2:.4f}')
+print('=' * 60)
+
+log.info(f'LOGO-CV: Mean MAE={mean_mae:.4f}±{std_mae:.4f} '
+         f'RMSE={mean_rmse:.4f}±{std_rmse:.4f} R²={mean_r2:.4f}±{std_r2:.4f}')
+
+summary_path = os.path.join(OUT_DIR, 'logo_cv_summary.csv')
+df_folds.to_csv(summary_path, index=False)
+print(f'\n✓ Per-fold summary → {summary_path}')
+
+# ── Plot per-fold R² bar chart ────────────────────────────────────────────
+fig, ax = plt.subplots(figsize=(max(8, n_folds * 0.6), 4))
+colors  = ['steelblue' if r >= 0 else 'tomato' for r in df_folds['test_r2']]
+ax.bar(df_folds['person'], df_folds['test_r2'], color=colors, edgecolor='black', linewidth=0.5)
+ax.axhline(mean_r2, color='darkorange', linewidth=2, linestyle='--',
+           label=f'Mean R² = {mean_r2:.3f}')
+ax.axhline(0, color='gray', linewidth=0.8, linestyle=':')
+ax.set_title('Test R² per Held-Out Person (LOGO-CV)', fontsize=13, fontweight='bold')
+ax.set_xlabel('Held-out person')
+ax.set_ylabel('R²')
+ax.legend(); ax.grid(axis='y', alpha=0.3)
+plt.xticks(rotation=45, ha='right')
+plt.tight_layout()
+save_and_show(fig, os.path.join(PLOTS_DIR, 'logo_cv_r2_per_person.png'))
+
+sys.stdout.restore()
+print('✓ Log file closed and saved.')
