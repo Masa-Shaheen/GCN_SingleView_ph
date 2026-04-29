@@ -6,7 +6,7 @@ import os
 
 DATASET_DIR   = "/mvdlph/Dataset_CVDLPT_Videos_Segments_P0P15_MMPose_human3d_motionbert_H36M_3D_1_2026"
 CSV_PATH      = "/mvdlph/label_events_20260129_155122_stats_short.csv"
-CAMERA_ID     = 0
+CAMERA_ID     = 1
 NPZ_KEY       = "keypoints_3d"
 NUM_JOINTS    = 17
 NUM_CLASSES   = 10
@@ -463,11 +463,11 @@ print('✓ BZUDataset defined')
 # Cell 11 — ST-GCN Model
 # ══════════════════════════════════════════════════════════════════════════
 
+# ══════════════════════════════════════════════════════════════════════════
+# Cell 11 — ST-GCN Model (FIXED)
+# ══════════════════════════════════════════════════════════════════════════
+
 def build_adj(num_joints, edges):
-    """
-    Symmetric normalised adjacency matrix D^{-1/2} A D^{-1/2}
-    with self-loops (identity added before normalisation).
-    """
     A = np.eye(num_joints, dtype=np.float32)
     for i, j in edges:
         A[i, j] = 1.0
@@ -478,18 +478,12 @@ def build_adj(num_joints, edges):
 
 
 class STGCNBlock(nn.Module):
-    """
-    One ST-GCN layer:
-      1. Spatial GCN:   A · X · W_s   (graph convolution over joints)
-      2. Temporal Conv: 1-D conv over time dimension
-      3. Residual skip connection
-    Input/output shape: (B, C, T, J)
-    """
     def __init__(self, in_ch, out_ch, A, t_kernel=9, stride=1, dropout=0.0):
         super().__init__()
         self.register_buffer('A', A)
         pad = (t_kernel - 1) // 2
 
+        # FIX: project first (W_s), then aggregate via A
         self.W_s    = nn.Linear(in_ch, out_ch, bias=False)
         self.bn_s   = nn.BatchNorm2d(out_ch)
         self.t_conv = nn.Sequential(
@@ -501,7 +495,6 @@ class STGCNBlock(nn.Module):
             nn.BatchNorm2d(out_ch),
             nn.Dropout(dropout),
         )
-        # Residual: project channels + downsample time if stride>1
         self.res = (
             nn.Sequential(
                 nn.Conv2d(in_ch, out_ch, kernel_size=1,
@@ -511,14 +504,14 @@ class STGCNBlock(nn.Module):
         )
 
     def forward(self, x):
-        # x: (B, C, T, J)
         B, C, T, J = x.shape
 
-        # ── Spatial GCN ───────────────────────────────────────────────────
-        # reshape to (B*T, J, C) → apply A → linear projection → back to (B, C', T, J)
-        xs = x.permute(0, 2, 3, 1).reshape(B * T, J, C)          # (B*T, J, C)
-        xs = torch.bmm(self.A.unsqueeze(0).expand(B * T, -1, -1), xs)  # (B*T, J, C)
-        xs = self.W_s(xs).reshape(B, T, J, -1).permute(0, 3, 1, 2)     # (B, C', T, J)
+        # ── Spatial GCN (FIXED: project → aggregate) ──────────────────────
+        xs = x.permute(0, 2, 3, 1).reshape(B * T, J, C)   # (B*T, J, C)
+        xs = self.W_s(xs)                                   # (B*T, J, C') ← project first
+        A_exp = self.A.unsqueeze(0).expand(B * T, -1, -1).contiguous()
+        xs = torch.bmm(A_exp, xs)                           # (B*T, J, C') ← then aggregate
+        xs = xs.reshape(B, T, J, -1).permute(0, 3, 1, 2)   # (B, C', T, J)
         xs = F.relu(self.bn_s(xs))
 
         # ── Temporal Conv + residual ──────────────────────────────────────
@@ -526,27 +519,19 @@ class STGCNBlock(nn.Module):
 
 
 class STGCN_SingleView(nn.Module):
-    """
-    ST-GCN with dual head:
-      cls_head → exercise classification  (cross-entropy)
-      reg_head → quality score regression (SmoothL1, output ∈ (1, 5))
-
-    Input: (B, T, J, C) = (B, 100, 17, 3)
-    """
     def __init__(self, num_classes, dropout=0.3):
         super().__init__()
         A = build_adj(NUM_JOINTS, SKELETON_EDGES)
 
-        # Input batch-norm operates on flattened joints × coords
-        self.data_bn = nn.BatchNorm1d(NUM_JOINTS * 3)
+        # FIX: BN over coordinate channels (3), not flattened joints
+        self.data_bn = nn.BatchNorm1d(3)
 
-        # Progressive channel expansion with temporal downsampling at stride=2
         cfg = [
             (3,   64,  1),
             (64,  64,  1),
-            (64,  128, 2),   # T: 100 → 50
+            (64,  128, 2),
             (128, 128, 1),
-            (128, 256, 2),   # T:  50 → 25
+            (128, 256, 2),
             (256, 256, 1),
         ]
         self.blocks = nn.ModuleList(
@@ -574,29 +559,28 @@ class STGCN_SingleView(nn.Module):
                 nn.init.zeros_(m.bias)
 
     def forward(self, x):
-        # x: (B, T, J, C)
-        B, T, J, C = x.shape
+        B, T, J, C = x.shape   # (B, 100, 17, 3)
 
-        # ── Input normalisation ───────────────────────────────────────────
-        xbn = x.reshape(B * T, J * C)          # (B*T, J*C)
-        xbn = self.data_bn(xbn)
-        x   = xbn.reshape(B, T, J, C).permute(0, 3, 1, 2)  # (B, C, T, J)
+        # ── Input normalisation (FIXED: normalize over coord axis) ────────
+        xbn = x.permute(0, 3, 1, 2).reshape(B, C, T * J)  # (B, 3, T*J)
+        xbn = self.data_bn(xbn)                             # BN over 3 coords
+        x   = xbn.reshape(B, C, T, J).permute(0, 2, 3, 1) # (B, T, J, 3)
+        x   = x.permute(0, 3, 1, 2)                        # (B, 3, T, J)
 
         # ── ST-GCN blocks ─────────────────────────────────────────────────
         for blk in self.blocks:
             x = blk(x)
 
-        # ── Global average pooling over T and J ───────────────────────────
-        x = x.mean(dim=[2, 3])    # (B, 256)
+        # ── Global average pooling ─────────────────────────────────────────
+        x = x.mean(dim=[2, 3])   # (B, 256)
         x = self.drop(x)
 
-        cls = self.cls_head(x)                          # (B, num_classes)
-        qua = 1.0 + 4.0 * torch.sigmoid(self.reg_head(x))  # (B, 1) ∈ (1, 5)
-        return cls, qua
+        cls = self.cls_head(x)
+        # FIX: tanh instead of sigmoid — centered at 3.0, range (1,5)
+        qua = 3.0 + 2.0 * torch.tanh(self.reg_head(x).squeeze(1))
+        return cls, qua.unsqueeze(1)
 
-
-print('✓ ST-GCN model defined')
-
+print('✓ ST-GCN model (fixed) defined')
 
 # ══════════════════════════════════════════════════════════════════════════
 # Cell 12 — Device, normalisation & run_epoch
@@ -1212,4 +1196,4 @@ print(f'\n✓ Summary CSV saved → {summary_path}')
 log.info('✓ All done!')
 
 sys.stdout.restore()
-print('✓ Log file closed and saved.')
+print('✓ Log file closed and saved.')1~]]=]]]
