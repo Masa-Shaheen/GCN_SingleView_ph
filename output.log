@@ -4,7 +4,7 @@ nohup: ignoring input
   NPZ_KEY     : keypoints_3d
   CAMERA_ID   : C0
   EXISTS      : True
-  PATIENCE    : 20 epochs
+  PATIENCE    : 30 epochs
 ✓ Libraries imported
 ✓ Output folders ready:
    /mvdlph/masa/GCN_SingleView_Results/plots
@@ -552,243 +552,36 @@ Shape   : (531, 7)
 527       E9    P15    T3     C1            4  4.4250  1.3566
 528       E9    P15    T4     C1            4  3.6500  1.7029
 529       E9    P15    T5     C1            4  2.7750  1.7466
-530       E9    P15    T6     C1            4  3.3750  1.90392026-04-29 10:47:25,953 | INFO | ======================================================================
-2026-04-29 10:47:25,954 | INFO | ST-GCN Single-View Baseline | BZU Physiotherapy Dataset
-2026-04-29 10:47:25,954 | INFO | Camera : C0  |  Split : 70/15/15  |  Epochs : 200  |  Patience : 20
-2026-04-29 10:47:25,954 | INFO | Log file : /mvdlph/masa/GCN_SingleView_Results/logs/training_20260429_104725.log
-2026-04-29 10:47:25,954 | INFO | ======================================================================
-2026-04-29 10:47:32,177 | INFO | ======================================================================
-2026-04-29 10:47:32,177 | INFO | STARTING TRAINING  (with Early Stopping)
-2026-04-29 10:47:32,177 | INFO | ======================================================================
-2026-04-29 10:47:33,366 | INFO | train=3649 val=738 test=760
-2026-04-29 10:47:49,734 | INFO |   Ep   1/200 | Tr loss=2.428 acc=14.2% mae=0.581 r2=0.134 | Vl loss=2.225 acc=14.5% mae=0.341 r2=0.582 | Te loss=2.192 acc=19.3% mae=0.453 r2=-0.112 | ES 0/20 ★
-2026-04-29 10:48:05,399 | INFO |   Ep   2/200 | Tr loss=2.205 acc=19.7% mae=0.513 r2=0.321 | Vl loss=2.081 acc=23.2% mae=0.293 r2=0.673 | Te loss=2.014 acc=25.8% mae=0.370 r2=0.124 | ES 0/20 ★
-2026-04-29 10:48:20,972 | INFO |   Ep   3/200 | Tr loss=2.161 acc=20.8% mae=0.492 r2=0.379 | Vl loss=2.310 acc=17.6% mae=0.323 r2=0.599 | Te loss=2.237 acc=17.8% mae=0.426 r2=-0.174 | ES 1/20
-2026-04-29 10:48:36,174 | INFO |   Ep   4/200 | Tr loss=2.114 acc=23.2% mae=0.483 r2=0.393 | Vl loss=2.032 acc=24.7% mae=0.309 r2=0.631 | Te loss=1.954 acc=28.7% mae=0.397 r2=-0.041 | ES 0/20 ★
-2026-04-29 10:48:51,893 | INFO |   Ep   5/200 | Tr loss=2.089 acc=23.5% mae=0.474 r2=0.407 | Vl loss=1.999 acc=25.3% mae=0.280 r2=0.677 | Te loss=1.913 acc=25.4% mae=0.386 r2=0.097 | ES 0/20 ★
-2026-04-29 10:49:07,534 | INFO |   Ep   6/200 | Tr loss=2.056 acc=24.5% mae=0.469 r2=0.423 | Vl loss=1.996 acc=24.4% mae=0.277 r2=0.697 | Te loss=1.921 acc=25.1% mae=0.380 r2=0.065 | ES 1/20
-2026-04-29 10:49:22,670 | INFO |   Ep   7/200 | Tr loss=2.043 acc=24.5% mae=0.472 r2=0.421 | Vl loss=1.965 acc=27.2% mae=0.322 r2=0.583 | Te loss=1.878 acc=29.3% mae=0.411 r2=-0.053 | ES 0/20 ★
-2026-04-29 10:49:37,870 | INFO |   Ep   8/200 | Tr loss=2.030 acc=25.7% mae=0.465 r2=0.432 | Vl loss=1.984 acc=25.2% mae=0.276 r2=0.662 | Te loss=1.932 acc=25.3% mae=0.361 r2=0.182 | ES 1/20
-2026-04-29 10:49:53,242 | INFO |   Ep   9/200 | Tr loss=2.020 acc=24.6% mae=0.460 r2=0.439 | Vl loss=1.986 acc=24.9% mae=0.292 r2=0.632 | Te loss=1.912 acc=28.0% mae=0.395 r2=0.009 | ES 2/20
-2026-04-29 10:50:08,550 | INFO |   Ep  10/200 | Tr loss=2.009 acc=24.8% mae=0.461 r2=0.436 | Vl loss=1.985 acc=25.5% mae=0.280 r2=0.662 | Te loss=1.931 acc=27.4% mae=0.377 r2=0.105 | ES 3/20
-2026-04-29 10:50:23,967 | INFO |   Ep  11/200 | Tr loss=2.008 acc=25.1% mae=0.457 r2=0.443 | Vl loss=2.056 acc=23.6% mae=0.277 r2=0.684 | Te loss=1.926 acc=24.3% mae=0.395 r2=0.075 | ES 4/20
-2026-04-29 10:50:39,574 | INFO |   Ep  12/200 | Tr loss=2.010 acc=25.0% mae=0.459 r2=0.446 | Vl loss=1.984 acc=25.9% mae=0.270 r2=0.679 | Te loss=1.924 acc=25.8% mae=0.374 r2=0.148 | ES 5/20
-2026-04-29 10:50:54,619 | INFO |   Ep  13/200 | Tr loss=1.984 acc=25.6% mae=0.457 r2=0.448 | Vl loss=1.963 acc=25.3% mae=0.281 r2=0.672 | Te loss=1.903 acc=24.7% mae=0.352 r2=0.184 | ES 6/20
-2026-04-29 10:51:09,771 | INFO |   Ep  14/200 | Tr loss=1.991 acc=24.9% mae=0.451 r2=0.454 | Vl loss=1.973 acc=25.9% mae=0.280 r2=0.665 | Te loss=1.933 acc=27.0% mae=0.368 r2=0.140 | ES 7/20
-2026-04-29 10:51:25,126 | INFO |   Ep  15/200 | Tr loss=1.982 acc=25.3% mae=0.455 r2=0.447 | Vl loss=1.914 acc=26.2% mae=0.280 r2=0.667 | Te loss=1.854 acc=28.4% mae=0.370 r2=0.125 | ES 8/20
-2026-04-29 10:51:40,633 | INFO |   Ep  16/200 | Tr loss=1.974 acc=25.2% mae=0.451 r2=0.457 | Vl loss=1.945 acc=23.8% mae=0.277 r2=0.678 | Te loss=1.869 acc=28.6% mae=0.357 r2=0.187 | ES 9/20
-2026-04-29 10:51:56,035 | INFO |   Ep  17/200 | Tr loss=1.980 acc=25.5% mae=0.456 r2=0.447 | Vl loss=1.965 acc=23.0% mae=0.299 r2=0.668 | Te loss=1.876 acc=23.3% mae=0.381 r2=0.163 | ES 10/20
-2026-04-29 10:52:11,248 | INFO |   Ep  18/200 | Tr loss=1.966 acc=26.1% mae=0.450 r2=0.458 | Vl loss=1.947 acc=25.6% mae=0.291 r2=0.655 | Te loss=1.886 acc=26.1% mae=0.383 r2=0.125 | ES 11/20
-2026-04-29 10:52:26,444 | INFO |   Ep  19/200 | Tr loss=1.974 acc=26.1% mae=0.451 r2=0.453 | Vl loss=1.987 acc=26.6% mae=0.279 r2=0.672 | Te loss=1.931 acc=26.1% mae=0.351 r2=0.188 | ES 12/20
-2026-04-29 10:52:41,744 | INFO |   Ep  20/200 | Tr loss=1.973 acc=25.7% mae=0.453 r2=0.453 | Vl loss=1.925 acc=26.3% mae=0.269 r2=0.693 | Te loss=1.842 acc=28.3% mae=0.392 r2=0.006 | ES 13/20
-2026-04-29 10:52:56,953 | INFO |   Ep  21/200 | Tr loss=1.967 acc=25.6% mae=0.452 r2=0.459 | Vl loss=1.921 acc=24.7% mae=0.274 r2=0.688 | Te loss=1.859 acc=23.4% mae=0.371 r2=0.154 | ES 14/20
-2026-04-29 10:53:12,425 | INFO |   Ep  22/200 | Tr loss=1.951 acc=27.0% mae=0.447 r2=0.461 | Vl loss=1.908 acc=27.4% mae=0.272 r2=0.689 | Te loss=1.854 acc=26.4% mae=0.373 r2=0.097 | ES 0/20 ★
-2026-04-29 10:53:27,718 | INFO |   Ep  23/200 | Tr loss=1.956 acc=27.2% mae=0.450 r2=0.459 | Vl loss=1.948 acc=25.3% mae=0.271 r2=0.690 | Te loss=1.893 acc=23.7% mae=0.356 r2=0.178 | ES 1/20
-2026-04-29 10:53:42,832 | INFO |   Ep  24/200 | Tr loss=1.958 acc=26.6% mae=0.443 r2=0.471 | Vl loss=1.936 acc=27.2% mae=0.307 r2=0.638 | Te loss=1.868 acc=25.5% mae=0.374 r2=0.188 | ES 2/20
-2026-04-29 10:53:58,241 | INFO |   Ep  25/200 | Tr loss=1.955 acc=26.4% mae=0.447 r2=0.466 | Vl loss=1.921 acc=25.7% mae=0.279 r2=0.678 | Te loss=1.889 acc=23.9% mae=0.362 r2=0.198 | ES 3/20
-2026-04-29 10:54:13,472 | INFO |   Ep  26/200 | Tr loss=1.946 acc=26.6% mae=0.447 r2=0.461 | Vl loss=1.982 acc=24.1% mae=0.301 r2=0.631 | Te loss=1.909 acc=27.1% mae=0.370 r2=0.095 | ES 4/20
-2026-04-29 10:54:28,698 | INFO |   Ep  27/200 | Tr loss=1.941 acc=27.8% mae=0.443 r2=0.464 | Vl loss=1.920 acc=25.3% mae=0.270 r2=0.698 | Te loss=1.836 acc=27.2% mae=0.374 r2=0.125 | ES 5/20
-2026-04-29 10:54:43,820 | INFO |   Ep  28/200 | Tr loss=1.950 acc=27.3% mae=0.447 r2=0.463 | Vl loss=1.938 acc=26.6% mae=0.275 r2=0.667 | Te loss=1.878 acc=25.8% mae=0.374 r2=0.099 | ES 6/20
-2026-04-29 10:54:58,961 | INFO |   Ep  29/200 | Tr loss=1.943 acc=26.9% mae=0.444 r2=0.468 | Vl loss=1.908 acc=29.1% mae=0.281 r2=0.664 | Te loss=1.843 acc=25.1% mae=0.364 r2=0.137 | ES 0/20 ★
-2026-04-29 10:55:14,255 | INFO |   Ep  30/200 | Tr loss=1.940 acc=25.9% mae=0.441 r2=0.470 | Vl loss=1.914 acc=28.5% mae=0.274 r2=0.677 | Te loss=1.839 acc=25.8% mae=0.356 r2=0.206 | ES 1/20
-
-✓ stdout → also writing to /mvdlph/masa/GCN_SingleView_Results/logs/training_20260429_104725.log
-✓ parse_filename and load_skeleton defined
-NPZ files found (all cameras) : 15375
-
-✓ Total samples  (C0) : 5147
-✓ Unique trials              : 60
-✓ Quality mean ± std         : 4.132 ± 0.793
-
-✓ Exercise distribution:
-0    579
-1    532
-2    463
-3    525
-4    522
-5    525
-6    529
-7    529
-8    486
-9    457
-Name: exercise, dtype: int64
-
-── Sample rows ──
-    exercise person trial_id  segment  quality
-0          0     P0       T0        0   4.3667
-1          0     P0       T0        1   4.3667
-2          0     P0       T0        2   4.3667
-3          0     P0       T0        3   4.3667
-4          0     P0       T0        4   4.3667
-5          0     P0       T0        5   4.3667
-6          0     P0       T0        6   4.3667
-7          0     P0       T0        7   4.3667
-8          0     P0       T0        8   4.3667
-9          0     P0       T0        9   4.3667
-10         0     P0       T1        0   4.2600
-11         0     P0       T1        1   4.2600
-12         0     P0       T1        2   4.2600
-13         0     P0       T1        3   4.2600
-14         0     P0       T1        4   4.2600
-0    5147
-Name: camera, dtype: int64
-
-Total samples: 5147
-✓ Skeleton visualisation helpers defined
-person                                                     P0
-exercise                                                    0
-trial_id                                                   T1
-segment                                                     0
-filepath    /mvdlph/Dataset_CVDLPT_Videos_Segments_P0P15_M...
-Name: 10, dtype: object
-Skeleton shape : (81, 17, 3)
-X range : [-0.369, 0.592]
-Y range : [-0.994, -0.000]
-Z range : [-0.193, 0.198]
-  ✓ Skeleton plot saved → /mvdlph/masa/GCN_SingleView_Results/plots/sample_skeleton_3views.png
-  ✓ Motion frames saved → /mvdlph/masa/GCN_SingleView_Results/plots/sample_skeleton_motion.png
-✓ BZUDataset defined
-✓ ST-GCN model defined
-Device : cuda
-GPU    : Tesla V100-PCIE-32GB
-✓ centre_and_scale and run_epoch defined
-Total unique trials : 60
-  Train :  42 trials → 3649 samples
-  Val   :   9 trials →  738 samples
-  Test  :   9 trials →  760 samples
-
-✓ Train / Val / Test split ready
-✓ All plotting helpers defined
-✓ EarlyStopping defined
-Classes in data : E[0, 1, 2, 3, 4, 5, 6, 7, 8, 9]  →  mapped 0..9
-Model output size: 10
-
-════════════════════════════════════════════════════════════════════
-  Train : 3649 samples  |  Val :  738 samples  |  Test :  760 samples
-  Patience : 20 epochs  |  Min Δ : 0.0001
-════════════════════════════════════════════════════════════════════
-  Ep   1/200 | Tr loss=2.428 acc=14.2% mae=0.581 r2=0.134 | Vl loss=2.225 acc=14.5% mae=0.341 r2=0.582 | Te loss=2.192 acc=19.3% mae=0.453 r2=-0.112 | ES 0/20 ★
-    ★ New best  val_acc=14.50%  val_mae=0.3407  val_r2=0.5817
-  Ep   2/200 | Tr loss=2.205 acc=19.7% mae=0.513 r2=0.321 | Vl loss=2.081 acc=23.2% mae=0.293 r2=0.673 | Te loss=2.014 acc=25.8% mae=0.370 r2=0.124 | ES 0/20 ★
-    ★ New best  val_acc=23.17%  val_mae=0.2932  val_r2=0.6726
-  Ep   3/200 | Tr loss=2.161 acc=20.8% mae=0.492 r2=0.379 | Vl loss=2.310 acc=17.6% mae=0.323 r2=0.599 | Te loss=2.237 acc=17.8% mae=0.426 r2=-0.174 | ES 1/20
-  Ep   4/200 | Tr loss=2.114 acc=23.2% mae=0.483 r2=0.393 | Vl loss=2.032 acc=24.7% mae=0.309 r2=0.631 | Te loss=1.954 acc=28.7% mae=0.397 r2=-0.041 | ES 0/20 ★
-    ★ New best  val_acc=24.66%  val_mae=0.3089  val_r2=0.6313
-  Ep   5/200 | Tr loss=2.089 acc=23.5% mae=0.474 r2=0.407 | Vl loss=1.999 acc=25.3% mae=0.280 r2=0.677 | Te loss=1.913 acc=25.4% mae=0.386 r2=0.097 | ES 0/20 ★
-    ★ New best  val_acc=25.34%  val_mae=0.2803  val_r2=0.6765
-  Ep   6/200 | Tr loss=2.056 acc=24.5% mae=0.469 r2=0.423 | Vl loss=1.996 acc=24.4% mae=0.277 r2=0.697 | Te loss=1.921 acc=25.1% mae=0.380 r2=0.065 | ES 1/20
-  Ep   7/200 | Tr loss=2.043 acc=24.5% mae=0.472 r2=0.421 | Vl loss=1.965 acc=27.2% mae=0.322 r2=0.583 | Te loss=1.878 acc=29.3% mae=0.411 r2=-0.053 | ES 0/20 ★
-    ★ New best  val_acc=27.24%  val_mae=0.3216  val_r2=0.5833
-  Ep   8/200 | Tr loss=2.030 acc=25.7% mae=0.465 r2=0.432 | Vl loss=1.984 acc=25.2% mae=0.276 r2=0.662 | Te loss=1.932 acc=25.3% mae=0.361 r2=0.182 | ES 1/20
-  Ep   9/200 | Tr loss=2.020 acc=24.6% mae=0.460 r2=0.439 | Vl loss=1.986 acc=24.9% mae=0.292 r2=0.632 | Te loss=1.912 acc=28.0% mae=0.395 r2=0.009 | ES 2/20
-  Ep  10/200 | Tr loss=2.009 acc=24.8% mae=0.461 r2=0.436 | Vl loss=1.985 acc=25.5% mae=0.280 r2=0.662 | Te loss=1.931 acc=27.4% mae=0.377 r2=0.105 | ES 3/20
-  Ep  11/200 | Tr loss=2.008 acc=25.1% mae=0.457 r2=0.443 | Vl loss=2.056 acc=23.6% mae=0.277 r2=0.684 | Te loss=1.926 acc=24.3% mae=0.395 r2=0.075 | ES 4/20
-  Ep  12/200 | Tr loss=2.010 acc=25.0% mae=0.459 r2=0.446 | Vl loss=1.984 acc=25.9% mae=0.270 r2=0.679 | Te loss=1.924 acc=25.8% mae=0.374 r2=0.148 | ES 5/20
-  Ep  13/200 | Tr loss=1.984 acc=25.6% mae=0.457 r2=0.448 | Vl loss=1.963 acc=25.3% mae=0.281 r2=0.672 | Te loss=1.903 acc=24.7% mae=0.352 r2=0.184 | ES 6/20
-  Ep  14/200 | Tr loss=1.991 acc=24.9% mae=0.451 r2=0.454 | Vl loss=1.973 acc=25.9% mae=0.280 r2=0.665 | Te loss=1.933 acc=27.0% mae=0.368 r2=0.140 | ES 7/20
-  Ep  15/200 | Tr loss=1.982 acc=25.3% mae=0.455 r2=0.447 | Vl loss=1.914 acc=26.2% mae=0.280 r2=0.667 | Te loss=1.854 acc=28.4% mae=0.370 r2=0.125 | ES 8/20
-  Ep  16/200 | Tr loss=1.974 acc=25.2% mae=0.451 r2=0.457 | Vl loss=1.945 acc=23.8% mae=0.277 r2=0.678 | Te loss=1.869 acc=28.6% mae=0.357 r2=0.187 | ES 9/20
-  Ep  17/200 | Tr loss=1.980 acc=25.5% mae=0.456 r2=0.447 | Vl loss=1.965 acc=23.0% mae=0.299 r2=0.668 | Te loss=1.876 acc=23.3% mae=0.381 r2=0.163 | ES 10/20
-  Ep  18/200 | Tr loss=1.966 acc=26.1% mae=0.450 r2=0.458 | Vl loss=1.947 acc=25.6% mae=0.291 r2=0.655 | Te loss=1.886 acc=26.1% mae=0.383 r2=0.125 | ES 11/20
-  Ep  19/200 | Tr loss=1.974 acc=26.1% mae=0.451 r2=0.453 | Vl loss=1.987 acc=26.6% mae=0.279 r2=0.672 | Te loss=1.931 acc=26.1% mae=0.351 r2=0.188 | ES 12/20
-  Ep  20/200 | Tr loss=1.973 acc=25.7% mae=0.453 r2=0.453 | Vl loss=1.925 acc=26.3% mae=0.269 r2=0.693 | Te loss=1.842 acc=28.3% mae=0.392 r2=0.006 | ES 13/20
-  Ep  21/200 | Tr loss=1.967 acc=25.6% mae=0.452 r2=0.459 | Vl loss=1.921 acc=24.7% mae=0.274 r2=0.688 | Te loss=1.859 acc=23.4% mae=0.371 r2=0.154 | ES 14/20
-  Ep  22/200 | Tr loss=1.951 acc=27.0% mae=0.447 r2=0.461 | Vl loss=1.908 acc=27.4% mae=0.272 r2=0.689 | Te loss=1.854 acc=26.4% mae=0.373 r2=0.097 | ES 0/20 ★
-    ★ New best  val_acc=27.37%  val_mae=0.2720  val_r2=0.6887
-  Ep  23/200 | Tr loss=1.956 acc=27.2% mae=0.450 r2=0.459 | Vl loss=1.948 acc=25.3% mae=0.271 r2=0.690 | Te loss=1.893 acc=23.7% mae=0.356 r2=0.178 | ES 1/20
-  Ep  24/200 | Tr loss=1.958 acc=26.6% mae=0.443 r2=0.471 | Vl loss=1.936 acc=27.2% mae=0.307 r2=0.638 | Te loss=1.868 acc=25.5% mae=0.374 r2=0.188 | ES 2/20
-  Ep  25/200 | Tr loss=1.955 acc=26.4% mae=0.447 r2=0.466 | Vl loss=1.921 acc=25.7% mae=0.279 r2=0.678 | Te loss=1.889 acc=23.9% mae=0.362 r2=0.198 | ES 3/20
-  Ep  26/200 | Tr loss=1.946 acc=26.6% mae=0.447 r2=0.461 | Vl loss=1.982 acc=24.1% mae=0.301 r2=0.631 | Te loss=1.909 acc=27.1% mae=0.370 r2=0.095 | ES 4/20
-  Ep  27/200 | Tr loss=1.941 acc=27.8% mae=0.443 r2=0.464 | Vl loss=1.920 acc=25.3% mae=0.270 r2=0.698 | Te loss=1.836 acc=27.2% mae=0.374 r2=0.125 | ES 5/20
-  Ep  28/200 | Tr loss=1.950 acc=27.3% mae=0.447 r2=0.463 | Vl loss=1.938 acc=26.6% mae=0.275 r2=0.667 | Te loss=1.878 acc=25.8% mae=0.374 r2=0.099 | ES 6/20
-  Ep  29/200 | Tr loss=1.943 acc=26.9% mae=0.444 r2=0.468 | Vl loss=1.908 acc=29.1% mae=0.281 r2=0.664 | Te loss=1.843 acc=25.1% mae=0.364 r2=0.137 | ES 0/20 ★
-    ★ New best  val_acc=29.13%  val_mae=0.2809  val_r2=0.6642
-  Ep  30/200 | Tr loss=1.940 acc=25.9% mae=0.441 r2=0.470 | Vl loss=1.914 acc=28.5% mae=0.274 r2=0.677 | Te loss=1.839 acc=25.8% mae=0.356 r2=0.206 | ES 1/20
-2026-04-29 10:55:29,608 | INFO |   Ep  31/200 | Tr loss=1.934 acc=26.8% mae=0.440 r2=0.473 | Vl loss=1.968 acc=25.1% mae=0.296 r2=0.657 | Te loss=1.892 acc=24.5% mae=0.357 r2=0.178 | ES 2/20
-2026-04-29 10:55:45,090 | INFO |   Ep  32/200 | Tr loss=1.938 acc=26.3% mae=0.443 r2=0.469 | Vl loss=1.948 acc=26.0% mae=0.290 r2=0.653 | Te loss=1.867 acc=26.1% mae=0.366 r2=0.112 | ES 3/20
-2026-04-29 10:56:00,307 | INFO |   Ep  33/200 | Tr loss=1.939 acc=26.7% mae=0.443 r2=0.469 | Vl loss=1.933 acc=27.1% mae=0.306 r2=0.644 | Te loss=1.892 acc=25.9% mae=0.382 r2=0.146 | ES 4/20
-2026-04-29 10:56:15,617 | INFO |   Ep  34/200 | Tr loss=1.935 acc=27.2% mae=0.444 r2=0.465 | Vl loss=1.914 acc=27.4% mae=0.286 r2=0.654 | Te loss=1.859 acc=25.7% mae=0.382 r2=0.134 | ES 5/20
-2026-04-29 10:56:31,002 | INFO |   Ep  35/200 | Tr loss=1.939 acc=26.7% mae=0.439 r2=0.473 | Vl loss=1.922 acc=23.7% mae=0.273 r2=0.672 | Te loss=1.842 acc=26.1% mae=0.364 r2=0.162 | ES 6/20
-2026-04-29 10:56:46,165 | INFO |   Ep  36/200 | Tr loss=1.933 acc=26.8% mae=0.442 r2=0.468 | Vl loss=2.000 acc=24.8% mae=0.280 r2=0.687 | Te loss=1.943 acc=26.3% mae=0.364 r2=0.145 | ES 7/20
-2026-04-29 10:57:01,552 | INFO |   Ep  37/200 | Tr loss=1.920 acc=26.9% mae=0.439 r2=0.470 | Vl loss=1.936 acc=26.4% mae=0.280 r2=0.680 | Te loss=1.866 acc=26.7% mae=0.363 r2=0.173 | ES 8/20
-2026-04-29 10:57:17,503 | INFO |   Ep  38/200 | Tr loss=1.935 acc=26.9% mae=0.440 r2=0.471 | Vl loss=1.927 acc=25.2% mae=0.271 r2=0.676 | Te loss=1.851 acc=23.9% mae=0.364 r2=0.164 | ES 9/20
-2026-04-29 10:57:32,727 | INFO |   Ep  39/200 | Tr loss=1.919 acc=27.6% mae=0.443 r2=0.469 | Vl loss=1.949 acc=23.6% mae=0.275 r2=0.669 | Te loss=1.874 acc=26.2% mae=0.366 r2=0.167 | ES 10/20
-2026-04-29 10:57:47,856 | INFO |   Ep  40/200 | Tr loss=1.931 acc=27.2% mae=0.441 r2=0.473 | Vl loss=1.926 acc=24.9% mae=0.272 r2=0.680 | Te loss=1.846 acc=25.5% mae=0.369 r2=0.123 | ES 11/20
-2026-04-29 10:58:03,266 | INFO |   Ep  41/200 | Tr loss=1.925 acc=27.1% mae=0.443 r2=0.471 | Vl loss=1.932 acc=25.7% mae=0.286 r2=0.686 | Te loss=1.873 acc=26.1% mae=0.373 r2=0.162 | ES 12/20
-2026-04-29 10:58:19,153 | INFO |   Ep  42/200 | Tr loss=1.927 acc=27.5% mae=0.442 r2=0.465 | Vl loss=1.949 acc=26.7% mae=0.279 r2=0.678 | Te loss=1.889 acc=27.1% mae=0.365 r2=0.108 | ES 13/20
-2026-04-29 10:58:34,599 | INFO |   Ep  43/200 | Tr loss=1.917 acc=27.7% mae=0.442 r2=0.470 | Vl loss=1.931 acc=27.2% mae=0.282 r2=0.679 | Te loss=1.855 acc=26.1% mae=0.370 r2=0.103 | ES 14/20
-2026-04-29 10:58:50,027 | INFO |   Ep  44/200 | Tr loss=1.925 acc=27.0% mae=0.440 r2=0.472 | Vl loss=1.919 acc=26.0% mae=0.282 r2=0.681 | Te loss=1.853 acc=27.2% mae=0.372 r2=0.178 | ES 15/20
-2026-04-29 10:59:05,080 | INFO |   Ep  45/200 | Tr loss=1.921 acc=27.7% mae=0.439 r2=0.477 | Vl loss=1.956 acc=25.9% mae=0.277 r2=0.700 | Te loss=1.882 acc=26.8% mae=0.373 r2=0.118 | ES 16/20
-2026-04-29 10:59:20,305 | INFO |   Ep  46/200 | Tr loss=1.925 acc=27.5% mae=0.441 r2=0.471 | Vl loss=1.952 acc=27.2% mae=0.274 r2=0.694 | Te loss=1.897 acc=25.3% mae=0.364 r2=0.155 | ES 17/20
-2026-04-29 10:59:35,337 | INFO |   Ep  47/200 | Tr loss=1.914 acc=28.3% mae=0.439 r2=0.475 | Vl loss=1.985 acc=26.2% mae=0.288 r2=0.684 | Te loss=1.912 acc=25.5% mae=0.369 r2=0.165 | ES 18/20
-2026-04-29 10:59:50,660 | INFO |   Ep  48/200 | Tr loss=1.925 acc=27.9% mae=0.438 r2=0.477 | Vl loss=1.933 acc=26.3% mae=0.274 r2=0.689 | Te loss=1.851 acc=25.8% mae=0.368 r2=0.141 | ES 19/20
-2026-04-29 11:00:05,974 | INFO |   Ep  49/200 | Tr loss=1.914 acc=28.8% mae=0.439 r2=0.477 | Vl loss=1.932 acc=26.8% mae=0.274 r2=0.677 | Te loss=1.880 acc=27.0% mae=0.359 r2=0.165 | ES 20/20
-2026-04-29 11:00:05,974 | INFO | Early stopping at epoch 49  best=29
-2026-04-29 11:00:11,174 | INFO | Best Epoch=29  stopped_epoch=49
-2026-04-29 11:00:11,174 | INFO | Test Accuracy=25.13%
-2026-04-29 11:00:11,174 | INFO | Test RMSE=0.5087
-2026-04-29 11:00:11,174 | INFO | Test MAE=0.3642
-2026-04-29 11:00:11,174 | INFO | Test R²=0.1371
-2026-04-29 11:00:11,178 | INFO | ✓ All done!
-  Ep  31/200 | Tr loss=1.934 acc=26.8% mae=0.440 r2=0.473 | Vl loss=1.968 acc=25.1% mae=0.296 r2=0.657 | Te loss=1.892 acc=24.5% mae=0.357 r2=0.178 | ES 2/20
-  Ep  32/200 | Tr loss=1.938 acc=26.3% mae=0.443 r2=0.469 | Vl loss=1.948 acc=26.0% mae=0.290 r2=0.653 | Te loss=1.867 acc=26.1% mae=0.366 r2=0.112 | ES 3/20
-  Ep  33/200 | Tr loss=1.939 acc=26.7% mae=0.443 r2=0.469 | Vl loss=1.933 acc=27.1% mae=0.306 r2=0.644 | Te loss=1.892 acc=25.9% mae=0.382 r2=0.146 | ES 4/20
-  Ep  34/200 | Tr loss=1.935 acc=27.2% mae=0.444 r2=0.465 | Vl loss=1.914 acc=27.4% mae=0.286 r2=0.654 | Te loss=1.859 acc=25.7% mae=0.382 r2=0.134 | ES 5/20
-  Ep  35/200 | Tr loss=1.939 acc=26.7% mae=0.439 r2=0.473 | Vl loss=1.922 acc=23.7% mae=0.273 r2=0.672 | Te loss=1.842 acc=26.1% mae=0.364 r2=0.162 | ES 6/20
-  Ep  36/200 | Tr loss=1.933 acc=26.8% mae=0.442 r2=0.468 | Vl loss=2.000 acc=24.8% mae=0.280 r2=0.687 | Te loss=1.943 acc=26.3% mae=0.364 r2=0.145 | ES 7/20
-  Ep  37/200 | Tr loss=1.920 acc=26.9% mae=0.439 r2=0.470 | Vl loss=1.936 acc=26.4% mae=0.280 r2=0.680 | Te loss=1.866 acc=26.7% mae=0.363 r2=0.173 | ES 8/20
-  Ep  38/200 | Tr loss=1.935 acc=26.9% mae=0.440 r2=0.471 | Vl loss=1.927 acc=25.2% mae=0.271 r2=0.676 | Te loss=1.851 acc=23.9% mae=0.364 r2=0.164 | ES 9/20
-  Ep  39/200 | Tr loss=1.919 acc=27.6% mae=0.443 r2=0.469 | Vl loss=1.949 acc=23.6% mae=0.275 r2=0.669 | Te loss=1.874 acc=26.2% mae=0.366 r2=0.167 | ES 10/20
-  Ep  40/200 | Tr loss=1.931 acc=27.2% mae=0.441 r2=0.473 | Vl loss=1.926 acc=24.9% mae=0.272 r2=0.680 | Te loss=1.846 acc=25.5% mae=0.369 r2=0.123 | ES 11/20
-  Ep  41/200 | Tr loss=1.925 acc=27.1% mae=0.443 r2=0.471 | Vl loss=1.932 acc=25.7% mae=0.286 r2=0.686 | Te loss=1.873 acc=26.1% mae=0.373 r2=0.162 | ES 12/20
-  Ep  42/200 | Tr loss=1.927 acc=27.5% mae=0.442 r2=0.465 | Vl loss=1.949 acc=26.7% mae=0.279 r2=0.678 | Te loss=1.889 acc=27.1% mae=0.365 r2=0.108 | ES 13/20
-  Ep  43/200 | Tr loss=1.917 acc=27.7% mae=0.442 r2=0.470 | Vl loss=1.931 acc=27.2% mae=0.282 r2=0.679 | Te loss=1.855 acc=26.1% mae=0.370 r2=0.103 | ES 14/20
-  Ep  44/200 | Tr loss=1.925 acc=27.0% mae=0.440 r2=0.472 | Vl loss=1.919 acc=26.0% mae=0.282 r2=0.681 | Te loss=1.853 acc=27.2% mae=0.372 r2=0.178 | ES 15/20
-  Ep  45/200 | Tr loss=1.921 acc=27.7% mae=0.439 r2=0.477 | Vl loss=1.956 acc=25.9% mae=0.277 r2=0.700 | Te loss=1.882 acc=26.8% mae=0.373 r2=0.118 | ES 16/20
-  Ep  46/200 | Tr loss=1.925 acc=27.5% mae=0.441 r2=0.471 | Vl loss=1.952 acc=27.2% mae=0.274 r2=0.694 | Te loss=1.897 acc=25.3% mae=0.364 r2=0.155 | ES 17/20
-  Ep  47/200 | Tr loss=1.914 acc=28.3% mae=0.439 r2=0.475 | Vl loss=1.985 acc=26.2% mae=0.288 r2=0.684 | Te loss=1.912 acc=25.5% mae=0.369 r2=0.165 | ES 18/20
-  Ep  48/200 | Tr loss=1.925 acc=27.9% mae=0.438 r2=0.477 | Vl loss=1.933 acc=26.3% mae=0.274 r2=0.689 | Te loss=1.851 acc=25.8% mae=0.368 r2=0.141 | ES 19/20
-  Ep  49/200 | Tr loss=1.914 acc=28.8% mae=0.439 r2=0.477 | Vl loss=1.932 acc=26.8% mae=0.274 r2=0.677 | Te loss=1.880 acc=27.0% mae=0.359 r2=0.165 | ES 20/20
-
-  ⏹  Early stopping at epoch 49  (best=29, patience=20)
-
-✓ Training complete!
-
-  ── Final Test Results (best epoch = 29) ──────────────────
-  Accuracy : 25.13%
-  RMSE     : 0.5087
-  MAE      : 0.3642
-  R²       : 0.1371
-  Loss     : 1.8431
-  ✓ Saved → /mvdlph/masa/GCN_SingleView_Results/plots/loss_curves.png
-
-  ── Loss Summary (last recorded epoch) ──────────────────────
-  Split           Total      Cls      Reg
-  ────────────────────────────────────────
-  Train          1.9136   1.8798   0.1691
-  Val            1.9316   1.9178   0.0691
-  Test           1.8799   1.8552   0.1236
-  ────────────────────────────────────────
-  ✓ Saved → /mvdlph/masa/GCN_SingleView_Results/plots/accuracy_rmse.png
-  ✓ Saved → /mvdlph/masa/GCN_SingleView_Results/plots/r2_mae_curves.png
-  ✓ Saved → /mvdlph/masa/GCN_SingleView_Results/plots/regression_scatter_test.png
-  ✓ Saved → /mvdlph/masa/GCN_SingleView_Results/plots/confusion_matrix.png
-  ✓ Saved → /mvdlph/masa/GCN_SingleView_Results/plots/early_stopping.png
-  ✓ History → /mvdlph/masa/GCN_SingleView_Results/logs/training_history.json
-============================================================
-  TRAINING SUMMARY — ST-GCN Single View
-============================================================
-  Best Epoch       : 29  (stopped at 49)
-  Best Val Acc     : 29.13%
-  Best Val RMSE    : 0.3806
-  Best Val MAE     : 0.2809
-  Best Val R²      : 0.6642
-────────────────────────────────────────────────────────────
-  Test Accuracy    : 25.13%
-  Test RMSE        : 0.5087
-  Test MAE         : 0.3642
-  Test R²          : 0.1371
-============================================================
-
-✓ Summary CSV saved → /mvdlph/masa/GCN_SingleView_Results/training_summary.csv
-✓ Log file closed and saved.
+530       E9    P15    T6     C1            4  3.3750  1.90392026-04-29 11:01:49,065 | INFO | ======================================================================
+2026-04-29 11:01:49,066 | INFO | ST-GCN Single-View Baseline | BZU Physiotherapy Dataset
+2026-04-29 11:01:49,066 | INFO | Camera : C0  |  Split : 70/15/15  |  Epochs : 200  |  Patience : 30
+2026-04-29 11:01:49,066 | INFO | Log file : /mvdlph/masa/GCN_SingleView_Results/logs/training_20260429_110149.log
+2026-04-29 11:01:49,066 | INFO | ======================================================================
+2026-04-29 11:01:55,179 | INFO | ======================================================================
+2026-04-29 11:01:55,179 | INFO | STARTING TRAINING  (with Early Stopping)
+2026-04-29 11:01:55,179 | INFO | ======================================================================
+2026-04-29 11:01:56,493 | INFO | train=3768 val=708 test=671
+2026-04-29 11:02:11,536 | INFO |   Ep   1/200 | Tr loss=2.754 acc=10.7% mae=0.840 r2=-0.715 | Vl loss=2.418 acc=13.7% mae=0.387 r2=0.536 | Te loss=2.387 acc=15.9% mae=0.407 r2=0.290 | ES 0/30 ★
+2026-04-29 11:02:25,303 | INFO |   Ep   2/200 | Tr loss=2.387 acc=16.0% mae=0.596 r2=0.054 | Vl loss=2.260 acc=14.3% mae=0.338 r2=0.610 | Te loss=2.246 acc=14.2% mae=0.394 r2=0.286 | ES 0/30 ★
+2026-04-29 11:02:39,105 | INFO |   Ep   3/200 | Tr loss=2.203 acc=20.8% mae=0.549 r2=0.189 | Vl loss=2.118 acc=21.2% mae=0.341 r2=0.630 | Te loss=2.144 acc=21.6% mae=0.425 r2=0.211 | ES 0/30 ★
+2026-04-29 11:02:53,150 | INFO |   Ep   4/200 | Tr loss=2.127 acc=23.0% mae=0.531 r2=0.231 | Vl loss=2.057 acc=19.4% mae=0.399 r2=0.540 | Te loss=2.074 acc=22.2% mae=0.469 r2=0.064 | ES 1/30
+2026-04-29 11:03:06,941 | INFO |   Ep   5/200 | Tr loss=2.085 acc=23.7% mae=0.518 r2=0.276 | Vl loss=2.029 acc=26.3% mae=0.362 r2=0.601 | Te loss=2.073 acc=27.3% mae=0.442 r2=0.151 | ES 0/30 ★
+2026-04-29 11:03:20,789 | INFO |   Ep   6/200 | Tr loss=2.071 acc=24.1% mae=0.503 r2=0.323 | Vl loss=2.000 acc=23.0% mae=0.348 r2=0.601 | Te loss=2.045 acc=23.1% mae=0.470 r2=-0.016 | ES 1/30
+2026-04-29 11:03:34,882 | INFO |   Ep   7/200 | Tr loss=2.047 acc=24.1% mae=0.506 r2=0.325 | Vl loss=1.953 acc=21.6% mae=0.282 r2=0.710 | Te loss=2.041 acc=22.7% mae=0.421 r2=0.139 | ES 2/30
+2026-04-29 11:03:48,880 | INFO |   Ep   8/200 | Tr loss=2.035 acc=24.9% mae=0.476 r2=0.379 | Vl loss=1.931 acc=27.7% mae=0.342 r2=0.623 | Te loss=1.990 acc=27.0% mae=0.456 r2=0.046 | ES 0/30 ★
+2026-04-29 11:04:02,751 | INFO |   Ep   9/200 | Tr loss=2.027 acc=25.2% mae=0.473 r2=0.395 | Vl loss=1.945 acc=26.1% mae=0.289 r2=0.695 | Te loss=2.033 acc=24.7% mae=0.442 r2=0.077 | ES 1/30
+2026-04-29 11:04:16,670 | INFO |   Ep  10/200 | Tr loss=2.020 acc=25.1% mae=0.470 r2=0.404 | Vl loss=1.893 acc=27.7% mae=0.316 r2=0.664 | Te loss=1.969 acc=26.7% mae=0.447 r2=0.053 | ES 2/30
+2026-04-29 11:04:30,594 | INFO |   Ep  11/200 | Tr loss=1.988 acc=25.5% mae=0.466 r2=0.418 | Vl loss=1.979 acc=26.1% mae=0.283 r2=0.696 | Te loss=2.046 acc=25.5% mae=0.440 r2=0.086 | ES 3/30
+2026-04-29 11:04:44,471 | INFO |   Ep  12/200 | Tr loss=2.013 acc=24.2% mae=0.457 r2=0.430 | Vl loss=1.934 acc=23.3% mae=0.338 r2=0.634 | Te loss=1.992 acc=24.4% mae=0.456 r2=0.059 | ES 4/30
+2026-04-29 11:04:58,355 | INFO |   Ep  13/200 | Tr loss=1.983 acc=24.7% mae=0.460 r2=0.421 | Vl loss=1.886 acc=27.3% mae=0.275 r2=0.711 | Te loss=1.965 acc=23.7% mae=0.432 r2=0.120 | ES 5/30
+2026-04-29 11:05:12,217 | INFO |   Ep  14/200 | Tr loss=1.977 acc=26.8% mae=0.457 r2=0.424 | Vl loss=1.911 acc=26.7% mae=0.270 r2=0.707 | Te loss=1.991 acc=23.8% mae=0.443 r2=0.092 | ES 6/30
+2026-04-29 11:05:26,066 | INFO |   Ep  15/200 | Tr loss=1.983 acc=25.0% mae=0.452 r2=0.443 | Vl loss=1.888 acc=27.3% mae=0.284 r2=0.701 | Te loss=1.961 acc=25.5% mae=0.434 r2=0.112 | ES 7/30
+2026-04-29 11:05:39,934 | INFO |   Ep  16/200 | Tr loss=1.966 acc=25.3% mae=0.454 r2=0.439 | Vl loss=1.936 acc=26.0% mae=0.297 r2=0.670 | Te loss=2.013 acc=25.6% mae=0.462 r2=0.011 | ES 8/30
+2026-04-29 11:05:53,854 | INFO |   Ep  17/200 | Tr loss=1.959 acc=26.1% mae=0.454 r2=0.439 | Vl loss=1.903 acc=26.7% mae=0.274 r2=0.702 | Te loss=1.980 acc=23.1% mae=0.450 r2=0.055 | ES 9/30
+2026-04-29 11:06:07,743 | INFO |   Ep  18/200 | Tr loss=1.968 acc=26.6% mae=0.454 r2=0.441 | Vl loss=1.939 acc=24.6% mae=0.293 r2=0.682 | Te loss=2.013 acc=24.6% mae=0.451 r2=0.043 | ES 10/30
+2026-04-29 11:06:21,688 | INFO |   Ep  19/200 | Tr loss=1.968 acc=25.4% mae=0.452 r2=0.446 | Vl loss=1.919 acc=29.1% mae=0.287 r2=0.701 | Te loss=1.997 acc=27.0% mae=0.428 r2=0.157 | ES 0/30 ★
+2026-04-29 11:06:35,537 | INFO |   Ep  20/200 | Tr loss=1.964 acc=25.1% mae=0.450 r2=0.442 | Vl loss=1.974 acc=26.1% mae=0.287 r2=0.692 | Te loss=2.084 acc=25.6% mae=0.448 r2=0.040 | ES 1/30
+2026-04-29 11:06:49,449 | INFO |   Ep  21/200 | Tr loss=1.964 acc=25.8% mae=0.449 r2=0.456 | Vl loss=1.906 acc=24.9% mae=0.275 r2=0.710 | Te loss=1.979 acc=25.8% mae=0.416 r2=0.194 | ES 2/30
+2026-04-29 11:07:03,501 | INFO |   Ep  22/200 | Tr loss=1.956 acc=24.3% mae=0.444 r2=0.458 | Vl loss=1.923 acc=27.7% mae=0.281 r2=0.700 | Te loss=1.999 acc=23.2% mae=0.446 r2=0.077 | ES 3/30
+2026-04-29 11:07:17,362 | INFO |   Ep  23/200 | Tr loss=1.954 acc=26.4% mae=0.448 r2=0.450 | Vl loss=1.920 acc=26.3% mae=0.271 r2=0.717 | Te loss=1.998 acc=23.5% mae=0.419 r2=0.188 | ES 4/30
+2026-04-29 11:07:31,484 | INFO |   Ep  24/200 | Tr loss=1.949 acc=26.1% mae=0.448 r2=0.449 | Vl loss=1.953 acc=26.7% mae=0.297 r2=0.677 | Te loss=2.036 acc=21.3% mae=0.442 r2=0.096 | ES 5/30

@@ -1090,6 +1090,80 @@ with open(json_path, 'w') as f:
 print(f'  ✓ History → {json_path}')
 
 
+
+
+
+# ══════════════════════════════════════════════════════════════════════════
+# DIAGNOSTIC CELL — run before more training
+# ══════════════════════════════════════════════════════════════════════════
+import numpy as np
+
+print("=" * 60)
+print("DIAGNOSTIC 1: Per-class skeleton variance (C0)")
+print("=" * 60)
+
+# Sample up to 20 files per exercise and compute axis variance
+from collections import defaultdict
+axis_var = defaultdict(list)
+
+for _, row in df_index.sample(min(300, len(df_index)), random_state=0).iterrows():
+    skel = load_skeleton(row['filepath'])   # (T,17,3)
+    axis_var[row['exercise']].append({
+        'x_var': skel[:,:,0].var(),
+        'y_var': skel[:,:,1].var(),
+        'z_var': skel[:,:,2].var(),
+    })
+
+print(f"{'Exercise':>10} {'X-var':>10} {'Y-var':>10} {'Z-var':>10} {'Z/X ratio':>10}")
+print("-" * 55)
+for ex in sorted(axis_var.keys()):
+    vals = axis_var[ex]
+    xv = np.mean([v['x_var'] for v in vals])
+    yv = np.mean([v['y_var'] for v in vals])
+    zv = np.mean([v['z_var'] for v in vals])
+    print(f"{f'E{ex}':>10} {xv:>10.4f} {yv:>10.4f} {zv:>10.4f} {zv/max(xv,1e-6):>10.3f}")
+
+print()
+print("=" * 60)
+print("DIAGNOSTIC 2: Per-class accuracy on test set")
+print("=" * 60)
+
+model.eval()
+from collections import Counter
+
+per_class_correct = Counter()
+per_class_total   = Counter()
+
+with torch.no_grad():
+    for skels, ex_ids, qualities in test_loader:
+        skels = centre_and_scale(skels.to(DEVICE))
+        cls_logits, _ = model(skels)
+        preds = cls_logits.argmax(1).cpu().numpy()
+        trues = ex_ids.numpy()
+        for t, p in zip(trues, preds):
+            ex_name = f"E{rev_map[t]}"
+            per_class_total[ex_name] += 1
+            if t == p:
+                per_class_correct[ex_name] += 1
+
+print(f"{'Exercise':>10} {'Correct':>8} {'Total':>8} {'Acc%':>8}")
+print("-" * 38)
+for ex in sorted(per_class_total.keys()):
+    tot = per_class_total[ex]
+    cor = per_class_correct[ex]
+    print(f"{ex:>10} {cor:>8} {tot:>8} {100*cor/tot:>7.1f}%")
+
+print()
+print("=" * 60)
+print("DIAGNOSTIC 3: Quality score distribution per split")
+print("=" * 60)
+for name, df_ in [('Train', train_df), ('Val', val_df), ('Test', test_df)]:
+    q = df_['quality']
+    trials_correct   = (df_['trial_num'] <= 2).sum()
+    trials_erroneous = (df_['trial_num'] >= 3).sum()
+    print(f"{name:>6}: mean={q.mean():.3f} std={q.std():.3f} "
+          f"min={q.min():.2f} max={q.max():.2f} | "
+          f"correct={trials_correct} erroneous={trials_erroneous}")
 # ══════════════════════════════════════════════════════════════════════════
 # Cell 17 — Final Summary
 # ══════════════════════════════════════════════════════════════════════════
