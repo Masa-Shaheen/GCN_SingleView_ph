@@ -6,7 +6,7 @@ import os
 
 DATASET_DIR   = "/mvdlph/Dataset_CVDLPT_Videos_Segments_P0P15_MMPose_human3d_motionbert_H36M_3D_1_2026"
 CSV_PATH      = "/mvdlph/label_events_20260129_155122_stats_short.csv"
-CAMERA_ID     = 2
+CAMERA_ID     = 1
 NPZ_KEY       = "keypoints_3d"
 NUM_JOINTS    = 17
 NUM_CLASSES   = 10
@@ -428,21 +428,30 @@ class BZUDataset(Dataset):
         return len(self.df)
 
     def __getitem__(self, idx):
-        row     = self.df.iloc[idx]
-        skel    = load_skeleton(row['filepath'])
+        row  = self.df.iloc[idx]
+        skel = load_skeleton(row['filepath'])
+
         if skel is None:
-            # fallback: return zeros — should not happen after filtering
             skel = np.zeros((TARGET_FRAMES, 17, 3), dtype=np.float32)
-        skel    = self._normalise_length(skel)
+
+        skel = self._normalise_length(skel)
+
         if self.augment:
             skel = self._augment(skel)
-        skel    = torch.tensor(skel,            dtype=torch.float32)
+
+        # ── NEW: velocity ───────────────────────────────
+        vel = np.zeros_like(skel)
+        vel[1:] = skel[1:] - skel[:-1]
+
+        skel = np.concatenate([skel, vel], axis=2)  # (T,17,6)
+
+        skel    = torch.tensor(skel, dtype=torch.float32)
         ex_id   = torch.tensor(row['exercise'], dtype=torch.long)
-        quality = torch.tensor(row['quality'],  dtype=torch.float32)
+        quality = torch.tensor(row['quality'], dtype=torch.float32)
+
         return skel, ex_id, quality
 
     def _normalise_length(self, skel):
-        """Temporally resample skeleton to TARGET_FRAMES using linear interpolation."""
         T = skel.shape[0]
         if T == self.target_frames:
             return skel
@@ -455,17 +464,15 @@ class BZUDataset(Dataset):
         return out
 
     def _augment(self, skel):
-        """Speed jitter + Gaussian noise + horizontal flip."""
         T     = skel.shape[0]
         speed = np.random.uniform(0.8, 1.2)
         idxs  = np.linspace(0, T - 1, max(10, int(T * speed))).astype(int)
-        skel  = self._normalise_length(skel[idxs])           # resample to TARGET_FRAMES
+        skel  = self._normalise_length(skel[idxs])
         skel += np.random.randn(*skel.shape).astype(np.float32) * 0.005
         if np.random.rand() < 0.5:
-            skel[:, :, 0] *= -1.0                             # mirror X axis
+            skel[:, :, 0] *= -1.0
         return skel
-
-
+    
 print('✓ BZUDataset defined')
 
 
@@ -534,10 +541,10 @@ class STGCN_SingleView(nn.Module):
         A = build_adj(NUM_JOINTS, SKELETON_EDGES)
 
         # FIX: BN over coordinate channels (3), not flattened joints
-        self.data_bn = nn.BatchNorm1d(3)
+        self.data_bn = nn.BatchNorm1d(6)
 
         cfg = [
-            (3,   64,  1, 3),    # ← t_kernel=3 في الطبقة الأولى
+            (6,   64,  1, 3),    # ← t_kernel=3 في الطبقة الأولى
             (64,  64,  1, 9),
             (64,  128, 2, 9),
             (128, 128, 1, 9),
@@ -570,7 +577,7 @@ class STGCN_SingleView(nn.Module):
                 nn.init.zeros_(m.bias)
 
     def forward(self, x):
-        B, T, J, C = x.shape   # (B, 100, 17, 3)
+        B, T, J, C = x.shape   # (B, 100, 17, 6)
 
         # ── Input normalisation (FIXED: normalize over coord axis) ────────
         xbn = x.permute(0, 3, 1, 2).reshape(B, C, T * J)  # (B, 3, T*J)
@@ -996,11 +1003,11 @@ print(f'{"═"*68}')
 
 for epoch in range(1, EPOCHS + 1):
     tr = run_epoch(model, train_loader, optimiser, cls_fn, reg_fn,
-                   is_train=True,  cls_w=1.0, reg_w=0.5)
+                   is_train=True,  cls_w=3.0, reg_w=0.1)
     vl = run_epoch(model, val_loader,   optimiser, cls_fn, reg_fn,
-                   is_train=False, cls_w=1.0, reg_w=0.5)
+                   is_train=False, cls_w=3.0, reg_w=0.1)
     te = run_epoch(model, test_loader,  optimiser, cls_fn, reg_fn,
-                   is_train=False, cls_w=1.0, reg_w=0.5)
+                   is_train=False, cls_w=3.0, reg_w=0.1)
     scheduler.step()
 
     for split, res in [('train', tr), ('val', vl), ('test', te)]:
