@@ -1,11 +1,12 @@
 nohup: ignoring input
+✓ Libraries imported
 ✓ Configuration loaded
   DATASET_DIR : /mvdlph/Dataset_CVDLPT_Videos_Segments_P0P15_MMPose_human3d_motionbert_H36M_3D_1_2026
   NPZ_KEY     : keypoints_3d
   CAMERA_ID   : C1
   EXISTS      : True
   PATIENCE    : 30 epochs
-✓ Libraries imported
+  Q range     : [1.0, 5.0]  (normalised to [0,1])
 ✓ Output folders ready:
    /mvdlph/masa/GCN_SingleView_Regression_Results/plots
    /mvdlph/masa/GCN_SingleView_Regression_Results/logs
@@ -551,16 +552,37 @@ Shape   : (531, 7)
 527       E9    P15    T3     C1            4  4.4250  1.3566
 528       E9    P15    T4     C1            4  3.6500  1.7029
 529       E9    P15    T5     C1            4  2.7750  1.7466
-530       E9    P15    T6     C1            4  3.3750  1.90392026-04-29 15:17:00,276 | INFO | ======================================================================
-2026-04-29 15:17:00,276 | INFO | ST-GCN Single-View Regression | BZU Physiotherapy Dataset
-2026-04-29 15:17:00,276 | INFO | Camera : C1  |  Split : 70/15/15  |  Epochs : 200  |  Patience : 30
-2026-04-29 15:17:00,276 | INFO | Log file : /mvdlph/masa/GCN_SingleView_Regression_Results/logs/training_20260429_151700.log
-2026-04-29 15:17:00,276 | INFO | ======================================================================
-2026-04-29 15:17:14,624 | INFO | ======================================================================
-2026-04-29 15:17:14,624 | INFO | STARTING REGRESSION TRAINING  (with Early Stopping on MAE)
-2026-04-29 15:17:14,624 | INFO | ======================================================================
-2026-04-29 15:17:14,624 | INFO | train=3777 val=686 test=638
-2026-04-29 15:17:35,845 | INFO |   Ep   1/200 | Tr loss=0.3884 mae=0.720 r2=-0.433 | Vl loss=0.1472 mae=0.433 r2=0.476 | Te loss=0.3232 mae=0.638 r2=-1.028 | ES 0/30 ★
-2026-04-29 15:17:55,762 | INFO |   Ep   2/200 | Tr loss=0.2778 mae=0.599 r2=0.072 | Vl loss=0.1267 mae=0.404 r2=0.567 | Te loss=0.2619 mae=0.582 r2=-0.467 | ES 0/30 ★
-2026-04-29 15:18:15,792 | INFO |   Ep   3/200 | Tr loss=0.2481 mae=0.561 r2=0.186 | Vl loss=0.1254 mae=0.410 r2=0.573 | Te loss=0.2236 mae=0.531 r2=-0.190 | ES 1/30
-2026-04-29 15:18:35,683 | INFO |   Ep   4/200 | Tr loss=0.2220 mae=0.528 r2=0.292 | Vl loss=0.1253 mae=0.408 r2=0.574 | Te loss=0.2309 mae=0.542 r2=-0.239 | ES 2/30
+530       E9    P15    T6     C1            4  3.3750  1.90392026-04-29 15:19:57,196 | INFO | ======================================================================
+2026-04-29 15:19:57,196 | INFO | ST-GCN Single-View Regression | BZU Physiotherapy Dataset
+2026-04-29 15:19:57,196 | INFO | Camera : C1  |  Split : 70/15/15  |  Epochs : 200  |  Patience : 30
+2026-04-29 15:19:57,196 | INFO | Log file : /mvdlph/masa/GCN_SingleView_Regression_Results/logs/training_20260429_151957.log
+2026-04-29 15:19:57,196 | INFO | ======================================================================
+2026-04-29 15:20:08,613 | INFO | ======================================================================
+2026-04-29 15:20:08,613 | INFO | STARTING REGRESSION TRAINING  (fixed: normalised labels, no tanh)
+2026-04-29 15:20:08,613 | INFO | ======================================================================
+2026-04-29 15:20:08,614 | INFO | train=3777 val=686 test=638
+2026-04-29 15:20:23,728 | INFO |   Ep   1/200 | Tr loss=0.4018 mae=1.935 r2=-8.493 | Vl loss=0.0544 mae=0.773 r2=-0.493 | Te loss=0.0367 mae=0.636 r2=-0.466 | ES 0/30 ★
+2026-04-29 15:20:37,609 | INFO |   Ep   2/200 | Tr loss=0.1231 mae=1.112 r2=-1.907 | Vl loss=0.0306 mae=0.525 r2=0.144 | Te loss=0.0608 mae=0.790 r2=-1.638 | ES 0/30 ★
+2026-04-29 15:20:51,450 | INFO |   Ep   3/200 | Tr loss=0.0787 mae=0.882 r2=-0.852 | Vl loss=0.0174 mae=0.400 r2=0.513 | Te loss=0.0260 mae=0.525 r2=-0.120 | ES 0/30 ★
+2026-04-29 15:21:05,358 | INFO |   Ep   4/200 | Tr loss=0.0648 mae=0.795 r2=-0.530 | Vl loss=0.0367 mae=0.675 r2=-0.006 | Te loss=0.0499 mae=0.801 r2=-1.156 | ES 1/30
+2026-04-29 15:21:19,233 | INFO |   Ep   5/200 | Tr loss=0.0542 mae=0.726 r2=-0.281 | Vl loss=0.0311 mae=0.589 r2=0.138 | Te loss=0.0510 mae=0.770 r2=-1.213 | ES 2/30
+2026-04-29 15:21:33,126 | INFO |   Ep   6/200 | Tr loss=0.0469 mae=0.675 r2=-0.106 | Vl loss=0.0258 mae=0.558 r2=0.291 | Te loss=0.0328 mae=0.641 r2=-0.421 | ES 3/30
+2026-04-29 15:21:46,975 | INFO |   Ep   7/200 | Tr loss=0.0427 mae=0.653 r2=-0.006 | Vl loss=0.0289 mae=0.591 r2=0.208 | Te loss=0.0421 mae=0.727 r2=-0.824 | ES 4/30
+2026-04-29 15:22:00,894 | INFO |   Ep   8/200 | Tr loss=0.0399 mae=0.620 r2=0.060 | Vl loss=0.0311 mae=0.631 r2=0.151 | Te loss=0.0405 mae=0.726 r2=-0.750 | ES 5/30
+2026-04-29 15:22:14,920 | INFO |   Ep   9/200 | Tr loss=0.0387 mae=0.614 r2=0.088 | Vl loss=0.0253 mae=0.558 r2=0.305 | Te loss=0.0351 mae=0.662 r2=-0.521 | ES 6/30
+2026-04-29 15:22:28,973 | INFO |   Ep  10/200 | Tr loss=0.0362 mae=0.587 r2=0.147 | Vl loss=0.0246 mae=0.546 r2=0.326 | Te loss=0.0397 mae=0.684 r2=-0.722 | ES 7/30
+2026-04-29 15:22:42,842 | INFO |   Ep  11/200 | Tr loss=0.0342 mae=0.572 r2=0.195 | Vl loss=0.0298 mae=0.623 r2=0.189 | Te loss=0.0379 mae=0.692 r2=-0.636 | ES 8/30
+2026-04-29 15:22:56,780 | INFO |   Ep  12/200 | Tr loss=0.0335 mae=0.566 r2=0.212 | Vl loss=0.0325 mae=0.652 r2=0.116 | Te loss=0.0441 mae=0.742 r2=-0.901 | ES 9/30
+2026-04-29 15:23:10,732 | INFO |   Ep  13/200 | Tr loss=0.0332 mae=0.564 r2=0.218 | Vl loss=0.0311 mae=0.631 r2=0.152 | Te loss=0.0446 mae=0.744 r2=-0.925 | ES 10/30
+2026-04-29 15:23:24,605 | INFO |   Ep  14/200 | Tr loss=0.0324 mae=0.558 r2=0.235 | Vl loss=0.0249 mae=0.549 r2=0.316 | Te loss=0.0416 mae=0.695 r2=-0.802 | ES 11/30
+2026-04-29 15:23:38,613 | INFO |   Ep  15/200 | Tr loss=0.0316 mae=0.548 r2=0.254 | Vl loss=0.0339 mae=0.661 r2=0.076 | Te loss=0.0474 mae=0.775 r2=-1.045 | ES 12/30
+2026-04-29 15:23:52,495 | INFO |   Ep  16/200 | Tr loss=0.0303 mae=0.534 r2=0.287 | Vl loss=0.0292 mae=0.608 r2=0.203 | Te loss=0.0430 mae=0.726 r2=-0.861 | ES 13/30
+2026-04-29 15:24:06,604 | INFO |   Ep  17/200 | Tr loss=0.0291 mae=0.523 r2=0.314 | Vl loss=0.0226 mae=0.531 r2=0.380 | Te loss=0.0363 mae=0.635 r2=-0.572 | ES 14/30
+2026-04-29 15:24:20,486 | INFO |   Ep  18/200 | Tr loss=0.0297 mae=0.527 r2=0.298 | Vl loss=0.0277 mae=0.588 r2=0.243 | Te loss=0.0410 mae=0.709 r2=-0.775 | ES 15/30
+2026-04-29 15:24:34,465 | INFO |   Ep  19/200 | Tr loss=0.0291 mae=0.522 r2=0.317 | Vl loss=0.0181 mae=0.443 r2=0.496 | Te loss=0.0368 mae=0.620 r2=-0.597 | ES 16/30
+2026-04-29 15:24:48,343 | INFO |   Ep  20/200 | Tr loss=0.0293 mae=0.523 r2=0.309 | Vl loss=0.0205 mae=0.487 r2=0.434 | Te loss=0.0380 mae=0.643 r2=-0.649 | ES 17/30
+2026-04-29 15:25:02,203 | INFO |   Ep  21/200 | Tr loss=0.0290 mae=0.518 r2=0.317 | Vl loss=0.0229 mae=0.533 r2=0.371 | Te loss=0.0355 mae=0.643 r2=-0.539 | ES 18/30
+2026-04-29 15:25:15,972 | INFO |   Ep  22/200 | Tr loss=0.0279 mae=0.509 r2=0.341 | Vl loss=0.0196 mae=0.477 r2=0.457 | Te loss=0.0363 mae=0.626 r2=-0.575 | ES 19/30
+2026-04-29 15:25:29,839 | INFO |   Ep  23/200 | Tr loss=0.0277 mae=0.510 r2=0.345 | Vl loss=0.0207 mae=0.510 r2=0.432 | Te loss=0.0302 mae=0.583 r2=-0.308 | ES 20/30
+2026-04-29 15:25:43,714 | INFO |   Ep  24/200 | Tr loss=0.0282 mae=0.511 r2=0.335 | Vl loss=0.0257 mae=0.568 r2=0.298 | Te loss=0.0382 mae=0.682 r2=-0.656 | ES 21/30
+2026-04-29 15:25:57,638 | INFO |   Ep  25/200 | Tr loss=0.0268 mae=0.503 r2=0.367 | Vl loss=0.0280 mae=0.597 r2=0.237 | Te loss=0.0381 mae=0.690 r2=-0.648 | ES 22/30
