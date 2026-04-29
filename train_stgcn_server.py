@@ -204,7 +204,7 @@ def load_skeleton(fpath, key=NPZ_KEY):
         # Original: X=left/right, Y=depth(tiny), Z=height
         # Target:   X=left/right, Y=height,      Z=depth
         x = arr[:, :, 0].copy()   # left/right  → keep as X
-        y = arr[:, :, 1].copy()   # depth        → becomes Z  
+        y = arr[:, :, 1].copy()   # depth        → becomes Z
         z = arr[:, :, 2].copy()   # height       → becomes Y
         arr[:, :, 0] = x
         arr[:, :, 1] = z          # Y = height (was Z)
@@ -214,7 +214,7 @@ def load_skeleton(fpath, key=NPZ_KEY):
         return arr
     except Exception:
         return None
-    
+
 print('✓ parse_filename and load_skeleton defined')
 
 
@@ -665,411 +665,158 @@ def run_epoch(model, loader, optimiser, reg_fn, is_train=True):
 print('✓ centre_and_scale and run_epoch (regression) defined')
 
 
-# ══════════════════════════════════════════════════════════════════════════
-# Cell 13 — Trial-based train / val / test split
-# ══════════════════════════════════════════════════════════════════════════
-
-def get_trial_split(df, train_ratio=TRAIN_RATIO, val_ratio=VAL_RATIO, random_state=42):
-    """
-    Split by PERSON to prevent any person appearing in multiple splits.
-    Stratify by quality bin to ensure score range is balanced.
-    """
-    rng = np.random.default_rng(random_state)
-
-    # Get per-person mean quality for stratification
-    person_quality = df.groupby('person')['quality'].mean()
-    persons = person_quality.index.values
-    qualities = person_quality.values
-
-    # Bin quality into 3 strata: low / mid / high
-    bins = np.percentile(qualities, [33, 66])
-    strata = np.digitize(qualities, bins)  # 0, 1, 2
-
-    train_persons, val_persons, test_persons = [], [], []
-
-    for stratum in np.unique(strata):
-        stratum_persons = persons[strata == stratum]
-        rng.shuffle(stratum_persons)
-        n = len(stratum_persons)
-        n_test = max(1, int((1 - train_ratio - val_ratio) * n))
-        n_val  = max(1, int(val_ratio * n))
-        n_train = n - n_val - n_test
-
-        train_persons.extend(stratum_persons[:n_train])
-        val_persons.extend(stratum_persons[n_train:n_train + n_val])
-        test_persons.extend(stratum_persons[n_train + n_val:])
-
-    train_df = df[df['person'].isin(train_persons)].reset_index(drop=True)
-    val_df   = df[df['person'].isin(val_persons)].reset_index(drop=True)
-    test_df  = df[df['person'].isin(test_persons)].reset_index(drop=True)
-
-    print(f'\nPersons → train={len(train_persons)}, val={len(val_persons)}, test={len(test_persons)}')
-    print(f'Samples → train={len(train_df)}, val={len(val_df)}, test={len(test_df)}')
-
-    # Verify quality distribution is balanced
-    for name, d in [('Train', train_df), ('Val', val_df), ('Test', test_df)]:
-        q = d['quality']
-        print(f'  {name}: mean={q.mean():.3f} std={q.std():.3f} '
-              f'min={q.min():.2f} max={q.max():.2f}')
-
-    return train_df, val_df, test_df
-
-train_df, val_df, test_df = get_trial_split(df_index)
-print('\n✓ Train / Val / Test split ready')
-
-
-# ══════════════════════════════════════════════════════════════════════════
-# Cell 14 — Plotting helpers (regression only)
-# ══════════════════════════════════════════════════════════════════════════
-
-def save_and_show(fig, path):
-    fig.savefig(path, dpi=150, bbox_inches='tight')
-    plt.close(fig)
-    print(f'  ✓ Saved → {path}')
-
-
-def plot_loss_curves(history, save_dir):
-    epochs = range(1, len(history['train_loss']) + 1)
-    fig, ax = plt.subplots(figsize=(10, 4))
-    ax.plot(epochs, history['train_loss'], label='Train',      color='steelblue')
-    ax.plot(epochs, history['val_loss'],   label='Validation', color='darkorange')
-    ax.plot(epochs, history['test_loss'],  label='Test',       color='green', linestyle='--')
-    ax.set_title('Regression Loss (SmoothL1)', fontsize=13, fontweight='bold')
-    ax.set_xlabel('Epoch'); ax.set_ylabel('Loss')
-    ax.legend(); ax.grid(alpha=0.3)
-    plt.tight_layout()
-    save_and_show(fig, os.path.join(save_dir, 'loss_curve.png'))
-
-
-def plot_rmse_mae(history, save_dir):
-    epochs = range(1, len(history['val_rmse']) + 1)
-    fig, axes = plt.subplots(1, 2, figsize=(12, 4))
-    fig.suptitle('RMSE & MAE — Train / Val / Test', fontsize=14, fontweight='bold')
-
-    axes[0].plot(epochs, history['train_rmse'], label='Train',      color='steelblue')
-    axes[0].plot(epochs, history['val_rmse'],   label='Validation', color='darkorange')
-    axes[0].plot(epochs, history['test_rmse'],  label='Test',       color='green', linestyle='--')
-    axes[0].set_title('RMSE')
-    axes[0].set_xlabel('Epoch'); axes[0].set_ylabel('RMSE')
-    axes[0].legend(); axes[0].grid(alpha=0.3)
-
-    axes[1].plot(epochs, history['train_mae'], label='Train',      color='steelblue')
-    axes[1].plot(epochs, history['val_mae'],   label='Validation', color='darkorange')
-    axes[1].plot(epochs, history['test_mae'],  label='Test',       color='green', linestyle='--')
-    axes[1].set_title('MAE')
-    axes[1].set_xlabel('Epoch'); axes[1].set_ylabel('MAE')
-    axes[1].legend(); axes[1].grid(alpha=0.3)
-
-    plt.tight_layout()
-    save_and_show(fig, os.path.join(save_dir, 'rmse_mae.png'))
-
-
-def plot_r2(history, save_dir):
-    epochs = range(1, len(history['val_r2']) + 1)
-    fig, ax = plt.subplots(figsize=(8, 4))
-    ax.plot(epochs, history['train_r2'], label='Train',      color='steelblue')
-    ax.plot(epochs, history['val_r2'],   label='Validation', color='darkorange')
-    ax.plot(epochs, history['test_r2'],  label='Test',       color='green', linestyle='--')
-    ax.axhline(1.0, color='gray', linestyle=':', linewidth=1, label='Perfect (R²=1)')
-    ax.axhline(0.0, color='red',  linestyle=':', linewidth=1, label='Baseline (R²=0)')
-    ax.set_title('R² Score', fontsize=13, fontweight='bold')
-    ax.set_xlabel('Epoch'); ax.set_ylabel('R²')
-    ax.legend(fontsize=8); ax.grid(alpha=0.3)
-    plt.tight_layout()
-    save_and_show(fig, os.path.join(save_dir, 'r2_curve.png'))
-
-
-def plot_regression_scatter(q_true, q_pred, split_name='Test', save_dir=None):
-    qt   = np.array(q_true)
-    qp   = np.array(q_pred)
-    r2   = float(r2_score(qt, qp)) if len(qt) > 1 else 0.0
-    mae  = float(np.mean(np.abs(qt - qp)))
-    rmse = float(np.sqrt(np.mean((qt - qp) ** 2)))
-
-    fig, ax = plt.subplots(figsize=(6, 6))
-    ax.scatter(qt, qp, alpha=0.6, edgecolors='black', linewidths=0.4,
-               color='steelblue', s=60)
-    lo = min(qt.min(), qp.min()) - 0.2
-    hi = max(qt.max(), qp.max()) + 0.2
-    ax.plot([lo, hi], [lo, hi], 'r--', linewidth=1.5, label='Perfect prediction')
-    ax.set_xlim(lo, hi); ax.set_ylim(lo, hi)
-    ax.set_xlabel('True Quality Score',      fontsize=12)
-    ax.set_ylabel('Predicted Quality Score', fontsize=12)
-    ax.set_title(f'{split_name} Set — True vs Predicted Quality',
-                 fontsize=13, fontweight='bold')
-    ax.legend(fontsize=9); ax.grid(alpha=0.3)
-    textstr = f'R²   = {r2:.4f}\nMAE  = {mae:.4f}\nRMSE = {rmse:.4f}'
-    ax.text(0.05, 0.95, textstr, transform=ax.transAxes, fontsize=10,
-            verticalalignment='top',
-            bbox=dict(boxstyle='round', facecolor='wheat', alpha=0.7))
-    plt.tight_layout()
-    if save_dir:
-        save_and_show(fig, os.path.join(save_dir,
-                      f'regression_scatter_{split_name.lower()}.png'))
-    else:
-        plt.close(fig)
-
-
-def plot_early_stop(history, stopped_epoch, best_epoch, save_dir):
-    """MAE curves annotated with best epoch and early-stop epoch."""
-    epochs = range(1, len(history['val_mae']) + 1)
-    fig, ax = plt.subplots(figsize=(10, 4))
-    ax.plot(epochs, history['train_mae'], label='Train MAE', color='steelblue')
-    ax.plot(epochs, history['val_mae'],   label='Val MAE',   color='darkorange')
-    ax.plot(epochs, history['test_mae'],  label='Test MAE',  color='green', linestyle='--')
-    ax.axvline(best_epoch,    color='purple', linestyle=':',  linewidth=2,
-               label=f'Best epoch ({best_epoch})')
-    ax.axvline(stopped_epoch, color='red',    linestyle='--', linewidth=2,
-               label=f'Early stop ({stopped_epoch})')
-    ax.set_title('MAE + Early Stopping', fontsize=13, fontweight='bold')
-    ax.set_xlabel('Epoch'); ax.set_ylabel('MAE')
-    ax.legend(); ax.grid(alpha=0.3)
-    plt.tight_layout()
-    save_and_show(fig, os.path.join(save_dir, 'early_stopping.png'))
-
-
-print('✓ Plotting helpers (regression) defined')
-
-
-# ══════════════════════════════════════════════════════════════════════════
-# Cell 15 — Early Stopping (monitors validation MAE)
-# ══════════════════════════════════════════════════════════════════════════
-
-class EarlyStopping:
-    """
-    Monitors val_mae (lower = better).
-    """
-    def __init__(self, patience=PATIENCE, min_delta=MIN_DELTA):
-        self.patience   = patience
-        self.min_delta  = min_delta
-        self.best_mae   = float('inf')
-        self.counter    = 0
-        self.best_wts   = None
-        self.best_epoch = 1
-
-    def step(self, val_mae, model, epoch):
-        if val_mae < self.best_mae - self.min_delta:
-            self.best_mae   = val_mae
-            self.counter    = 0
-            self.best_wts   = copy.deepcopy(model.state_dict())
-            self.best_epoch = epoch
-            return False, True
-        else:
-            self.counter += 1
-            return self.counter >= self.patience, False
-
-
-print('✓ EarlyStopping defined (monitoring MAE)')
-
-
-# ══════════════════════════════════════════════════════════════════════════
-# Cell 16 — Training Loop (Regression only)
-# ══════════════════════════════════════════════════════════════════════════
-
-reg_fn = nn.SmoothL1Loss()   # could also use nn.MSELoss()
-
-def make_ds(df, aug):
-    return BZUDataset(df, augment=aug)
-
-train_loader = DataLoader(make_ds(train_df, True),
-                          batch_size=BATCH_SIZE, shuffle=True,
-                          num_workers=0, pin_memory=(DEVICE == 'cuda'))
-val_loader   = DataLoader(make_ds(val_df, False),
-                          batch_size=BATCH_SIZE, shuffle=False,
-                          num_workers=0, pin_memory=(DEVICE == 'cuda'))
-test_loader  = DataLoader(make_ds(test_df, False),
-                          batch_size=BATCH_SIZE, shuffle=False,
-                          num_workers=0, pin_memory=(DEVICE == 'cuda'))
-
-model      = STGCN_Regression(dropout=0.3).to(DEVICE)
-optimiser  = torch.optim.AdamW(model.parameters(), lr=LR, weight_decay=WEIGHT_DECAY)
-
-# Warmup + cosine schedule
-def lr_lambda(epoch):
-    if epoch < WARMUP_EPOCHS:
-        return (epoch + 1) / WARMUP_EPOCHS
-    progress = (epoch - WARMUP_EPOCHS) / max(1, EPOCHS - WARMUP_EPOCHS)
-    return 0.5 * (1.0 + np.cos(np.pi * progress))
-
-scheduler  = torch.optim.lr_scheduler.LambdaLR(optimiser, lr_lambda)
-early_stop = EarlyStopping(patience=PATIENCE, min_delta=MIN_DELTA)
-
-SPLITS  = ['train', 'val', 'test']
-METRICS = ['loss', 'rmse', 'mae', 'r2']
-history = {f'{s}_{m}': [] for s in SPLITS for m in METRICS}
-stopped_epoch = EPOCHS
-
-log.info('=' * 70)
-log.info('STARTING REGRESSION TRAINING  (with Early Stopping on MAE)')
-log.info('=' * 70)
-log.info(f'train={len(train_df)} val={len(val_df)} test={len(test_df)}')
-
-print(f'\n{"═"*68}')
-print(f'  Camera C{CAMERA_ID}  |  Train: {len(train_df)}  '
-      f'Val: {len(val_df)}  Test: {len(test_df)}')
-print(f'  Patience: {PATIENCE}  |  LR: {LR}  |  Batch: {BATCH_SIZE}')
-print(f'{"═"*68}')
-
-for epoch in range(1, EPOCHS + 1):
-    tr = run_epoch(model, train_loader, optimiser, reg_fn, is_train=True)
-    vl = run_epoch(model, val_loader,   optimiser, reg_fn, is_train=False)
-    te = run_epoch(model, test_loader,  optimiser, reg_fn, is_train=False)
-    scheduler.step()
-
-    for split, res in [('train', tr), ('val', vl), ('test', te)]:
-        history[f'{split}_loss'].append(res['loss'])
-        history[f'{split}_rmse'].append(res['rmse'])
-        history[f'{split}_mae'].append(res['mae'])
-        history[f'{split}_r2'].append(res['r2'])
-
-    stop, improved = early_stop.step(vl['mae'], model, epoch)
-
-    star = ' ★' if improved else ''
-    msg  = (f'  Ep {epoch:3d}/{EPOCHS} | '
-            f'Tr loss={tr["loss"]:.4f} mae={tr["mae"]:.3f} r2={tr["r2"]:.3f} | '
-            f'Vl loss={vl["loss"]:.4f} mae={vl["mae"]:.3f} r2={vl["r2"]:.3f} | '
-            f'Te loss={te["loss"]:.4f} mae={te["mae"]:.3f} r2={te["r2"]:.3f} | '
-            f'ES {early_stop.counter}/{PATIENCE}{star}')
-    print(msg)
-    log.info(msg)
-
-    if improved:
-        print(f'    ★ val_mae={early_stop.best_mae:.4f}  '
-              f'rmse={vl["rmse"]:.4f}  r2={vl["r2"]:.4f}')
-
-    if stop:
-        stopped_epoch = epoch
-        print(f'\n  ⏹  Early stopping at epoch {epoch} '
-              f'(best={early_stop.best_epoch})')
-        log.info(f'Early stopping at epoch {epoch} best={early_stop.best_epoch}')
-        break
-
-print('\n✓ Training complete!')
-
-
-# ── Restore best weights ──────────────────────────────────────────────────
-model.load_state_dict(early_stop.best_wts)
-best_epoch = early_stop.best_epoch
-
-# ── Final evaluation with best weights ───────────────────────────────────
-final_te = run_epoch(model, test_loader, optimiser, reg_fn, is_train=False)
-
-print(f'\n  ── Final Test Results (best epoch = {best_epoch}) ──────────────────')
-print(f'  Loss : {final_te["loss"]:.4f}')
-print(f'  RMSE : {final_te["rmse"]:.4f}')
-print(f'  MAE  : {final_te["mae"]:.4f}')
-print(f'  R²   : {final_te["r2"]:.4f}')
-
-# ── Collect predictions for scatter plot ──────────────────────────────────
-model.eval()
-all_true_q, all_pred_q = [], []
-with torch.no_grad():
-    for skels, qualities in test_loader:
-        skels = centre_and_scale(skels.to(DEVICE))
-        preds = model(skels)
-        all_true_q.extend(qualities.numpy())
-        all_pred_q.extend(preds.cpu().numpy())
-
-# ── Save all plots ────────────────────────────────────────────────────────
-plot_loss_curves(history, PLOTS_DIR)
-plot_rmse_mae(history, PLOTS_DIR)
-plot_r2(history, PLOTS_DIR)
-plot_regression_scatter(all_true_q, all_pred_q, split_name='Test', save_dir=PLOTS_DIR)
-plot_early_stop(history, stopped_epoch, best_epoch, PLOTS_DIR)
-
-# ── Save history JSON ─────────────────────────────────────────────────────
-json_path = os.path.join(LOGS_DIR, 'training_history.json')
-with open(json_path, 'w') as f:
-    json.dump(history, f, indent=2)
-print(f'  ✓ History → {json_path}')
-
-
-
-
-
-# ══════════════════════════════════════════════════════════════════════════
-# DIAGNOSTIC CELL — Data analysis, no classification metrics
-# ══════════════════════════════════════════════════════════════════════════
-import numpy as np
-from collections import defaultdict
-
-print("=" * 60)
-print("DIAGNOSTIC 1: Per-exercise skeleton variance (C0)")
-print("=" * 60)
-
-axis_var = defaultdict(list)
-for _, row in df_index.sample(min(300, len(df_index)), random_state=0).iterrows():
-    skel = load_skeleton(row['filepath'])
-    if skel is None:
-        continue
-    axis_var[row['exercise']].append({
-        'x_var': skel[:,:,0].var(),
-        'y_var': skel[:,:,1].var(),
-        'z_var': skel[:,:,2].var(),
+# ══════════════════════════════════════════════════════════════════
+# Cell 13-NEW — LOPO-CV Training Loop
+# ══════════════════════════════════════════════════════════════════
+
+from sklearn.model_selection import LeaveOneGroupOut
+import copy, json
+
+persons     = df_index['person'].unique()       # 16 persons
+groups      = df_index['person'].values         # group label per sample
+logo        = LeaveOneGroupOut()
+
+fold_results = []   # collect per-fold test metrics
+
+for fold_idx, (train_val_idx, test_idx) in enumerate(
+        logo.split(df_index, groups=groups)):
+
+    test_person = df_index.iloc[test_idx]['person'].iloc[0]
+    print(f'\n{"═"*68}')
+    print(f'  FOLD {fold_idx+1:2d}/16 — held-out person: {test_person}')
+    print(f'{"═"*68}')
+
+    # ── Split train_val further into train/val (use one more person as val)
+    train_val_df = df_index.iloc[train_val_idx].reset_index(drop=True)
+    test_df      = df_index.iloc[test_idx].reset_index(drop=True)
+
+    # Use a second held-out person for early stopping validation
+    # Pick the person whose mean quality is closest to overall mean
+    remaining_persons = train_val_df['person'].unique()
+    overall_mean      = train_val_df['quality'].mean()
+    val_person        = min(
+        remaining_persons,
+        key=lambda p: abs(
+            train_val_df[train_val_df['person']==p]['quality'].mean()
+            - overall_mean
+        )
+    )
+
+    train_df = train_val_df[train_val_df['person'] != val_person].reset_index(drop=True)
+    val_df   = train_val_df[train_val_df['person'] == val_person].reset_index(drop=True)
+
+    print(f'  Train: {len(train_df)} samples ({len(remaining_persons)-1} persons)')
+    print(f'  Val  : {len(val_df)} samples  (person {val_person})')
+    print(f'  Test : {len(test_df)} samples  (person {test_person})')
+
+    # ── DataLoaders ───────────────────────────────────────────────
+    train_loader = DataLoader(BZUDataset(train_df, augment=True),
+                              batch_size=BATCH_SIZE, shuffle=True,
+                              num_workers=0, pin_memory=(DEVICE=='cuda'))
+    val_loader   = DataLoader(BZUDataset(val_df, augment=False),
+                              batch_size=BATCH_SIZE, shuffle=False,
+                              num_workers=0, pin_memory=(DEVICE=='cuda'))
+    test_loader  = DataLoader(BZUDataset(test_df, augment=False),
+                              batch_size=BATCH_SIZE, shuffle=False,
+                              num_workers=0, pin_memory=(DEVICE=='cuda'))
+
+    # ── Fresh model + optimizer per fold ─────────────────────────
+    model     = STGCN_Regression(dropout=0.3).to(DEVICE)
+    optimiser = torch.optim.AdamW(model.parameters(), lr=LR,
+                                  weight_decay=WEIGHT_DECAY)
+    scheduler = torch.optim.lr_scheduler.LambdaLR(optimiser, lr_lambda)
+    early_stop = EarlyStopping(patience=PATIENCE, min_delta=MIN_DELTA)
+    reg_fn    = nn.SmoothL1Loss()
+
+    fold_history = {f'{s}_{m}': []
+                    for s in ['train','val','test']
+                    for m in ['loss','rmse','mae','r2']}
+    stopped_epoch = EPOCHS
+
+    # ── Per-fold training loop ────────────────────────────────────
+    for epoch in range(1, EPOCHS + 1):
+        tr = run_epoch(model, train_loader, optimiser, reg_fn, is_train=True)
+        vl = run_epoch(model, val_loader,   optimiser, reg_fn, is_train=False)
+        te = run_epoch(model, test_loader,  optimiser, reg_fn, is_train=False)
+        scheduler.step()
+
+        for split, res in [('train',tr),('val',vl),('test',te)]:
+            for m in ['loss','rmse','mae','r2']:
+                fold_history[f'{split}_{m}'].append(res[m])
+
+        stop, improved = early_stop.step(vl['mae'], model, epoch)
+        star = ' ★' if improved else ''
+        msg  = (f'  Ep {epoch:3d}/{EPOCHS} | '
+                f'Tr mae={tr["mae"]:.3f} r2={tr["r2"]:.3f} | '
+                f'Vl mae={vl["mae"]:.3f} r2={vl["r2"]:.3f} | '
+                f'Te mae={te["mae"]:.3f} r2={te["r2"]:.3f} | '
+                f'ES {early_stop.counter}/{PATIENCE}{star}')
+        print(msg)
+        log.info(msg)
+        if stop:
+            stopped_epoch = epoch
+            print(f'  ⏹ Early stop at epoch {epoch} (best={early_stop.best_epoch})')
+            break
+
+    # ── Evaluate with best weights ────────────────────────────────
+    model.load_state_dict(early_stop.best_wts)
+    final_te = run_epoch(model, test_loader, optimiser, reg_fn, is_train=False)
+
+    fold_results.append({
+        'fold'         : fold_idx + 1,
+        'test_person'  : test_person,
+        'val_person'   : val_person,
+        'best_epoch'   : early_stop.best_epoch,
+        'stopped_epoch': stopped_epoch,
+        'test_mae'     : final_te['mae'],
+        'test_rmse'    : final_te['rmse'],
+        'test_r2'      : final_te['r2'],
     })
 
-print(f"{'Exercise':>10} {'X-var':>10} {'Y-var':>10} {'Z-var':>10} {'Z/X ratio':>10}")
-print("-" * 55)
-for ex in sorted(axis_var.keys()):
-    vals = axis_var[ex]
-    xv = np.mean([v['x_var'] for v in vals])
-    yv = np.mean([v['y_var'] for v in vals])
-    zv = np.mean([v['z_var'] for v in vals])
-    print(f"{f'E{ex}':>10} {xv:>10.4f} {yv:>10.4f} {zv:>10.4f} {zv/max(xv,1e-6):>10.3f}")
+    print(f'\n  ── Fold {fold_idx+1} Test Results ──')
+    print(f'  MAE={final_te["mae"]:.4f}  RMSE={final_te["rmse"]:.4f}  R²={final_te["r2"]:.4f}')
 
-print()
-print("=" * 60)
-print("DIAGNOSTIC 2: Quality score distribution per split")
-print("=" * 60)
-for name, df_ in [('Train', train_df), ('Val', val_df), ('Test', test_df)]:
-    q = df_['quality']
-    trials_correct   = (df_['trial_num'] <= 2).sum()
-    trials_erroneous = (df_['trial_num'] >= 3).sum()
-    print(f"{name:>6}: mean={q.mean():.3f} std={q.std():.3f} "
-          f"min={q.min():.2f} max={q.max():.2f} | "
-          f"correct={trials_correct} erroneous={trials_erroneous}")
+    # Optional: save per-fold scatter plot
+    model.eval()
+    all_true_q, all_pred_q = [], []
+    with torch.no_grad():
+        for skels, qualities in test_loader:
+            skels = centre_and_scale(skels.to(DEVICE))
+            preds = model(skels)
+            all_true_q.extend(qualities.numpy())
+            all_pred_q.extend(preds.cpu().numpy())
+
+    plot_regression_scatter(all_true_q, all_pred_q,
+                            split_name=f'Fold{fold_idx+1}_{test_person}',
+                            save_dir=PLOTS_DIR)
 
 
-# ══════════════════════════════════════════════════════════════════════════
-# Cell 17 — Final Summary
-# ══════════════════════════════════════════════════════════════════════════
+# ══════════════════════════════════════════════════════════════════
+# Cell 14-NEW — Aggregate LOPO Results
+# ══════════════════════════════════════════════════════════════════
 
-bv           = best_epoch - 1   # 0-based index
-best_val_mae  = history['val_mae'][bv]
-best_val_rmse = history['val_rmse'][bv]
-best_val_r2   = history['val_r2'][bv]
+results_df = pd.DataFrame(fold_results)
+print(results_df.to_string(index=False))
 
-print('=' * 60)
-print('  TRAINING SUMMARY — ST-GCN Regression (Single View)')
-print('=' * 60)
-print(f'  Best Epoch       : {best_epoch}  (stopped at {stopped_epoch})')
-print(f'  Best Val MAE     : {best_val_mae:.4f}')
-print(f'  Best Val RMSE    : {best_val_rmse:.4f}')
-print(f'  Best Val R²      : {best_val_r2:.4f}')
-print('─' * 60)
-print(f'  Test MAE         : {final_te["mae"]:.4f}')
-print(f'  Test RMSE        : {final_te["rmse"]:.4f}')
-print(f'  Test R²          : {final_te["r2"]:.4f}')
-print('=' * 60)
+mean_mae  = results_df['test_mae'].mean()
+std_mae   = results_df['test_mae'].std()
+mean_rmse = results_df['test_rmse'].mean()
+std_rmse  = results_df['test_rmse'].std()
+mean_r2   = results_df['test_r2'].mean()
+std_r2    = results_df['test_r2'].std()
 
-log.info(f'Best Epoch={best_epoch}  stopped_epoch={stopped_epoch}')
-log.info(f'Test MAE={final_te["mae"]:.4f}')
-log.info(f'Test RMSE={final_te["rmse"]:.4f}')
-log.info(f'Test R²={final_te["r2"]:.4f}')
+print('\n' + '='*60)
+print('  LOPO-CV FINAL SUMMARY')
+print('='*60)
+print(f'  MAE  : {mean_mae:.4f} ± {std_mae:.4f}')
+print(f'  RMSE : {mean_rmse:.4f} ± {std_rmse:.4f}')
+print(f'  R²   : {mean_r2:.4f} ± {std_r2:.4f}')
+print('='*60)
 
-summary_path = os.path.join(OUT_DIR, 'training_summary.csv')
-pd.DataFrame([{
-    'best_epoch'   : best_epoch,
-    'stopped_epoch': stopped_epoch,
-    'val_mae'      : best_val_mae,
-    'val_rmse'     : best_val_rmse,
-    'val_r2'       : best_val_r2,
-    'test_mae'     : final_te['mae'],
-    'test_rmse'    : final_te['rmse'],
-    'test_r2'      : final_te['r2'],
-}]).to_csv(summary_path, index=False)
-print(f'\n✓ Summary CSV saved → {summary_path}')
-log.info('✓ All done!')
+log.info(f'LOPO-CV  MAE={mean_mae:.4f}±{std_mae:.4f}  '
+         f'RMSE={mean_rmse:.4f}±{std_rmse:.4f}  '
+         f'R²={mean_r2:.4f}±{std_r2:.4f}')
 
-sys.stdout.restore()
-print('✓ Log file closed and saved.')
+# Save results
+results_df.to_csv(os.path.join(OUT_DIR, 'lopo_cv_results.csv'), index=False)
+print(f'✓ Results saved → {os.path.join(OUT_DIR, "lopo_cv_results.csv")}')
