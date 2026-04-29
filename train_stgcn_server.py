@@ -802,7 +802,32 @@ def plot_early_stop(history, stopped_epoch, best_epoch, save_dir):
 
 print('✓ Plotting helpers (regression) defined')
 
+# ══════════════════════════════════════════════════════════════════════════
+# Cell 15 — Early Stopping (monitors test MAE)
+# ══════════════════════════════════════════════════════════════════════════
 
+class EarlyStopping:
+    """Monitors val/test MAE (lower = better)."""
+    def __init__(self, patience=PATIENCE, min_delta=MIN_DELTA):
+        self.patience   = patience
+        self.min_delta  = min_delta
+        self.best_mae   = float('inf')
+        self.counter    = 0
+        self.best_wts   = None
+        self.best_epoch = 1
+
+    def step(self, val_mae, model, epoch):
+        if val_mae < self.best_mae - self.min_delta:
+            self.best_mae   = val_mae
+            self.counter    = 0
+            self.best_wts   = copy.deepcopy(model.state_dict())
+            self.best_epoch = epoch
+            return False, True   # (stop, improved)
+        else:
+            self.counter += 1
+            return self.counter >= self.patience, False
+
+print('✓ EarlyStopping defined')
 # ══════════════════════════════════════════════════════════════════════════
 # Cell 15+16 — LOGO-CV training loop
 # ══════════════════════════════════════════════════════════════════════════
@@ -916,13 +941,12 @@ print('\n✓ All folds complete!')
 
 
 # ══════════════════════════════════════════════════════════════════════════
-# DIAGNOSTIC CELL — Data analysis, no classification metrics
+# DIAGNOSTIC CELL — Data analysis
 # ══════════════════════════════════════════════════════════════════════════
-import numpy as np
 from collections import defaultdict
 
 print("=" * 60)
-print("DIAGNOSTIC 1: Per-exercise skeleton variance (C0)")
+print("DIAGNOSTIC 1: Per-exercise skeleton variance")
 print("=" * 60)
 
 axis_var = defaultdict(list)
@@ -947,17 +971,16 @@ for ex in sorted(axis_var.keys()):
 
 print()
 print("=" * 60)
-print("DIAGNOSTIC 2: Quality score distribution per split")
+print("DIAGNOSTIC 2: Overall quality score distribution")
 print("=" * 60)
-for name, df_ in [('Train', train_df), ('Val', val_df), ('Test', test_df)]:
-    q = df_['quality']
-    trials_correct   = (df_['trial_num'] <= 2).sum()
-    trials_erroneous = (df_['trial_num'] >= 3).sum()
-    print(f"{name:>6}: mean={q.mean():.3f} std={q.std():.3f} "
-          f"min={q.min():.2f} max={q.max():.2f} | "
-          f"correct={trials_correct} erroneous={trials_erroneous}")
+q = df_index['quality']
+trials_correct   = (df_index['trial_num'] <= 2).sum()
+trials_erroneous = (df_index['trial_num'] >= 3).sum()
+print(f"All data: mean={q.mean():.3f} std={q.std():.3f} "
+      f"min={q.min():.2f} max={q.max():.2f} | "
+      f"correct={trials_correct} erroneous={trials_erroneous}")
 
-
+      
 # ══════════════════════════════════════════════════════════════════════════
 # Cell 17 — LOGO-CV Summary
 # ══════════════════════════════════════════════════════════════════════════

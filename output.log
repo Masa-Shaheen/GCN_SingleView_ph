@@ -551,13 +551,14 @@ Shape   : (531, 7)
 527       E9    P15    T3     C1            4  4.4250  1.3566
 528       E9    P15    T4     C1            4  3.6500  1.7029
 529       E9    P15    T5     C1            4  2.7750  1.7466
-530       E9    P15    T6     C1            4  3.3750  1.90392026-04-29 20:38:25,812 | INFO | ======================================================================
-2026-04-29 20:38:25,812 | INFO | ST-GCN Single-View Regression | BZU Physiotherapy Dataset
-2026-04-29 20:38:25,812 | INFO | Camera : C1  |  Split : 70/15/15  |  Epochs : 300  |  Patience : 50
-2026-04-29 20:38:25,812 | INFO | Log file : /mvdlph/masa/GCN_SingleView_Regression_Results/logs/training_20260429_203825.log
-2026-04-29 20:38:25,812 | INFO | ======================================================================
+530       E9    P15    T6     C1            4  3.3750  1.90392026-04-29 22:05:48,449 | INFO | ======================================================================
+2026-04-29 22:05:48,449 | INFO | ST-GCN Single-View Regression | BZU Physiotherapy Dataset
+2026-04-29 22:05:48,449 | INFO | Camera : C1  |  Split : 70/15/15  |  Epochs : 300  |  Patience : 50
+2026-04-29 22:05:48,449 | INFO | Log file : /mvdlph/masa/GCN_SingleView_Regression_Results/logs/training_20260429_220548.log
+2026-04-29 22:05:48,449 | INFO | ======================================================================
+2026-04-29 22:05:58,327 | INFO | === Fold 1/16 — held-out: P0 ===
 
-✓ stdout → also writing to /mvdlph/masa/GCN_SingleView_Regression_Results/logs/training_20260429_203825.log
+✓ stdout → also writing to /mvdlph/masa/GCN_SingleView_Regression_Results/logs/training_20260429_220548.log
 ✓ parse_filename and load_skeleton defined
 NPZ files found (all cameras) : 15375
 
@@ -630,14 +631,14 @@ Difference (head - hip): [-0.14453253  0.6429174  -0.18355224]
 Device : cuda
 GPU    : Tesla V100-PCIE-32GB
 ✓ centre_and_scale and run_epoch (regression) defined
+✓ LOGO-CV: 16 folds  (one held-out person per fold)
+  Persons: ['P0', 'P1', 'P10', 'P11', 'P12', 'P13', 'P14', 'P15', 'P2', 'P3', 'P4', 'P5', 'P6', 'P7', 'P8', 'P9']
+✓ Plotting helpers (regression) defined
 
 ════════════════════════════════════════════════════════════════════
-  FOLD  1/16 — held-out person: P0
+  Fold 1/16  |  Held-out: P0  |  Train: 4834  Test: 267
 ════════════════════════════════════════════════════════════════════
-  Train: 4540 samples (14 persons)
-  Val  : 294 samples  (person P9)
-  Test : 267 samples  (person P0)
 Traceback (most recent call last):
-  File "train_stgcn_server.py", line 733, in <module>
+  File "train_stgcn_server.py", line 845, in <module>
     early_stop = EarlyStopping(patience=PATIENCE, min_delta=MIN_DELTA)
 NameError: name 'EarlyStopping' is not defined
