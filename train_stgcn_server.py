@@ -1,7 +1,8 @@
+import os 
+
 # ══════════════════════════════════════════════════════════════════════════
 # Cell 1 — Configuration
 # ══════════════════════════════════════════════════════════════════════════
-import os 
 
 DATASET_DIR   = "/mvdlph/Dataset_CVDLPT_Videos_Segments_P0P15_MMPose_human3d_motionbert_H36M_3D_1_2026"
 CSV_PATH      = "/mvdlph/label_events_20260129_155122_stats_short.csv"
@@ -410,7 +411,19 @@ plot_skeleton_frames(
     save_path=os.path.join(PLOTS_DIR, 'sample_skeleton_motion.png'),
 )
 
+frame = sample_skel[0]  # أول frame
 
+print("Joint 0 (Root/Hip):")
+print(f"  X={frame[0,0]:.3f}  Y={frame[0,1]:.3f}  Z={frame[0,2]:.3f}")
+
+print("\nJoint 1 (R-Hip) vs Joint 4 (L-Hip):")
+print(f"  R-Hip X={frame[1,0]:.3f}  |  L-Hip X={frame[4,0]:.3f}")
+# لو الداتا صح → R-Hip و L-Hip لازم يكونوا على جانبين مختلفين (X مختلف الإشارة)
+
+print("\nJoint 10 (Head) vs Joint 0 (Root):")
+print(f"  Head Y={frame[10,1]:.3f}  |  Root Y={frame[0,1]:.3f}")
+# لو Y للأسفل → Head أصغر من Root (أكثر سالب)
+# لو Y للأعلى → Head أكبر
 # ══════════════════════════════════════════════════════════════════════════
 # Cell 10 — BZUDataset (regression only)
 # ══════════════════════════════════════════════════════════════════════════
@@ -589,18 +602,15 @@ def centre_and_scale(x):
     """
     Root-relative normalisation + torso-height scaling.
     x: (B, T, J, 3)
-    MotionBERT H36M: joint 0 = root/pelvis
     """
-    # الصح: اطرح joint 0 مباشرة
-    root = x[:, :, 0:1, :]
-    x = x - root
+    hip  = (x[:, :, 1:2, :] + x[:, :, 4:5, :]) / 2.0
+    x    = x - hip
 
-    # Torso height: المسافة بين الـ root والـ midpoint بين الكتفين
-    shoulder_mid = (x[:, :, 11:12, :] + x[:, :, 14:15, :]) / 2.0
-    torso_h = torch.norm(shoulder_mid, dim=-1, keepdim=True)  # (B,T,1,1)
-    torso_h = torso_h.mean(dim=1, keepdim=True).clamp(min=1e-6)
-    
+    shoulder = (x[:, :, 11:12, :] + x[:, :, 14:15, :]) / 2.0
+    torso_h  = shoulder[:, :, :, 1:2].abs()
+    torso_h  = torso_h.mean(dim=1, keepdim=True).clamp(min=1e-6)
     return x / torso_h
+
 
 def run_epoch(model, loader, optimiser, reg_fn, is_train=True):
     """
@@ -993,20 +1003,7 @@ for name, df_ in [('Train', train_df), ('Val', val_df), ('Test', test_df)]:
           f"min={q.min():.2f} max={q.max():.2f} | "
           f"correct={trials_correct} erroneous={trials_erroneous}")
 
-# تحقق بصري — الـ joint 0 لازم يكون في المنتصف (pelvis)
-frame = sample_skel[0]  # أول frame
 
-print("Joint 0 (Root/Hip):")
-print(f"  X={frame[0,0]:.3f}  Y={frame[0,1]:.3f}  Z={frame[0,2]:.3f}")
-
-print("\nJoint 1 (R-Hip) vs Joint 4 (L-Hip):")
-print(f"  R-Hip X={frame[1,0]:.3f}  |  L-Hip X={frame[4,0]:.3f}")
-# لو الداتا صح → R-Hip و L-Hip لازم يكونوا على جانبين مختلفين (X مختلف الإشارة)
-
-print("\nJoint 10 (Head) vs Joint 0 (Root):")
-print(f"  Head Y={frame[10,1]:.3f}  |  Root Y={frame[0,1]:.3f}")
-# لو Y للأسفل → Head أصغر من Root (أكثر سالب)
-# لو Y للأعلى → Head أكبر
 # ══════════════════════════════════════════════════════════════════════════
 # Cell 17 — Final Summary
 # ══════════════════════════════════════════════════════════════════════════
