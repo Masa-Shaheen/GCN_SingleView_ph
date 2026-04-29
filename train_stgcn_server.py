@@ -188,34 +188,26 @@ def parse_filename(fpath):
 
 
 def load_skeleton(fpath, key=NPZ_KEY):
-    """
-    Load skeleton from NPZ → always returns (T, 17, 3) float32.
+    try:
+        data = np.load(fpath, allow_pickle=True)
+        arr  = data[key] if key in data else data[list(data.keys())[0]]
+        arr  = arr.astype(np.float32)
 
-    Shape variants handled:
-      (T, 51)      → reshape to (T, 17, 3)
-      (1, T, 17, 3)→ squeeze axis 0
-      (T, 17, 3)   → used as-is
+        if arr.ndim == 1:
+            return None   # corrupted file
+        if arr.ndim == 2:
+            arr = arr.reshape(arr.shape[0], 17, 3)
+        elif arr.ndim == 4:
+            arr = arr.squeeze(0)
 
-    Axis fix (MotionBERT exports Z=up):
-      swap columns [0,2,1]  →  X stays, old-Y becomes new-Z, old-Z becomes new-Y
-      flip new-Y            →  up = positive
-    """
-    data = np.load(fpath, allow_pickle=True)
-    arr  = data[key] if key in data else data[list(data.keys())[0]]
-    arr  = arr.astype(np.float32)
+        if arr.shape[1] != 17 or arr.shape[2] != 3:
+            return None   # wrong shape
 
-    if arr.ndim == 2:       # (T, 51)
-        arr = arr.reshape(arr.shape[0], 17, 3)
-    elif arr.ndim == 4:     # (1, T, 17, 3)
-        arr = arr.squeeze(0)
-    # ndim == 3 → already (T, 17, 3)
-
-    # MotionBERT: original axes are (X, depth, up)
-    # After [0,2,1]: (X, up, depth)  → flip up so positive = up
-    arr          = arr[:, :, [0, 2, 1]]
-    arr[:, :, 1] *= -1
-    return arr
-
+        arr          = arr[:, :, [0, 2, 1]]
+        arr[:, :, 1] *= -1
+        return arr
+    except Exception:
+        return None
 
 print('✓ parse_filename and load_skeleton defined')
 
@@ -284,6 +276,22 @@ def build_index(dataset_dir, camera_id, df_csv):
 
 
 df_index = build_index(DATASET_DIR, CAMERA_ID, df_csv)
+
+# Filter out corrupted NPZ files
+print("Checking for corrupted files...")
+bad_files = []
+for fpath in df_index['filepath']:
+    skel = load_skeleton(fpath)
+    if skel is None:
+        bad_files.append(fpath)
+
+if bad_files:
+    print(f"  Removing {len(bad_files)} corrupted files from index")
+    for f in bad_files:
+        print(f"    BAD: {f}")
+    df_index = df_index[~df_index['filepath'].isin(bad_files)].reset_index(drop=True)
+
+print(f"  Clean samples remaining: {len(df_index)}")
 
 if len(df_index) > 0:
     print('\n── Sample rows ──')
@@ -423,12 +431,15 @@ class BZUDataset(Dataset):
     def __getitem__(self, idx):
         row     = self.df.iloc[idx]
         skel    = load_skeleton(row['filepath'])
+        if skel is None:
+            # fallback: return zeros — should not happen after filtering
+            skel = np.zeros((TARGET_FRAMES, 17, 3), dtype=np.float32)
         skel    = self._normalise_length(skel)
         if self.augment:
             skel = self._augment(skel)
-        skel    = torch.tensor(skel,             dtype=torch.float32)
-        ex_id   = torch.tensor(row['exercise'],  dtype=torch.long)
-        quality = torch.tensor(row['quality'],   dtype=torch.float32)
+        skel    = torch.tensor(skel,            dtype=torch.float32)
+        ex_id   = torch.tensor(row['exercise'], dtype=torch.long)
+        quality = torch.tensor(row['quality'],  dtype=torch.float32)
         return skel, ex_id, quality
 
     def _normalise_length(self, skel):
@@ -913,85 +924,85 @@ print('✓ EarlyStopping defined')
 
 
 # ══════════════════════════════════════════════════════════════════════════
-# Cell 16 — Training Loop
+# Cell 16 — Training Loop (FULLY FIXED)
 # ══════════════════════════════════════════════════════════════════════════
 
-# ── Map exercise IDs to contiguous 0-based indices ───────────────────────
 actual_classes = sorted(df_index['exercise'].unique())
 n_classes      = len(actual_classes)
 ex_map         = {v: i for i, v in enumerate(actual_classes)}
 rev_map        = {i: v for v, i in ex_map.items()}
 print(f'Classes in data : E{actual_classes}  →  mapped 0..{n_classes - 1}')
-print(f'Model output size: {n_classes}')
 
-log.info('=' * 70)
-log.info('STARTING TRAINING  (with Early Stopping)')
-log.info('=' * 70)
+# ── Class weights to fix E5=0%, E7=1.5% collapse ─────────────────────────
+train_df_mapped = train_df.copy()
+train_df_mapped['exercise'] = train_df_mapped['exercise'].map(ex_map)
+class_counts  = train_df_mapped['exercise'].value_counts().sort_index()
+total_samples = class_counts.sum()
+class_weights = torch.tensor(
+    [total_samples / (n_classes * class_counts[i]) for i in range(n_classes)],
+    dtype=torch.float32
+).to(DEVICE)
 
-cls_fn = nn.CrossEntropyLoss()
+print(f"\nClass weights:")
+for i, w in enumerate(class_weights):
+    print(f"  E{actual_classes[i]}: {w:.3f}")
+
+cls_fn = nn.CrossEntropyLoss(weight=class_weights)  # weighted
 reg_fn = nn.SmoothL1Loss()
-
 
 def make_ds(df, aug):
     d = df.copy()
     d['exercise'] = d['exercise'].map(ex_map)
     return BZUDataset(d, augment=aug)
 
-
 train_loader = DataLoader(make_ds(train_df, True),
-                          batch_size=min(BATCH_SIZE, len(train_df)),
-                          shuffle=True,  num_workers=0,
-                          pin_memory=(DEVICE == 'cuda'))
+                          batch_size=BATCH_SIZE, shuffle=True,
+                          num_workers=0, pin_memory=(DEVICE == 'cuda'))
 val_loader   = DataLoader(make_ds(val_df, False),
-                          batch_size=min(BATCH_SIZE, len(val_df)),
-                          shuffle=False, num_workers=0,
-                          pin_memory=(DEVICE == 'cuda'))
+                          batch_size=BATCH_SIZE, shuffle=False,
+                          num_workers=0, pin_memory=(DEVICE == 'cuda'))
 test_loader  = DataLoader(make_ds(test_df, False),
-                          batch_size=min(BATCH_SIZE, len(test_df)),
-                          shuffle=False, num_workers=0,
-                          pin_memory=(DEVICE == 'cuda'))
+                          batch_size=BATCH_SIZE, shuffle=False,
+                          num_workers=0, pin_memory=(DEVICE == 'cuda'))
 
 model      = STGCN_SingleView(num_classes=n_classes, dropout=0.3).to(DEVICE)
 optimiser  = torch.optim.AdamW(model.parameters(), lr=LR, weight_decay=WEIGHT_DECAY)
-# T_max = EPOCHS (max possible epochs); eta_min = floor LR
-scheduler  = torch.optim.lr_scheduler.CosineAnnealingLR(
-                 optimiser, T_max=EPOCHS, eta_min=1e-5)
+
+# ── Single scheduler with warmup + cosine (no duplicate) ─────────────────
 def lr_lambda(epoch):
     if epoch < WARMUP_EPOCHS:
-        return (epoch + 1) / WARMUP_EPOCHS        # linear warmup
+        return (epoch + 1) / WARMUP_EPOCHS
     progress = (epoch - WARMUP_EPOCHS) / max(1, EPOCHS - WARMUP_EPOCHS)
-    return 0.5 * (1.0 + np.cos(np.pi * progress)) # cosine decay
+    return 0.5 * (1.0 + np.cos(np.pi * progress))
 
-scheduler = torch.optim.lr_scheduler.LambdaLR(optimiser, lr_lambda)
-
+scheduler  = torch.optim.lr_scheduler.LambdaLR(optimiser, lr_lambda)
 early_stop = EarlyStopping(patience=PATIENCE, min_delta=MIN_DELTA)
 
-# ── History — 21 keys: 3 splits × 7 metrics ──────────────────────────────
 SPLITS  = ['train', 'val', 'test']
 METRICS = ['loss', 'cls_loss', 'reg_loss', 'acc', 'rmse', 'mae', 'r2']
 history = {f'{s}_{m}': [] for s in SPLITS for m in METRICS}
+stopped_epoch = EPOCHS
 
-stopped_epoch = EPOCHS   # updated if early stopping fires
-
-print(f'\n{"═"*68}')
-print(f'  Train : {len(train_df):4d} samples  |  '
-      f'Val : {len(val_df):4d} samples  |  '
-      f'Test : {len(test_df):4d} samples')
-print(f'  Patience : {PATIENCE} epochs  |  Min Δ : {MIN_DELTA}')
-print(f'{"═"*68}')
+log.info('=' * 70)
+log.info('STARTING TRAINING  (with Early Stopping + Class Weights)')
+log.info('=' * 70)
 log.info(f'train={len(train_df)} val={len(val_df)} test={len(test_df)}')
 
-for epoch in range(1, EPOCHS + 1):
+print(f'\n{"═"*68}')
+print(f'  Camera C{CAMERA_ID}  |  Train: {len(train_df)}  '
+      f'Val: {len(val_df)}  Test: {len(test_df)}')
+print(f'  Patience: {PATIENCE}  |  LR: {LR}  |  Batch: {BATCH_SIZE}')
+print(f'{"═"*68}')
 
+for epoch in range(1, EPOCHS + 1):
     tr = run_epoch(model, train_loader, optimiser, cls_fn, reg_fn,
-                   is_train=True,  cls_w=1.0, reg_w=0.2)
+                   is_train=True,  cls_w=1.0, reg_w=0.5)
     vl = run_epoch(model, val_loader,   optimiser, cls_fn, reg_fn,
-                   is_train=False, cls_w=1.0, reg_w=0.2)
+                   is_train=False, cls_w=1.0, reg_w=0.5)
     te = run_epoch(model, test_loader,  optimiser, cls_fn, reg_fn,
-                   is_train=False, cls_w=1.0, reg_w=0.2)
+                   is_train=False, cls_w=1.0, reg_w=0.5)
     scheduler.step()
 
-    # ── Record all metrics ────────────────────────────────────────────────
     for split, res in [('train', tr), ('val', vl), ('test', te)]:
         history[f'{split}_loss'].append(res['loss'])
         history[f'{split}_cls_loss'].append(res['cls_loss'])
@@ -1001,34 +1012,30 @@ for epoch in range(1, EPOCHS + 1):
         history[f'{split}_mae'].append(res['mae'])
         history[f'{split}_r2'].append(res['r2'])
 
-    # ── Early stopping check (BEFORE printing so star is correct) ─────────
     stop, improved = early_stop.step(vl['accuracy'], model, epoch)
 
-    # ── Print epoch summary ───────────────────────────────────────────────
     star = ' ★' if improved else ''
     msg  = (f'  Ep {epoch:3d}/{EPOCHS} | '
-            f'Tr loss={tr["loss"]:.3f} acc={tr["accuracy"]:.1f}% '
-            f'mae={tr["mae"]:.3f} r2={tr["r2"]:.3f} | '
-            f'Vl loss={vl["loss"]:.3f} acc={vl["accuracy"]:.1f}% '
-            f'mae={vl["mae"]:.3f} r2={vl["r2"]:.3f} | '
-            f'Te loss={te["loss"]:.3f} acc={te["accuracy"]:.1f}% '
-            f'mae={te["mae"]:.3f} r2={te["r2"]:.3f} | '
+            f'Tr acc={tr["accuracy"]:.1f}% mae={tr["mae"]:.3f} r2={tr["r2"]:.3f} | '
+            f'Vl acc={vl["accuracy"]:.1f}% mae={vl["mae"]:.3f} r2={vl["r2"]:.3f} | '
+            f'Te acc={te["accuracy"]:.1f}% mae={te["mae"]:.3f} r2={te["r2"]:.3f} | '
             f'ES {early_stop.counter}/{PATIENCE}{star}')
     print(msg)
     log.info(msg)
 
     if improved:
-        print(f'    ★ New best  val_acc={early_stop.best_acc:.2f}%  '
-              f'val_mae={vl["mae"]:.4f}  val_r2={vl["r2"]:.4f}')
+        print(f'    ★ val_acc={early_stop.best_acc:.2f}%  '
+              f'mae={vl["mae"]:.4f}  r2={vl["r2"]:.4f}')
 
     if stop:
         stopped_epoch = epoch
-        print(f'\n  ⏹  Early stopping at epoch {epoch}  '
-              f'(best={early_stop.best_epoch}, patience={PATIENCE})')
-        log.info(f'Early stopping at epoch {epoch}  best={early_stop.best_epoch}')
+        print(f'\n  ⏹  Early stopping at epoch {epoch} '
+              f'(best={early_stop.best_epoch})')
+        log.info(f'Early stopping at epoch {epoch} best={early_stop.best_epoch}')
         break
 
 print('\n✓ Training complete!')
+
 
 # ── Restore best weights ──────────────────────────────────────────────────
 model.load_state_dict(early_stop.best_wts)
@@ -1196,4 +1203,4 @@ print(f'\n✓ Summary CSV saved → {summary_path}')
 log.info('✓ All done!')
 
 sys.stdout.restore()
-print('✓ Log file closed and saved.')1~]]=]]]
+print('✓ Log file closed and saved.')
