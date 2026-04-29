@@ -11,7 +11,7 @@ NUM_JOINTS    = 17
 TARGET_FRAMES = 100
 TRAIN_RATIO   = 0.70
 VAL_RATIO     = 0.15
-EPOCHS        = 200
+EPOCHS        = 30
 LR            = 3e-4
 BATCH_SIZE    = 48
 WEIGHT_DECAY  = 1e-4
@@ -200,11 +200,21 @@ def load_skeleton(fpath, key=NPZ_KEY):
         if arr.shape[1] != 17 or arr.shape[2] != 3:
             return None
 
-        # لا تغيير في المحاور — استخدم البيانات كما هي من MotionBERT
+        # ── FIX: swap axes so Y=height, Z=depth ──────────────────
+        # Original: X=left/right, Y=depth(tiny), Z=height
+        # Target:   X=left/right, Y=height,      Z=depth
+        x = arr[:, :, 0].copy()   # left/right  → keep as X
+        y = arr[:, :, 1].copy()   # depth        → becomes Z  
+        z = arr[:, :, 2].copy()   # height       → becomes Y
+        arr[:, :, 0] = x
+        arr[:, :, 1] = z          # Y = height (was Z)
+        arr[:, :, 2] = y          # Z = depth  (was Y)
+        # ──────────────────────────────────────────────────────────
+
         return arr
     except Exception:
         return None
-
+    
 print('✓ parse_filename and load_skeleton defined')
 
 
@@ -410,6 +420,20 @@ plot_skeleton_frames(
     save_path=os.path.join(PLOTS_DIR, 'sample_skeleton_motion.png'),
 )
 
+sample_skel = load_skeleton(df_index.iloc[10]['filepath'])
+
+print("Axis ranges across all frames:")
+print(f"X: [{sample_skel[:,:,0].min():.3f}, {sample_skel[:,:,0].max():.3f}] — likely left/right")
+print(f"Y: [{sample_skel[:,:,1].min():.3f}, {sample_skel[:,:,1].max():.3f}] — likely ???")
+print(f"Z: [{sample_skel[:,:,2].min():.3f}, {sample_skel[:,:,2].max():.3f}] — likely height")
+
+# Check hip (joint 0) vs head (joint 10) on each axis
+hip  = sample_skel[:, 0, :]   # shape (T, 3)
+head = sample_skel[:, 10, :]
+
+print("\nHip  mean XYZ:", hip.mean(axis=0))
+print("Head mean XYZ:", head.mean(axis=0))
+print("\nDifference (head - hip):", head.mean(axis=0) - hip.mean(axis=0))
 
 # ══════════════════════════════════════════════════════════════════════════
 # Cell 10 — BZUDataset (regression only)
@@ -588,13 +612,14 @@ if DEVICE == 'cuda':
 def centre_and_scale(x):
     """
     Root-relative normalisation + torso-height scaling.
-    x: (B, T, J, 3)
+    x: (B, T, J, 3)  — after axis swap: dim1=X, dim2=Y(height), dim3=Z(depth)
     """
     hip  = (x[:, :, 1:2, :] + x[:, :, 4:5, :]) / 2.0
     x    = x - hip
 
+    # Now Y (index 1) is height — torso_h will be meaningful
     shoulder = (x[:, :, 11:12, :] + x[:, :, 14:15, :]) / 2.0
-    torso_h  = shoulder[:, :, :, 1:2].abs()
+    torso_h  = shoulder[:, :, :, 1:2].abs()   # index 1 = Y = height ✓
     torso_h  = torso_h.mean(dim=1, keepdim=True).clamp(min=1e-6)
     return x / torso_h
 
