@@ -1,5 +1,3 @@
-import os
-
 # ══════════════════════════════════════════════════════════════════════════
 # Cell 1 — Configuration
 # ══════════════════════════════════════════════════════════════════════════
@@ -9,20 +7,19 @@ CSV_PATH      = "/mvdlph/label_events_20260129_155122_stats_short.csv"
 CAMERA_ID     = 1
 NPZ_KEY       = "keypoints_3d"
 NUM_JOINTS    = 17
-NUM_CLASSES   = 10
 TARGET_FRAMES = 100
 TRAIN_RATIO   = 0.70
 VAL_RATIO     = 0.15
 EPOCHS        = 200
-LR            = 3e-4      # was 1e-3 — too high for AdamW on this data
-BATCH_SIZE    = 48        # was 16 — too noisy for BatchNorm
+LR            = 3e-4
+BATCH_SIZE    = 48
 WEIGHT_DECAY  = 1e-4
-OUT_DIR       = "/mvdlph/masa/GCN_SingleView_Results"
+OUT_DIR       = "/mvdlph/masa/GCN_SingleView_Regression_Results"
 
 # ── Early Stopping ────────────────────────────────────────────────────────
-PATIENCE  = 30      # epochs بدون تحسن قبل الوقوف
-MIN_DELTA = 1e-4    # أقل تحسن يُعتبر حقيقي
-WARMUP_EPOCHS = 10        # new — linear LR warmup
+PATIENCE  = 30
+MIN_DELTA = 1e-4
+WARMUP_EPOCHS = 10
 
 print('✓ Configuration loaded')
 print(f'  DATASET_DIR : {DATASET_DIR}')
@@ -47,7 +44,7 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 from torch.utils.data import Dataset, DataLoader
-from sklearn.metrics import confusion_matrix, ConfusionMatrixDisplay, r2_score
+from sklearn.metrics import r2_score   # no confusion_matrix needed
 
 PLOTS_DIR = os.path.join(OUT_DIR, "plots")
 LOGS_DIR  = os.path.join(OUT_DIR, "logs")
@@ -91,7 +88,6 @@ df_csv = None
 if os.path.exists(CSV_PATH):
     with open(CSV_PATH, 'rb') as f:
         raw = f.read()
-    print(f'File size     : {len(raw)} bytes')
     for enc in ['utf-8', 'utf-8-sig', 'utf-16', 'latin-1', 'cp1252']:
         try:
             text = raw.decode(enc)
@@ -155,9 +151,9 @@ logging.basicConfig(
         logging.StreamHandler(),
     ]
 )
-log = logging.getLogger("GCN-SingleView")
+log = logging.getLogger("GCN-Regression")
 log.info("=" * 70)
-log.info("ST-GCN Single-View Baseline | BZU Physiotherapy Dataset")
+log.info("ST-GCN Single-View Regression | BZU Physiotherapy Dataset")
 log.info(f"Camera : C{CAMERA_ID}  |  Split : {int(TRAIN_RATIO*100)}/"
          f"{int(VAL_RATIO*100)}/{int((1-TRAIN_RATIO-VAL_RATIO)*100)}"
          f"  |  Epochs : {EPOCHS}  |  Patience : {PATIENCE}")
@@ -415,10 +411,11 @@ plot_skeleton_frames(
 
 
 # ══════════════════════════════════════════════════════════════════════════
-# Cell 10 — BZUDataset
+# Cell 10 — BZUDataset (regression only)
 # ══════════════════════════════════════════════════════════════════════════
 
 class BZUDataset(Dataset):
+    """Returns (skeleton, quality_score) — no exercise ID."""
     def __init__(self, df, target_frames=TARGET_FRAMES, augment=False):
         self.df            = df.reset_index(drop=True)
         self.target_frames = target_frames
@@ -428,28 +425,16 @@ class BZUDataset(Dataset):
         return len(self.df)
 
     def __getitem__(self, idx):
-        row  = self.df.iloc[idx]
-        skel = load_skeleton(row['filepath'])
-
+        row     = self.df.iloc[idx]
+        skel    = load_skeleton(row['filepath'])
         if skel is None:
             skel = np.zeros((TARGET_FRAMES, 17, 3), dtype=np.float32)
-
-        skel = self._normalise_length(skel)
-
+        skel    = self._normalise_length(skel)
         if self.augment:
             skel = self._augment(skel)
-
-        # ── NEW: velocity ───────────────────────────────
-        vel = np.zeros_like(skel)
-        vel[1:] = skel[1:] - skel[:-1]
-
-        skel = np.concatenate([skel, vel], axis=2)  # (T,17,6)
-
-        skel    = torch.tensor(skel, dtype=torch.float32)
-        ex_id   = torch.tensor(row['exercise'], dtype=torch.long)
-        quality = torch.tensor(row['quality'], dtype=torch.float32)
-
-        return skel, ex_id, quality
+        skel    = torch.tensor(skel,            dtype=torch.float32)
+        quality = torch.tensor(row['quality'],  dtype=torch.float32)
+        return skel, quality                      # regression only
 
     def _normalise_length(self, skel):
         T = skel.shape[0]
@@ -472,16 +457,13 @@ class BZUDataset(Dataset):
         if np.random.rand() < 0.5:
             skel[:, :, 0] *= -1.0
         return skel
-    
-print('✓ BZUDataset defined')
+
+
+print('✓ BZUDataset defined (regression only)')
 
 
 # ══════════════════════════════════════════════════════════════════════════
-# Cell 11 — ST-GCN Model
-# ══════════════════════════════════════════════════════════════════════════
-
-# ══════════════════════════════════════════════════════════════════════════
-# Cell 11 — ST-GCN Model (FIXED)
+# Cell 11 — ST-GCN Model (Regression only)
 # ══════════════════════════════════════════════════════════════════════════
 
 def build_adj(num_joints, edges):
@@ -500,7 +482,6 @@ class STGCNBlock(nn.Module):
         self.register_buffer('A', A)
         pad = (t_kernel - 1) // 2
 
-        # FIX: project first (W_s), then aggregate via A
         self.W_s    = nn.Linear(in_ch, out_ch, bias=False)
         self.bn_s   = nn.BatchNorm2d(out_ch)
         self.t_conv = nn.Sequential(
@@ -522,29 +503,25 @@ class STGCNBlock(nn.Module):
 
     def forward(self, x):
         B, C, T, J = x.shape
-
-        # ── Spatial GCN (FIXED: project → aggregate) ──────────────────────
-        xs = x.permute(0, 2, 3, 1).reshape(B * T, J, C)   # (B*T, J, C)
-        xs = self.W_s(xs)                                   # (B*T, J, C') ← project first
+        xs = x.permute(0, 2, 3, 1).reshape(B * T, J, C)
+        xs = self.W_s(xs)
         A_exp = self.A.unsqueeze(0).expand(B * T, -1, -1).contiguous()
-        xs = torch.bmm(A_exp, xs)                           # (B*T, J, C') ← then aggregate
-        xs = xs.reshape(B, T, J, -1).permute(0, 3, 1, 2)   # (B, C', T, J)
+        xs = torch.bmm(A_exp, xs)
+        xs = xs.reshape(B, T, J, -1).permute(0, 3, 1, 2)
         xs = F.relu(self.bn_s(xs))
-
-        # ── Temporal Conv + residual ──────────────────────────────────────
         return F.relu(self.t_conv(xs) + self.res(x))
 
 
-class STGCN_SingleView(nn.Module):
-    def __init__(self, num_classes, dropout=0.3):
+class STGCN_Regression(nn.Module):
+    """Predicts quality score directly — no classification head."""
+    def __init__(self, dropout=0.3):
         super().__init__()
         A = build_adj(NUM_JOINTS, SKELETON_EDGES)
 
-        # FIX: BN over coordinate channels (3), not flattened joints
-        self.data_bn = nn.BatchNorm1d(6)
+        self.data_bn = nn.BatchNorm1d(3)   # BN over 3 coordinate channels
 
         cfg = [
-            (6,   64,  1, 3),    # ← t_kernel=3 في الطبقة الأولى
+            (3,   64,  1, 3),
             (64,  64,  1, 9),
             (64,  128, 2, 9),
             (128, 128, 1, 9),
@@ -557,7 +534,7 @@ class STGCN_SingleView(nn.Module):
         )
 
         self.drop     = nn.Dropout(dropout)
-        self.cls_head = nn.Linear(256, num_classes)
+        # Regression head only
         self.reg_head = nn.Sequential(
             nn.Linear(256, 64),
             nn.ReLU(),
@@ -577,31 +554,28 @@ class STGCN_SingleView(nn.Module):
                 nn.init.zeros_(m.bias)
 
     def forward(self, x):
-        B, T, J, C = x.shape   # (B, 100, 17, 6)
+        B, T, J, C = x.shape   # (B, 100, 17, 3)
 
-        # ── Input normalisation (FIXED: normalize over coord axis) ────────
-        xbn = x.permute(0, 3, 1, 2).reshape(B, C, T * J)  # (B, 3, T*J)
-        xbn = self.data_bn(xbn)                             # BN over 3 coords
-        x   = xbn.reshape(B, C, T, J).permute(0, 2, 3, 1) # (B, T, J, 3)
-        x   = x.permute(0, 3, 1, 2)                        # (B, 3, T, J)
+        xbn = x.permute(0, 3, 1, 2).reshape(B, C, T * J)
+        xbn = self.data_bn(xbn)
+        x   = xbn.reshape(B, C, T, J).permute(0, 2, 3, 1)
+        x   = x.permute(0, 3, 1, 2)          # (B, 3, T, J)
 
-        # ── ST-GCN blocks ─────────────────────────────────────────────────
         for blk in self.blocks:
             x = blk(x)
 
-        # ── Global average pooling ─────────────────────────────────────────
-        x = x.mean(dim=[2, 3])   # (B, 256)
+        x = x.mean(dim=[2, 3])               # (B, 256)
         x = self.drop(x)
 
-        cls = self.cls_head(x)
-        # FIX: tanh instead of sigmoid — centered at 3.0, range (1,5)
+        # Produce a score in (1,5) range — adjust if your quality scale differs
         qua = 3.0 + 2.0 * torch.tanh(self.reg_head(x).squeeze(1))
-        return cls, qua.unsqueeze(1)
+        return qua
 
-print('✓ ST-GCN model (fixed) defined')
+print('✓ ST-GCN regression model defined')
+
 
 # ══════════════════════════════════════════════════════════════════════════
-# Cell 12 — Device, normalisation & run_epoch
+# Cell 12 — Device, normalisation & run_epoch (regression only)
 # ══════════════════════════════════════════════════════════════════════════
 
 DEVICE = 'cuda' if torch.cuda.is_available() else 'cpu'
@@ -615,39 +589,31 @@ def centre_and_scale(x):
     Root-relative normalisation + torso-height scaling.
     x: (B, T, J, 3)
     """
-    # Step 1: center on mid-hip
-    hip  = (x[:, :, 1:2, :] + x[:, :, 4:5, :]) / 2.0   # (B,T,1,3)
+    hip  = (x[:, :, 1:2, :] + x[:, :, 4:5, :]) / 2.0
     x    = x - hip
 
-    # Step 2: compute torso height as Y-distance from hip to mid-shoulder
-    # (Y is the vertical axis after your axis swap in load_skeleton)
-    shoulder = (x[:, :, 11:12, :] + x[:, :, 14:15, :]) / 2.0   # (B,T,1,3)
-    torso_h  = shoulder[:, :, :, 1:2].abs()                      # Y-coord only (B,T,1,1)
-    torso_h  = torso_h.mean(dim=1, keepdim=True).clamp(min=1e-6) # (B,1,1,1)
+    shoulder = (x[:, :, 11:12, :] + x[:, :, 14:15, :]) / 2.0
+    torso_h  = shoulder[:, :, :, 1:2].abs()
+    torso_h  = torso_h.mean(dim=1, keepdim=True).clamp(min=1e-6)
     return x / torso_h
 
 
-def run_epoch(model, loader, optimiser, cls_fn, reg_fn,
-              is_train=True, cls_w=1.0, reg_w=0.2):
+def run_epoch(model, loader, optimiser, reg_fn, is_train=True):
     """
-    One full pass over loader.
-    Returns dict with: loss, cls_loss, reg_loss, accuracy, rmse, mae, r2
+    One epoch over loader. Returns dict with loss, rmse, mae, r2.
     """
     model.train() if is_train else model.eval()
-    tot = dict(loss=0.0, cls=0.0, reg=0.0, correct=0, total=0)
+    total_loss = 0.0
     q_true, q_pred = [], []
 
     ctx = torch.enable_grad() if is_train else torch.no_grad()
     with ctx:
-        for skels, ex_ids, qualities in loader:
+        for skels, qualities in loader:
             skels     = centre_and_scale(skels.to(DEVICE))
-            ex_ids    = ex_ids.to(DEVICE)
             qualities = qualities.to(DEVICE)
 
-            cls_logits, qpred = model(skels)
-            l_cls = cls_fn(cls_logits, ex_ids)
-            l_reg = reg_fn(qpred.squeeze(1), qualities)
-            loss  = cls_w * l_cls + reg_w * l_reg
+            preds = model(skels)                       # (B,)
+            loss  = reg_fn(preds, qualities)
 
             if is_train:
                 optimiser.zero_grad()
@@ -655,30 +621,22 @@ def run_epoch(model, loader, optimiser, cls_fn, reg_fn,
                 nn.utils.clip_grad_norm_(model.parameters(), 5.0)
                 optimiser.step()
 
-            tot['loss']    += loss.item()
-            tot['cls']     += l_cls.item()
-            tot['reg']     += l_reg.item()
-            tot['correct'] += (cls_logits.argmax(1) == ex_ids).sum().item()
-            tot['total']   += ex_ids.size(0)
+            total_loss += loss.item()
             q_true.extend(qualities.cpu().numpy())
-            q_pred.extend(qpred.squeeze(1).detach().cpu().numpy())
+            q_pred.extend(preds.detach().cpu().numpy())
 
     n   = max(1, len(loader))
     qt  = np.array(q_true)
     qp  = np.array(q_pred)
 
     return {
-        'loss'    : tot['loss'] / n,
-        'cls_loss': tot['cls']  / n,
-        'reg_loss': tot['reg']  / n,
-        'accuracy': tot['correct'] / max(1, tot['total']) * 100,
-        'rmse'    : float(np.sqrt(np.mean((qt - qp) ** 2))),
-        'mae'     : float(np.mean(np.abs(qt - qp))),
-        'r2'      : float(r2_score(qt, qp)) if len(qt) > 1 else 0.0,
+        'loss': total_loss / n,
+        'rmse': float(np.sqrt(np.mean((qt - qp) ** 2))),
+        'mae' : float(np.mean(np.abs(qt - qp))),
+        'r2'  : float(r2_score(qt, qp)) if len(qt) > 1 else 0.0,
     }
 
-
-print('✓ centre_and_scale and run_epoch defined')
+print('✓ centre_and_scale and run_epoch (regression) defined')
 
 
 # ══════════════════════════════════════════════════════════════════════════
@@ -686,13 +644,8 @@ print('✓ centre_and_scale and run_epoch defined')
 # ══════════════════════════════════════════════════════════════════════════
 
 def get_trial_split(df, train_ratio=TRAIN_RATIO, val_ratio=VAL_RATIO, random_state=42):
-    """
-    Stratified split: ensure both correct (T0-T2) and erroneous (T3-T6)
-    trial types appear proportionally in every split.
-    """
     rng = np.random.default_rng(random_state)
 
-    # Separate correct vs erroneous trial keys
     correct_keys   = df[df['trial_num'] <= 2]['trial_key'].unique()
     erroneous_keys = df[df['trial_num'] >= 3]['trial_key'].unique()
     rng.shuffle(correct_keys)
@@ -726,7 +679,7 @@ print('\n✓ Train / Val / Test split ready')
 
 
 # ══════════════════════════════════════════════════════════════════════════
-# Cell 14 — Plotting helpers
+# Cell 14 — Plotting helpers (regression only)
 # ══════════════════════════════════════════════════════════════════════════
 
 def save_and_show(fig, path):
@@ -737,93 +690,53 @@ def save_and_show(fig, path):
 
 def plot_loss_curves(history, save_dir):
     epochs = range(1, len(history['train_loss']) + 1)
-    fig, axes = plt.subplots(1, 3, figsize=(18, 5))
-    fig.suptitle('Loss Curves — Train / Val / Test', fontsize=14, fontweight='bold')
-
-    # ── Total loss ────────────────────────────────────────────────────────
-    axes[0].plot(epochs, history['train_loss'], label='Train',      color='steelblue')
-    axes[0].plot(epochs, history['val_loss'],   label='Validation', color='darkorange')
-    axes[0].plot(epochs, history['test_loss'],  label='Test',       color='green', linestyle='--')
-    axes[0].set_title('Total Loss'); axes[0].set_xlabel('Epoch'); axes[0].set_ylabel('Loss')
-    axes[0].legend(); axes[0].grid(alpha=0.3)
-
-    # ── Classification loss ───────────────────────────────────────────────
-    axes[1].plot(epochs, history['train_cls_loss'], label='Train',      color='steelblue')
-    axes[1].plot(epochs, history['val_cls_loss'],   label='Validation', color='darkorange')
-    axes[1].plot(epochs, history['test_cls_loss'],  label='Test',       color='green', linestyle='--')
-    axes[1].set_title('Classification Loss  (CrossEntropy)')
-    axes[1].set_xlabel('Epoch'); axes[1].set_ylabel('Loss')
-    axes[1].legend(); axes[1].grid(alpha=0.3)
-
-    # ── Regression loss ───────────────────────────────────────────────────
-    axes[2].plot(epochs, history['train_reg_loss'], label='Train',      color='steelblue')
-    axes[2].plot(epochs, history['val_reg_loss'],   label='Validation', color='darkorange')
-    axes[2].plot(epochs, history['test_reg_loss'],  label='Test',       color='green', linestyle='--')
-    axes[2].set_title('Quality Score Loss  (SmoothL1)')
-    axes[2].set_xlabel('Epoch'); axes[2].set_ylabel('Loss')
-    axes[2].legend(); axes[2].grid(alpha=0.3)
-
+    fig, ax = plt.subplots(figsize=(10, 4))
+    ax.plot(epochs, history['train_loss'], label='Train',      color='steelblue')
+    ax.plot(epochs, history['val_loss'],   label='Validation', color='darkorange')
+    ax.plot(epochs, history['test_loss'],  label='Test',       color='green', linestyle='--')
+    ax.set_title('Regression Loss (SmoothL1)', fontsize=13, fontweight='bold')
+    ax.set_xlabel('Epoch'); ax.set_ylabel('Loss')
+    ax.legend(); ax.grid(alpha=0.3)
     plt.tight_layout()
-    save_and_show(fig, os.path.join(save_dir, 'loss_curves.png'))
-
-    # ── Print last-epoch loss table ───────────────────────────────────────
-    print('\n  ── Loss Summary (last recorded epoch) ──────────────────────')
-    print(f'  {"Split":<12} {"Total":>8} {"Cls":>8} {"Reg":>8}')
-    print(f'  {"─"*40}')
-    for split in ['train', 'val', 'test']:
-        print(f'  {split.capitalize():<12} '
-              f'{history[f"{split}_loss"][-1]:>8.4f} '
-              f'{history[f"{split}_cls_loss"][-1]:>8.4f} '
-              f'{history[f"{split}_reg_loss"][-1]:>8.4f}')
-    print(f'  {"─"*40}')
+    save_and_show(fig, os.path.join(save_dir, 'loss_curve.png'))
 
 
-def plot_accuracy_rmse(history, save_dir):
-    epochs = range(1, len(history['train_acc']) + 1)
+def plot_rmse_mae(history, save_dir):
+    epochs = range(1, len(history['val_rmse']) + 1)
     fig, axes = plt.subplots(1, 2, figsize=(12, 4))
-    fig.suptitle('Accuracy & RMSE — Train / Val / Test', fontsize=14, fontweight='bold')
+    fig.suptitle('RMSE & MAE — Train / Val / Test', fontsize=14, fontweight='bold')
 
-    axes[0].plot(epochs, history['train_acc'],  label='Train',      color='steelblue')
-    axes[0].plot(epochs, history['val_acc'],    label='Validation', color='darkorange')
-    axes[0].plot(epochs, history['test_acc'],   label='Test',       color='green', linestyle='--')
-    axes[0].set_title('Exercise Classification Accuracy (%)')
-    axes[0].set_xlabel('Epoch'); axes[0].set_ylabel('Accuracy (%)')
+    axes[0].plot(epochs, history['train_rmse'], label='Train',      color='steelblue')
+    axes[0].plot(epochs, history['val_rmse'],   label='Validation', color='darkorange')
+    axes[0].plot(epochs, history['test_rmse'],  label='Test',       color='green', linestyle='--')
+    axes[0].set_title('RMSE')
+    axes[0].set_xlabel('Epoch'); axes[0].set_ylabel('RMSE')
     axes[0].legend(); axes[0].grid(alpha=0.3)
-
-    axes[1].plot(epochs, history['train_rmse'], label='Train',      color='steelblue')
-    axes[1].plot(epochs, history['val_rmse'],   label='Validation', color='darkorange')
-    axes[1].plot(epochs, history['test_rmse'],  label='Test',       color='green', linestyle='--')
-    axes[1].set_title('Quality Score RMSE')
-    axes[1].set_xlabel('Epoch'); axes[1].set_ylabel('RMSE')
-    axes[1].legend(); axes[1].grid(alpha=0.3)
-
-    plt.tight_layout()
-    save_and_show(fig, os.path.join(save_dir, 'accuracy_rmse.png'))
-
-
-def plot_r2_mae(history, save_dir):
-    epochs = range(1, len(history['train_r2']) + 1)
-    fig, axes = plt.subplots(1, 2, figsize=(12, 4))
-    fig.suptitle('Regression Metrics — Train / Val / Test', fontsize=14, fontweight='bold')
-
-    axes[0].plot(epochs, history['train_r2'], label='Train',      color='steelblue')
-    axes[0].plot(epochs, history['val_r2'],   label='Validation', color='darkorange')
-    axes[0].plot(epochs, history['test_r2'],  label='Test',       color='green', linestyle='--')
-    axes[0].axhline(1.0, color='gray', linestyle=':', linewidth=1, label='Perfect (R²=1)')
-    axes[0].axhline(0.0, color='red',  linestyle=':', linewidth=1, label='Baseline (R²=0)')
-    axes[0].set_title('R² Score  (higher = better)')
-    axes[0].set_xlabel('Epoch'); axes[0].set_ylabel('R²')
-    axes[0].legend(fontsize=8); axes[0].grid(alpha=0.3)
 
     axes[1].plot(epochs, history['train_mae'], label='Train',      color='steelblue')
     axes[1].plot(epochs, history['val_mae'],   label='Validation', color='darkorange')
     axes[1].plot(epochs, history['test_mae'],  label='Test',       color='green', linestyle='--')
-    axes[1].set_title('MAE  (lower = better)')
+    axes[1].set_title('MAE')
     axes[1].set_xlabel('Epoch'); axes[1].set_ylabel('MAE')
     axes[1].legend(); axes[1].grid(alpha=0.3)
 
     plt.tight_layout()
-    save_and_show(fig, os.path.join(save_dir, 'r2_mae_curves.png'))
+    save_and_show(fig, os.path.join(save_dir, 'rmse_mae.png'))
+
+
+def plot_r2(history, save_dir):
+    epochs = range(1, len(history['val_r2']) + 1)
+    fig, ax = plt.subplots(figsize=(8, 4))
+    ax.plot(epochs, history['train_r2'], label='Train',      color='steelblue')
+    ax.plot(epochs, history['val_r2'],   label='Validation', color='darkorange')
+    ax.plot(epochs, history['test_r2'],  label='Test',       color='green', linestyle='--')
+    ax.axhline(1.0, color='gray', linestyle=':', linewidth=1, label='Perfect (R²=1)')
+    ax.axhline(0.0, color='red',  linestyle=':', linewidth=1, label='Baseline (R²=0)')
+    ax.set_title('R² Score', fontsize=13, fontweight='bold')
+    ax.set_xlabel('Epoch'); ax.set_ylabel('R²')
+    ax.legend(fontsize=8); ax.grid(alpha=0.3)
+    plt.tight_layout()
+    save_and_show(fig, os.path.join(save_dir, 'r2_curve.png'))
 
 
 def plot_regression_scatter(q_true, q_pred, split_name='Test', save_dir=None):
@@ -857,110 +770,66 @@ def plot_regression_scatter(q_true, q_pred, split_name='Test', save_dir=None):
         plt.close(fig)
 
 
-def plot_confusion_matrix(all_true, all_pred, save_dir):
-    labels      = sorted(set(all_true) | set(all_pred))
-    label_names = [f'E{i}' for i in labels]
-    cm          = confusion_matrix(all_true, all_pred, labels=labels)
-    disp        = ConfusionMatrixDisplay(cm, display_labels=label_names)
-    fig, ax     = plt.subplots(figsize=(8, 7))
-    disp.plot(ax=ax, cmap='Blues', colorbar=False)
-    ax.set_title('Confusion Matrix (Test Set)', fontsize=13, fontweight='bold')
-    plt.tight_layout()
-    save_and_show(fig, os.path.join(save_dir, 'confusion_matrix.png'))
-
-
 def plot_early_stop(history, stopped_epoch, best_epoch, save_dir):
-    """Accuracy curves annotated with best epoch and early-stop epoch."""
-    epochs = range(1, len(history['val_acc']) + 1)
+    """MAE curves annotated with best epoch and early-stop epoch."""
+    epochs = range(1, len(history['val_mae']) + 1)
     fig, ax = plt.subplots(figsize=(10, 4))
-    ax.plot(epochs, history['train_acc'], label='Train Acc', color='steelblue')
-    ax.plot(epochs, history['val_acc'],   label='Val Acc',   color='darkorange')
-    ax.plot(epochs, history['test_acc'],  label='Test Acc',  color='green', linestyle='--')
+    ax.plot(epochs, history['train_mae'], label='Train MAE', color='steelblue')
+    ax.plot(epochs, history['val_mae'],   label='Val MAE',   color='darkorange')
+    ax.plot(epochs, history['test_mae'],  label='Test MAE',  color='green', linestyle='--')
     ax.axvline(best_epoch,    color='purple', linestyle=':',  linewidth=2,
                label=f'Best epoch ({best_epoch})')
     ax.axvline(stopped_epoch, color='red',    linestyle='--', linewidth=2,
                label=f'Early stop ({stopped_epoch})')
-    ax.set_title('Accuracy + Early Stopping', fontsize=13, fontweight='bold')
-    ax.set_xlabel('Epoch'); ax.set_ylabel('Accuracy (%)')
+    ax.set_title('MAE + Early Stopping', fontsize=13, fontweight='bold')
+    ax.set_xlabel('Epoch'); ax.set_ylabel('MAE')
     ax.legend(); ax.grid(alpha=0.3)
     plt.tight_layout()
     save_and_show(fig, os.path.join(save_dir, 'early_stopping.png'))
 
 
-print('✓ All plotting helpers defined')
+print('✓ Plotting helpers (regression) defined')
 
 
 # ══════════════════════════════════════════════════════════════════════════
-# Cell 15 — Early Stopping
+# Cell 15 — Early Stopping (monitors validation MAE)
 # ══════════════════════════════════════════════════════════════════════════
 
 class EarlyStopping:
     """
-    Monitors val_accuracy (higher = better).
-
-    Usage:
-        stop, improved = early_stop.step(val_acc, model, epoch)
-
-    Returns:
-        stop     (bool) — True when training should stop
-        improved (bool) — True when this epoch set a new best
+    Monitors val_mae (lower = better).
     """
     def __init__(self, patience=PATIENCE, min_delta=MIN_DELTA):
         self.patience   = patience
         self.min_delta  = min_delta
-        self.best_acc   = -float('inf')
+        self.best_mae   = float('inf')
         self.counter    = 0
         self.best_wts   = None
         self.best_epoch = 1
 
-    def step(self, val_acc, model, epoch):
-        if val_acc > self.best_acc + self.min_delta:
-            # ── Genuine improvement ───────────────────────────────────────
-            self.best_acc   = val_acc
+    def step(self, val_mae, model, epoch):
+        if val_mae < self.best_mae - self.min_delta:
+            self.best_mae   = val_mae
             self.counter    = 0
             self.best_wts   = copy.deepcopy(model.state_dict())
             self.best_epoch = epoch
-            return False, True       # (stop=False, improved=True)
+            return False, True
         else:
-            # ── No improvement ────────────────────────────────────────────
             self.counter += 1
             return self.counter >= self.patience, False
 
 
-print('✓ EarlyStopping defined')
+print('✓ EarlyStopping defined (monitoring MAE)')
 
 
 # ══════════════════════════════════════════════════════════════════════════
-# Cell 16 — Training Loop (FULLY FIXED)
+# Cell 16 — Training Loop (Regression only)
 # ══════════════════════════════════════════════════════════════════════════
 
-actual_classes = sorted(df_index['exercise'].unique())
-n_classes      = len(actual_classes)
-ex_map         = {v: i for i, v in enumerate(actual_classes)}
-rev_map        = {i: v for v, i in ex_map.items()}
-print(f'Classes in data : E{actual_classes}  →  mapped 0..{n_classes - 1}')
-
-# ── Class weights to fix E5=0%, E7=1.5% collapse ─────────────────────────
-train_df_mapped = train_df.copy()
-train_df_mapped['exercise'] = train_df_mapped['exercise'].map(ex_map)
-class_counts  = train_df_mapped['exercise'].value_counts().sort_index()
-total_samples = class_counts.sum()
-class_weights = torch.tensor(
-    [total_samples / (n_classes * class_counts[i]) for i in range(n_classes)],
-    dtype=torch.float32
-).to(DEVICE)
-
-print(f"\nClass weights:")
-for i, w in enumerate(class_weights):
-    print(f"  E{actual_classes[i]}: {w:.3f}")
-
-cls_fn = nn.CrossEntropyLoss(weight=class_weights)  # weighted
-reg_fn = nn.SmoothL1Loss()
+reg_fn = nn.SmoothL1Loss()   # could also use nn.MSELoss()
 
 def make_ds(df, aug):
-    d = df.copy()
-    d['exercise'] = d['exercise'].map(ex_map)
-    return BZUDataset(d, augment=aug)
+    return BZUDataset(df, augment=aug)
 
 train_loader = DataLoader(make_ds(train_df, True),
                           batch_size=BATCH_SIZE, shuffle=True,
@@ -972,10 +841,10 @@ test_loader  = DataLoader(make_ds(test_df, False),
                           batch_size=BATCH_SIZE, shuffle=False,
                           num_workers=0, pin_memory=(DEVICE == 'cuda'))
 
-model      = STGCN_SingleView(num_classes=n_classes, dropout=0.3).to(DEVICE)
+model      = STGCN_Regression(dropout=0.3).to(DEVICE)
 optimiser  = torch.optim.AdamW(model.parameters(), lr=LR, weight_decay=WEIGHT_DECAY)
 
-# ── Single scheduler with warmup + cosine (no duplicate) ─────────────────
+# Warmup + cosine schedule
 def lr_lambda(epoch):
     if epoch < WARMUP_EPOCHS:
         return (epoch + 1) / WARMUP_EPOCHS
@@ -986,12 +855,12 @@ scheduler  = torch.optim.lr_scheduler.LambdaLR(optimiser, lr_lambda)
 early_stop = EarlyStopping(patience=PATIENCE, min_delta=MIN_DELTA)
 
 SPLITS  = ['train', 'val', 'test']
-METRICS = ['loss', 'cls_loss', 'reg_loss', 'acc', 'rmse', 'mae', 'r2']
+METRICS = ['loss', 'rmse', 'mae', 'r2']
 history = {f'{s}_{m}': [] for s in SPLITS for m in METRICS}
 stopped_epoch = EPOCHS
 
 log.info('=' * 70)
-log.info('STARTING TRAINING  (with Early Stopping + Class Weights)')
+log.info('STARTING REGRESSION TRAINING  (with Early Stopping on MAE)')
 log.info('=' * 70)
 log.info(f'train={len(train_df)} val={len(val_df)} test={len(test_df)}')
 
@@ -1002,37 +871,31 @@ print(f'  Patience: {PATIENCE}  |  LR: {LR}  |  Batch: {BATCH_SIZE}')
 print(f'{"═"*68}')
 
 for epoch in range(1, EPOCHS + 1):
-    tr = run_epoch(model, train_loader, optimiser, cls_fn, reg_fn,
-                   is_train=True,  cls_w=3.0, reg_w=0.1)
-    vl = run_epoch(model, val_loader,   optimiser, cls_fn, reg_fn,
-                   is_train=False, cls_w=3.0, reg_w=0.1)
-    te = run_epoch(model, test_loader,  optimiser, cls_fn, reg_fn,
-                   is_train=False, cls_w=3.0, reg_w=0.1)
+    tr = run_epoch(model, train_loader, optimiser, reg_fn, is_train=True)
+    vl = run_epoch(model, val_loader,   optimiser, reg_fn, is_train=False)
+    te = run_epoch(model, test_loader,  optimiser, reg_fn, is_train=False)
     scheduler.step()
 
     for split, res in [('train', tr), ('val', vl), ('test', te)]:
         history[f'{split}_loss'].append(res['loss'])
-        history[f'{split}_cls_loss'].append(res['cls_loss'])
-        history[f'{split}_reg_loss'].append(res['reg_loss'])
-        history[f'{split}_acc'].append(res['accuracy'])
         history[f'{split}_rmse'].append(res['rmse'])
         history[f'{split}_mae'].append(res['mae'])
         history[f'{split}_r2'].append(res['r2'])
 
-    stop, improved = early_stop.step(vl['accuracy'], model, epoch)
+    stop, improved = early_stop.step(vl['mae'], model, epoch)
 
     star = ' ★' if improved else ''
     msg  = (f'  Ep {epoch:3d}/{EPOCHS} | '
-            f'Tr acc={tr["accuracy"]:.1f}% mae={tr["mae"]:.3f} r2={tr["r2"]:.3f} | '
-            f'Vl acc={vl["accuracy"]:.1f}% mae={vl["mae"]:.3f} r2={vl["r2"]:.3f} | '
-            f'Te acc={te["accuracy"]:.1f}% mae={te["mae"]:.3f} r2={te["r2"]:.3f} | '
+            f'Tr loss={tr["loss"]:.4f} mae={tr["mae"]:.3f} r2={tr["r2"]:.3f} | '
+            f'Vl loss={vl["loss"]:.4f} mae={vl["mae"]:.3f} r2={vl["r2"]:.3f} | '
+            f'Te loss={te["loss"]:.4f} mae={te["mae"]:.3f} r2={te["r2"]:.3f} | '
             f'ES {early_stop.counter}/{PATIENCE}{star}')
     print(msg)
     log.info(msg)
 
     if improved:
-        print(f'    ★ val_acc={early_stop.best_acc:.2f}%  '
-              f'mae={vl["mae"]:.4f}  r2={vl["r2"]:.4f}')
+        print(f'    ★ val_mae={early_stop.best_mae:.4f}  '
+              f'rmse={vl["rmse"]:.4f}  r2={vl["r2"]:.4f}')
 
     if stop:
         stopped_epoch = epoch
@@ -1049,36 +912,29 @@ model.load_state_dict(early_stop.best_wts)
 best_epoch = early_stop.best_epoch
 
 # ── Final evaluation with best weights ───────────────────────────────────
-final_te = run_epoch(model, test_loader, optimiser, cls_fn, reg_fn,
-                     is_train=False, cls_w=1.0, reg_w=0.5)
+final_te = run_epoch(model, test_loader, optimiser, reg_fn, is_train=False)
 
 print(f'\n  ── Final Test Results (best epoch = {best_epoch}) ──────────────────')
-print(f'  Accuracy : {final_te["accuracy"]:.2f}%')
-print(f'  RMSE     : {final_te["rmse"]:.4f}')
-print(f'  MAE      : {final_te["mae"]:.4f}')
-print(f'  R²       : {final_te["r2"]:.4f}')
-print(f'  Loss     : {final_te["loss"]:.4f}')
+print(f'  Loss : {final_te["loss"]:.4f}')
+print(f'  RMSE : {final_te["rmse"]:.4f}')
+print(f'  MAE  : {final_te["mae"]:.4f}')
+print(f'  R²   : {final_te["r2"]:.4f}')
 
-# ── Collect predictions for confusion matrix & scatter ────────────────────
+# ── Collect predictions for scatter plot ──────────────────────────────────
 model.eval()
-all_true_cls, all_pred_cls = [], []
-all_true_q,   all_pred_q   = [], []
-
+all_true_q, all_pred_q = [], []
 with torch.no_grad():
-    for skels, ex_ids, qualities in test_loader:
+    for skels, qualities in test_loader:
         skels = centre_and_scale(skels.to(DEVICE))
-        cls_logits, qpred = model(skels)
-        all_true_cls.extend([rev_map[e] for e in ex_ids.numpy()])
-        all_pred_cls.extend([rev_map[p] for p in cls_logits.argmax(1).cpu().numpy()])
+        preds = model(skels)
         all_true_q.extend(qualities.numpy())
-        all_pred_q.extend(qpred.squeeze(1).cpu().numpy())
+        all_pred_q.extend(preds.cpu().numpy())
 
 # ── Save all plots ────────────────────────────────────────────────────────
 plot_loss_curves(history, PLOTS_DIR)
-plot_accuracy_rmse(history, PLOTS_DIR)
-plot_r2_mae(history, PLOTS_DIR)
+plot_rmse_mae(history, PLOTS_DIR)
+plot_r2(history, PLOTS_DIR)
 plot_regression_scatter(all_true_q, all_pred_q, split_name='Test', save_dir=PLOTS_DIR)
-plot_confusion_matrix(all_true_cls, all_pred_cls, PLOTS_DIR)
 plot_early_stop(history, stopped_epoch, best_epoch, PLOTS_DIR)
 
 # ── Save history JSON ─────────────────────────────────────────────────────
@@ -1092,21 +948,19 @@ print(f'  ✓ History → {json_path}')
 
 
 # ══════════════════════════════════════════════════════════════════════════
-# DIAGNOSTIC CELL — run before more training
+# DIAGNOSTIC CELL — Data analysis, no classification metrics
 # ══════════════════════════════════════════════════════════════════════════
 import numpy as np
-
-print("=" * 60)
-print("DIAGNOSTIC 1: Per-class skeleton variance (C0)")
-print("=" * 60)
-
-# Sample up to 20 files per exercise and compute axis variance
 from collections import defaultdict
-axis_var = defaultdict(list)
 
+print("=" * 60)
+print("DIAGNOSTIC 1: Per-exercise skeleton variance (C0)")
+print("=" * 60)
+
+axis_var = defaultdict(list)
 for _, row in df_index.sample(min(300, len(df_index)), random_state=0).iterrows():
-    skel = load_skeleton(row['filepath'])   # (T,17,3)
-    if skel is None:         
+    skel = load_skeleton(row['filepath'])
+    if skel is None:
         continue
     axis_var[row['exercise']].append({
         'x_var': skel[:,:,0].var(),
@@ -1125,37 +979,7 @@ for ex in sorted(axis_var.keys()):
 
 print()
 print("=" * 60)
-print("DIAGNOSTIC 2: Per-class accuracy on test set")
-print("=" * 60)
-
-model.eval()
-from collections import Counter
-
-per_class_correct = Counter()
-per_class_total   = Counter()
-
-with torch.no_grad():
-    for skels, ex_ids, qualities in test_loader:
-        skels = centre_and_scale(skels.to(DEVICE))
-        cls_logits, _ = model(skels)
-        preds = cls_logits.argmax(1).cpu().numpy()
-        trues = ex_ids.numpy()
-        for t, p in zip(trues, preds):
-            ex_name = f"E{rev_map[t]}"
-            per_class_total[ex_name] += 1
-            if t == p:
-                per_class_correct[ex_name] += 1
-
-print(f"{'Exercise':>10} {'Correct':>8} {'Total':>8} {'Acc%':>8}")
-print("-" * 38)
-for ex in sorted(per_class_total.keys()):
-    tot = per_class_total[ex]
-    cor = per_class_correct[ex]
-    print(f"{ex:>10} {cor:>8} {tot:>8} {100*cor/tot:>7.1f}%")
-
-print()
-print("=" * 60)
-print("DIAGNOSTIC 3: Quality score distribution per split")
+print("DIAGNOSTIC 2: Quality score distribution per split")
 print("=" * 60)
 for name, df_ in [('Train', train_df), ('Val', val_df), ('Test', test_df)]:
     q = df_['quality']
@@ -1164,48 +988,44 @@ for name, df_ in [('Train', train_df), ('Val', val_df), ('Test', test_df)]:
     print(f"{name:>6}: mean={q.mean():.3f} std={q.std():.3f} "
           f"min={q.min():.2f} max={q.max():.2f} | "
           f"correct={trials_correct} erroneous={trials_erroneous}")
+
+
 # ══════════════════════════════════════════════════════════════════════════
 # Cell 17 — Final Summary
 # ══════════════════════════════════════════════════════════════════════════
 
-bv            = best_epoch - 1   # 0-based index into history lists
-best_val_acc  = history['val_acc'][bv]
-best_val_rmse = history['val_rmse'][bv]
+bv           = best_epoch - 1   # 0-based index
 best_val_mae  = history['val_mae'][bv]
+best_val_rmse = history['val_rmse'][bv]
 best_val_r2   = history['val_r2'][bv]
 
 print('=' * 60)
-print('  TRAINING SUMMARY — ST-GCN Single View')
+print('  TRAINING SUMMARY — ST-GCN Regression (Single View)')
 print('=' * 60)
 print(f'  Best Epoch       : {best_epoch}  (stopped at {stopped_epoch})')
-print(f'  Best Val Acc     : {best_val_acc:.2f}%')
-print(f'  Best Val RMSE    : {best_val_rmse:.4f}')
 print(f'  Best Val MAE     : {best_val_mae:.4f}')
+print(f'  Best Val RMSE    : {best_val_rmse:.4f}')
 print(f'  Best Val R²      : {best_val_r2:.4f}')
 print('─' * 60)
-print(f'  Test Accuracy    : {final_te["accuracy"]:.2f}%')
-print(f'  Test RMSE        : {final_te["rmse"]:.4f}')
 print(f'  Test MAE         : {final_te["mae"]:.4f}')
+print(f'  Test RMSE        : {final_te["rmse"]:.4f}')
 print(f'  Test R²          : {final_te["r2"]:.4f}')
 print('=' * 60)
 
 log.info(f'Best Epoch={best_epoch}  stopped_epoch={stopped_epoch}')
-log.info(f'Test Accuracy={final_te["accuracy"]:.2f}%')
-log.info(f'Test RMSE={final_te["rmse"]:.4f}')
 log.info(f'Test MAE={final_te["mae"]:.4f}')
+log.info(f'Test RMSE={final_te["rmse"]:.4f}')
 log.info(f'Test R²={final_te["r2"]:.4f}')
 
 summary_path = os.path.join(OUT_DIR, 'training_summary.csv')
 pd.DataFrame([{
     'best_epoch'   : best_epoch,
     'stopped_epoch': stopped_epoch,
-    'val_acc'      : best_val_acc,
-    'val_rmse'     : best_val_rmse,
     'val_mae'      : best_val_mae,
+    'val_rmse'     : best_val_rmse,
     'val_r2'       : best_val_r2,
-    'test_acc'     : final_te['accuracy'],
-    'test_rmse'    : final_te['rmse'],
     'test_mae'     : final_te['mae'],
+    'test_rmse'    : final_te['rmse'],
     'test_r2'      : final_te['r2'],
 }]).to_csv(summary_path, index=False)
 print(f'\n✓ Summary CSV saved → {summary_path}')
