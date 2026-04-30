@@ -6,11 +6,11 @@ nohup: ignoring input
   EXISTS      : True
   PATIENCE    : 50 epochs
 ✓ Run directory created:
-   /mvdlph/masa/GCN_SingleView_Regression_Results/run_2026_04_30_15_12_41
+   /mvdlph/masa/GCN_SingleView_Regression_Results/run_2026_04_30_15_16_23
 ✓ Libraries imported
 ✓ Output folders ready:
-   /mvdlph/masa/GCN_SingleView_Regression_Results/run_2026_04_30_15_12_41/plots
-   /mvdlph/masa/GCN_SingleView_Regression_Results/run_2026_04_30_15_12_41/logs
+   /mvdlph/masa/GCN_SingleView_Regression_Results/run_2026_04_30_15_16_23/plots
+   /mvdlph/masa/GCN_SingleView_Regression_Results/run_2026_04_30_15_16_23/logs
 Total NPZ files found : 15375
 First file: E0_P0_T0_C0_seg0_MMPose_human3d_motionbert_3D.npz
 Keys      : ['keypoints_3d', 'fps', 'video_shape', 'video_name']
