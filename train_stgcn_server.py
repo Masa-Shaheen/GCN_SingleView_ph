@@ -5,7 +5,7 @@ import os
 
 DATASET_DIR   = "/mvdlph/Dataset_CVDLPT_Videos_Segments_P0P15_MMPose_human3d_motionbert_H36M_3D_1_2026"
 CSV_PATH      = "/mvdlph/label_events_20260129_155122_stats_short.csv"
-CAMERA_ID     = 1
+CAMERA_ID     = None
 NPZ_KEY       = "keypoints_3d"
 NUM_JOINTS    = 17
 TARGET_FRAMES = 100
@@ -366,6 +366,13 @@ def plot_skeleton_3d(skel, frame_idx=0, title='Skeleton Sanity Check', save_path
         for part, idxs in JOINT_COLORS.items():
             ax.scatter(hx[idxs], hy[idxs], c=PART_COLOR[part], s=80, zorder=3,
                        edgecolors='black', linewidths=0.5, label=part)
+        # ── أرقام الجوينتس ──
+        for j_idx in range(len(hx)):
+            ax.annotate(str(j_idx), (hx[j_idx], hy[j_idx]),
+                        textcoords='offset points', xytext=(5, 5),
+                        fontsize=7, fontweight='bold', color='black',
+                        bbox=dict(boxstyle='round,pad=0.1', facecolor='white', 
+                                  alpha=0.6, edgecolor='none'))
         ax.set_title(view_title, fontweight='bold', fontsize=10)
         ax.set_xlabel(xlabel); ax.set_ylabel(ylabel)
         ax.set_aspect('equal'); ax.grid(alpha=0.3)
@@ -377,7 +384,6 @@ def plot_skeleton_3d(skel, frame_idx=0, title='Skeleton Sanity Check', save_path
         plt.savefig(save_path, dpi=150, bbox_inches='tight')
         print(f'  ✓ Skeleton plot saved → {save_path}')
     plt.close()
-
 
 def plot_skeleton_frames(skel, n_frames=5, title='Skeleton Motion', save_path=None):
     T    = skel.shape[0]
