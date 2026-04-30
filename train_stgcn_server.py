@@ -5,7 +5,7 @@ import os
 
 DATASET_DIR   = "/mvdlph/Dataset_CVDLPT_Videos_Segments_P0P15_MMPose_human3d_motionbert_H36M_3D_1_2026"
 CSV_PATH      = "/mvdlph/label_events_20260129_155122_stats_short.csv"
-CAMERA_ID     = None
+CAMERA_ID     = 1
 NPZ_KEY       = "keypoints_3d"
 NUM_JOINTS    = 17
 TARGET_FRAMES = 100
@@ -47,10 +47,21 @@ import torch.nn.functional as F
 from torch.utils.data import Dataset, DataLoader
 from sklearn.metrics import r2_score   # no confusion_matrix needed
 
-PLOTS_DIR = os.path.join(OUT_DIR, "plots")
-LOGS_DIR  = os.path.join(OUT_DIR, "logs")
+from datetime import datetime
+
+# Create unique run folder
+run_name = datetime.now().strftime("run_%Y_%m_%d_%H_%M_%S")
+RUN_DIR  = os.path.join(OUT_DIR, run_name)
+
+PLOTS_DIR = os.path.join(RUN_DIR, "plots")
+LOGS_DIR  = os.path.join(RUN_DIR, "logs")
+
+# Create directories
 for d in [PLOTS_DIR, LOGS_DIR]:
     os.makedirs(d, exist_ok=True)
+
+print("✓ Run directory created:")
+print("  ", RUN_DIR)
 
 print("✓ Libraries imported")
 print("✓ Output folders ready:")
@@ -666,57 +677,81 @@ print('✓ centre_and_scale and run_epoch (regression) defined')
 
 
 # ══════════════════════════════════════════════════════════════════════════
-# Cell 13 — Trial-based train / val / test split
+# Cell 13 — Trial-ID-based train / val / test split
 # ══════════════════════════════════════════════════════════════════════════
 
 def get_trial_split(df, train_ratio=TRAIN_RATIO, val_ratio=VAL_RATIO, random_state=42):
     """
-    Split by PERSON to prevent any person appearing in multiple splits.
-    Stratify by quality bin to ensure score range is balanced.
+    Split by trial_id WITHIN each exercise.
+    Stratifies correct (T0-T2) vs erroneous (T3-T6) separately
+    to ensure both types appear in every split.
     """
     rng = np.random.default_rng(random_state)
 
-    # Get per-person mean quality for stratification
-    person_quality = df.groupby('person')['quality'].mean()
-    persons = person_quality.index.values
-    qualities = person_quality.values
+    train_rows, val_rows, test_rows = [], [], []
 
-    # Bin quality into 3 strata: low / mid / high
-    bins = np.percentile(qualities, [33, 66])
-    strata = np.digitize(qualities, bins)  # 0, 1, 2
+    for exercise_id, ex_df in df.groupby('exercise'):
+        correct_trials   = sorted(ex_df[ex_df['trial_num'] <= 2]['trial_id'].unique())
+        erroneous_trials = sorted(ex_df[ex_df['trial_num'] >= 3]['trial_id'].unique())
 
-    train_persons, val_persons, test_persons = [], [], []
+        print(f'\n  E{exercise_id}:')
+        print(f'    Correct   trials : {correct_trials}')
+        print(f'    Erroneous trials : {erroneous_trials}')
 
-    for stratum in np.unique(strata):
-        stratum_persons = persons[strata == stratum]
-        rng.shuffle(stratum_persons)
-        n = len(stratum_persons)
-        n_test = max(1, int((1 - train_ratio - val_ratio) * n))
-        n_val  = max(1, int(val_ratio * n))
-        n_train = n - n_val - n_test
+        ex_train, ex_val, ex_test = [], [], []
 
-        train_persons.extend(stratum_persons[:n_train])
-        val_persons.extend(stratum_persons[n_train:n_train + n_val])
-        test_persons.extend(stratum_persons[n_train + n_val:])
+        for group_name, trial_group in [('correct',   correct_trials),
+                                         ('erroneous', erroneous_trials)]:
+            trials = np.array(trial_group)
+            rng.shuffle(trials)
+            n = len(trials)
 
-    train_df = df[df['person'].isin(train_persons)].reset_index(drop=True)
-    val_df   = df[df['person'].isin(val_persons)].reset_index(drop=True)
-    test_df  = df[df['person'].isin(test_persons)].reset_index(drop=True)
+            if n == 0:
+                continue
+            elif n == 1:
+                print(f'    ⚠️  {group_name}: only 1 trial → train only')
+                ex_train.extend(trials)
+            elif n == 2:
+                ex_train.append(trials[0])
+                ex_val.append(trials[1])
+                print(f'    ⚠️  {group_name}: only 2 trials → no test split')
+            else:
+                n_test  = max(1, int((1 - train_ratio - val_ratio) * n))
+                n_val   = max(1, int(val_ratio * n))
+                n_train = max(1, n - n_val - n_test)
+                ex_train.extend(trials[:n_train])
+                ex_val.extend(trials[n_train:n_train + n_val])
+                ex_test.extend(trials[n_train + n_val:])
 
-    print(f'\nPersons → train={len(train_persons)}, val={len(val_persons)}, test={len(test_persons)}')
+        train_rows.append(ex_df[ex_df['trial_id'].isin(ex_train)])
+        val_rows.append(ex_df[ex_df['trial_id'].isin(ex_val)])
+        test_rows.append(ex_df[ex_df['trial_id'].isin(ex_test)])
+
+        print(f'    → train={sorted(ex_train)}  val={sorted(ex_val)}  test={sorted(ex_test)}')
+
+    train_df = pd.concat(train_rows).reset_index(drop=True)
+    val_df   = pd.concat(val_rows).reset_index(drop=True)
+    test_df  = pd.concat(test_rows).reset_index(drop=True)
+
+    print(f'\n{"="*55}')
     print(f'Samples → train={len(train_df)}, val={len(val_df)}, test={len(test_df)}')
+    print(f'Exercises in train : {sorted(train_df["exercise"].unique())}')
+    print(f'Exercises in val   : {sorted(val_df["exercise"].unique())}')
+    print(f'Exercises in test  : {sorted(test_df["exercise"].unique())}')
 
-    # Verify quality distribution is balanced
+    print(f'\nCorrect vs Erroneous per split:')
     for name, d in [('Train', train_df), ('Val', val_df), ('Test', test_df)]:
+        correct   = (d['trial_num'] <= 2).sum()
+        erroneous = (d['trial_num'] >= 3).sum()
         q = d['quality']
-        print(f'  {name}: mean={q.mean():.3f} std={q.std():.3f} '
-              f'min={q.min():.2f} max={q.max():.2f}')
+        print(f'  {name:5s}: correct={correct:4d}  erroneous={erroneous:4d} | '
+              f'mean={q.mean():.3f} std={q.std():.3f}')
 
     return train_df, val_df, test_df
 
-train_df, val_df, test_df = get_trial_split(df_index)
-print('\n✓ Train / Val / Test split ready')
 
+train_df, val_df, test_df = get_trial_split(df_index)
+print('\n✓ Train / Val / Test split ready (trial_id within each exercise)')
 
 # ══════════════════════════════════════════════════════════════════════════
 # Cell 14 — Plotting helpers (regression only)
