@@ -48,7 +48,7 @@ from torch.utils.data import Dataset, DataLoader
 from sklearn.metrics import r2_score   # no confusion_matrix needed
 
 # Create unique run folder
-run_name = datetime.now().strftime("run_%Y_%m_%d_%H_%M_%S")
+run_name = datetime.datetime.now().strftime("run_%Y_%m_%d_%H_%M_%S")
 RUN_DIR  = os.path.join(OUT_DIR, run_name)
 
 PLOTS_DIR = os.path.join(RUN_DIR, "plots")
