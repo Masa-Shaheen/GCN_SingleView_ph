@@ -315,7 +315,13 @@ if len(df_index) > 0:
 print(df_index['camera'].value_counts().sort_index())
 print(f'\nTotal samples: {len(df_index)}')
 
+# ══════════════════════════════════════════════════════════════════════════
+# Cell 7.5 — Camera Distribution Check
+# ══════════════════════════════════════════════════════════════════════════
 
+print(df_index['camera'].value_counts().sort_index())
+print(f"\nالكاميرات الموجودة: {sorted(df_index['camera'].unique())}")
+print(df_index.groupby(['exercise', 'camera']).size().unstack(fill_value=0))
 # ══════════════════════════════════════════════════════════════════════════
 # Cell 8 — Skeleton visualisation helpers
 # ══════════════════════════════════════════════════════════════════════════
