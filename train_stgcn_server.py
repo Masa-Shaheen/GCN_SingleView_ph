@@ -717,47 +717,68 @@ class GCNBackbone(nn.Module):
         return h.reshape(B, T, J, -1)            # (B, T, J, C_out)
 
 
+
+# ── ADD THIS before class GCN_Regression ─────────────────────────────────
+class TemporalEncoder(nn.Module):
+    """GRU over T frames after GCN — captures motion dynamics."""
+    def __init__(self, feat_dim, hidden_dim=128, num_layers=2, dropout=0.3):
+        super().__init__()
+        self.gru = nn.GRU(
+            input_size    = feat_dim,
+            hidden_size   = hidden_dim,
+            num_layers    = num_layers,
+            batch_first   = True,
+            dropout       = dropout,
+            bidirectional = True,
+        )
+        self.out_dim = hidden_dim * 2   # bidirectional
+        self.drop    = nn.Dropout(dropout)
+
+    def forward(self, h):
+        # h: (B, T, J, C) → mean over joints → (B, T, C)
+        h = h.mean(dim=2)
+        _, hidden = self.gru(h)                          # hidden: (2*layers, B, hidden)
+        h = torch.cat([hidden[-2], hidden[-1]], dim=1)   # (B, hidden*2)
+        return self.drop(h)
+    
+
+    
 # ── Full Regression Model ──────────────────────────────────────────────────
 NUM_EXERCISES = 10
 
 class GCN_Regression(nn.Module):
-    """
-    Kipf-style GCN for physiotherapy quality regression.
-
-    Architecture (faithful to the paper):
-      1. Input normalisation (BatchNorm on raw features)
-      2. GCN backbone  — H^(l+1) = σ( Â · H^(l) · W^(l) )
-      3. Temporal average pooling  →  mean over T frames
-      4. Joint average pooling     →  mean over J joints
-      5. Exercise embedding concatenation
-      6. MLP regression head       →  predicted quality score
-    """
     def __init__(self, in_features=6, hidden_dims=None, dropout=0.5):
         super().__init__()
         if hidden_dims is None:
-            hidden_dims = [64, 128, 256]           # 3-layer GCN
+            hidden_dims = [64, 128, 256]
 
-        # Pre-compute and register fixed Kipf adjacency
         A_hat = build_adj_kipf(NUM_JOINTS, SKELETON_EDGES)
-        self.register_buffer('A_hat', A_hat)       # (J, J)
+        self.register_buffer('A_hat', A_hat)
 
-        # Input BN (normalise raw 6-channel features per channel)
         self.data_bn  = nn.BatchNorm1d(in_features)
-
-        # GCN backbone
         self.gcn      = GCNBackbone(in_features, hidden_dims, dropout=dropout)
 
-        feat_dim      = hidden_dims[-1]
+        # ── CHANGED: GRU replaces mean pooling ───────────────────────────
+        self.temporal = TemporalEncoder(
+            feat_dim   = hidden_dims[-1],   # 256
+            hidden_dim = 128,
+            num_layers = 2,
+            dropout    = 0.3,
+        )
+        combined_dim  = self.temporal.out_dim   # 256
 
-        # Exercise embedding
         self.ex_embed = nn.Embedding(NUM_EXERCISES, 32)
 
-        # Regression head
+        # ── CHANGED: deeper head with LayerNorm ───────────────────────────
         self.reg_head = nn.Sequential(
-            nn.Linear(feat_dim + 32, 128),
+            nn.Linear(combined_dim + 32, 128),
+            nn.LayerNorm(128),
+            nn.ReLU(),
+            nn.Dropout(0.3),
+            nn.Linear(128, 64),
             nn.ReLU(),
             nn.Dropout(0.2),
-            nn.Linear(128, 1),
+            nn.Linear(64, 1),
         )
         self._init_weights()
 
@@ -767,40 +788,33 @@ class GCN_Regression(nn.Module):
                 nn.init.xavier_uniform_(m.weight)
                 if m.bias is not None:
                     nn.init.zeros_(m.bias)
-            elif isinstance(m, (nn.BatchNorm1d, nn.BatchNorm2d)):
+            elif isinstance(m, (nn.BatchNorm1d, nn.LayerNorm)):
                 nn.init.ones_(m.weight)
                 nn.init.zeros_(m.bias)
+            elif isinstance(m, nn.GRU):
+                for name, param in m.named_parameters():
+                    if 'weight' in name: nn.init.orthogonal_(param)
+                    elif 'bias'  in name: nn.init.zeros_(param)
 
     def forward(self, x, exercise_id):
-        """
-        x           : (B, T, J, 6)  — position (3) + velocity (3)
-        exercise_id : (B,)
-        Returns     : (B,)          — predicted quality score in [1, 5]
-        """
         B, T, J, C = x.shape
 
-        # ── Input BN over channel dimension ──────────────────────────────
-        xbn = x.permute(0, 3, 1, 2).reshape(B, C, T * J)  # (B, C, T*J)
+        # Input BN
+        xbn = x.permute(0, 3, 1, 2).reshape(B, C, T * J)
         xbn = self.data_bn(xbn)
-        x   = xbn.reshape(B, C, T, J).permute(0, 2, 3, 1) # (B, T, J, C)
+        x   = xbn.reshape(B, C, T, J).permute(0, 2, 3, 1)
 
-        # ── GCN backbone  [core Kipf operation] ──────────────────────────
-        # H^(l+1) = ReLU( Â · H^(l) · W^(l) )
-        h = self.gcn(x, self.A_hat)                        # (B, T, J, feat_dim)
+        # Kipf GCN: H^(l+1) = ReLU( Â · H^(l) · W^(l) )
+        h = self.gcn(x, self.A_hat)          # (B, T, J, 256)
 
-        # ── Pooling: mean over T (temporal) then J (joints) ──────────────
-        h = h.mean(dim=1)                                  # (B, J, feat_dim)
-        h = h.mean(dim=1)                                  # (B, feat_dim)
+        # ── CHANGED: GRU over time instead of mean pooling ───────────────
+        h = self.temporal(h)                 # (B, 256)
 
-        # ── Exercise embedding ────────────────────────────────────────────
-        ex = self.ex_embed(exercise_id)                    # (B, 32)
-        h  = torch.cat([h, ex], dim=1)                     # (B, feat_dim+32)
+        ex  = self.ex_embed(exercise_id)     # (B, 32)
+        h   = torch.cat([h, ex], dim=1)      # (B, 288)
 
-        # ── Regression head → clamp to [1, 5] via tanh ───────────────────
-        # 3.0 + 2.0*tanh maps (-∞,+∞) → (1, 5)
         out = 3.0 + 2.0 * torch.tanh(self.reg_head(h).squeeze(1))
         return out
-
 
 # ── Quick sanity check ────────────────────────────────────────────────────
 _dummy_x  = torch.zeros(2, TARGET_FRAMES, NUM_JOINTS, 6)
@@ -1080,7 +1094,7 @@ print('✓ EarlyStopping defined (monitoring MAE)')
 # Cell 16 — Training Loop (Regression only)
 # ══════════════════════════════════════════════════════════════════════════
 
-reg_fn = nn.SmoothL1Loss()   # could also use nn.MSELoss()
+reg_fn = nn.MSELoss()
 
 def make_ds(df, aug):
     return BZUDataset(df, augment=aug)
@@ -1100,7 +1114,13 @@ model = GCN_Regression(
     hidden_dims  = [64, 128, 256],   # 3-layer GCN (mirrors Kipf's 2016 paper depth)
     dropout      = 0.5               # Kipf used 0.5 dropout
 ).to(DEVICE)
-optimiser  = torch.optim.AdamW(model.parameters(), lr=LR, weight_decay=WEIGHT_DECAY)
+
+
+optimiser = torch.optim.AdamW(
+    model.parameters(),
+    lr           = 1e-4,    # was 3e-4
+    weight_decay = 5e-4,    # was 1e-4
+)
 
 # Warmup + cosine schedule
 def lr_lambda(epoch):
