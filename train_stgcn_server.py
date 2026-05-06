@@ -121,7 +121,34 @@ print(f'\nColumns : {df_csv.columns.tolist()}')
 print(f'Shape   : {df_csv.shape}')
 print(df_csv.to_string())
 
+# ══════════════════════════════════════════════════════════════════════════
+# Cell 4.5 — Person-level data audit
+# ══════════════════════════════════════════════════════════════════════════
 
+print("=" * 60)
+print("Quality stats per person:")
+print("=" * 60)
+print(df_csv.groupby('person')['mean'].agg(['mean','std','min','max','count']).round(3))
+
+print("\n" + "=" * 60)
+print("Missing exercises per person:")
+print("=" * 60)
+all_exercises = sorted(df_csv['exercise'].unique())
+for person in sorted(df_csv['person'].unique()):
+    exercises = df_csv[df_csv['person'] == person]['exercise'].unique()
+    missing   = [e for e in all_exercises if e not in exercises]
+    print(f"{person}: {len(exercises)} exercises | missing={missing if missing else 'None'}")
+
+print("\n" + "=" * 60)
+print("Trials per person (correct vs erroneous):")
+print("=" * 60)
+for person in sorted(df_csv['person'].unique()):
+    p_df      = df_csv[df_csv['person'] == person]
+    correct   = p_df[p_df['trial'].isin(['T0','T1','T2'])]
+    erroneous = p_df[~p_df['trial'].isin(['T0','T1','T2'])]
+    print(f"{person}: correct={len(correct):3d} rows | "
+          f"erroneous={len(erroneous):3d} rows | "
+          f"quality mean={p_df['mean'].mean():.3f}")
 # ══════════════════════════════════════════════════════════════════════════
 # Cell 5 — Logging setup
 # ══════════════════════════════════════════════════════════════════════════
@@ -323,6 +350,44 @@ print(df_index['camera'].value_counts().sort_index())
 print(f"\nالكاميرات الموجودة: {sorted(df_index['camera'].unique())}")
 print(df_index.groupby(['exercise', 'camera']).size().unstack(fill_value=0))
 # ══════════════════════════════════════════════════════════════════════════
+# Cell 7.6 — Trials per Exercise Check
+# ══════════════════════════════════════════════════════════════════════════
+
+for ex_id, ex_df in df_index.groupby('exercise'):
+    correct   = sorted(ex_df[ex_df['trial_num'] <= 2]['trial_id'].unique())
+    erroneous = sorted(ex_df[ex_df['trial_num'] >= 3]['trial_id'].unique())
+    print(f"E{ex_id}: correct={len(correct)} trials, erroneous={len(erroneous)} trials")
+
+# ══════════════════════════════════════════════════════════════════════════
+# Cell 7.7 — Frame length distribution
+# ══════════════════════════════════════════════════════════════════════════
+
+lengths = []
+sample_files = df_index['filepath'].sample(min(500, len(df_index)), random_state=42)
+
+for fpath in sample_files:
+    skel = load_skeleton(fpath)
+    if skel is not None:
+        lengths.append(skel.shape[0])
+
+lengths = np.array(lengths)
+print(f"Frame length distribution (sample of {len(lengths)} files):")
+print(f"  min    = {lengths.min()}")
+print(f"  max    = {lengths.max()}")
+print(f"  mean   = {lengths.mean():.1f}")
+print(f"  median = {np.median(lengths):.1f}")
+print(f"  std    = {lengths.std():.1f}")
+print(f"\nPercentiles:")
+for p in [25, 50, 75, 90, 95, 99]:
+    print(f"  {p:3d}th = {np.percentile(lengths, p):.0f}")
+
+print(f"\nValue counts (top 10):")
+unique, counts = np.unique(lengths, return_counts=True)
+top10 = sorted(zip(counts, unique), reverse=True)[:10]
+for cnt, val in top10:
+    print(f"  {int(val):4d} frames → {cnt:4d} files ({cnt/len(lengths)*100:.1f}%)")
+    
+# ══════════════════════════════════════════════════════════════════════════
 # Cell 8 — Skeleton visualisation helpers
 # ══════════════════════════════════════════════════════════════════════════
 
@@ -457,6 +522,28 @@ print("Head mean XYZ:", head.mean(axis=0))
 print("\nDifference (head - hip):", head.mean(axis=0) - hip.mean(axis=0))
 
 # ══════════════════════════════════════════════════════════════════════════
+# Cell 9.5 — Camera Angle Check
+# ══════════════════════════════════════════════════════════════════════════
+
+for cam in [0, 1, 2]:
+    files = df_index[
+        (df_index['person'] == 'P0') &
+        (df_index['exercise'] == 0) &
+        (df_index['camera'] == cam) &
+        (df_index['trial_id'] == 'T0') &
+        (df_index['segment'] == 0)
+    ]
+    if len(files) > 0:
+        skel = load_skeleton(files.iloc[0]['filepath'])
+        print(f"\nCamera {cam}:")
+        print(f"  Hip  XYZ: {skel[:, 0, :].mean(axis=0).round(3)}")
+        print(f"  Head XYZ: {skel[:,10, :].mean(axis=0).round(3)}")
+        print(f"  X range: [{skel[:,:,0].min():.2f}, {skel[:,:,0].max():.2f}]")
+        print(f"  Z range: [{skel[:,:,2].min():.2f}, {skel[:,:,2].max():.2f}]")
+    else:
+        print(f"\nCamera {cam}: no file found")
+
+# ══════════════════════════════════════════════════════════════════════════
 # Cell 10 — BZUDataset (regression only)
 # ══════════════════════════════════════════════════════════════════════════
 
@@ -475,12 +562,21 @@ class BZUDataset(Dataset):
         skel    = load_skeleton(row['filepath'])
         if skel is None:
             skel = np.zeros((TARGET_FRAMES, 17, 3), dtype=np.float32)
-        skel    = self._normalise_length(skel)
+        skel        = self._normalise_length(skel)
         if self.augment:
-            skel = self._augment(skel)
-        skel    = torch.tensor(skel,            dtype=torch.float32)
-        quality = torch.tensor(row['quality'],  dtype=torch.float32)
-        return skel, quality                      # regression only
+            skel    = self._augment(skel)
+
+        # ── Velocity (T-1, J, 3) → pad to (T, J, 3) ──
+        velocity    = np.zeros_like(skel)
+        velocity[1:] = skel[1:] - skel[:-1]   # finite difference
+
+        # ── Stack: (T, J, 6) = position + velocity ──
+        skel_vel    = np.concatenate([skel, velocity], axis=-1)
+
+        skel_tensor = torch.tensor(skel_vel,          dtype=torch.float32)
+        quality     = torch.tensor(row['quality'],     dtype=torch.float32)
+        exercise_id = torch.tensor(row['exercise'],    dtype=torch.long)
+        return skel_tensor, quality, exercise_id
 
     def _normalise_length(self, skel):
         T = skel.shape[0]
@@ -509,83 +605,159 @@ print('✓ BZUDataset defined (regression only)')
 
 
 # ══════════════════════════════════════════════════════════════════════════
-# Cell 11 — ST-GCN Model (Regression only)
+# Cell 11 — GCN Model (Kipf & Welling, ICLR 2017) — Regression
 # ══════════════════════════════════════════════════════════════════════════
 
-def build_adj(num_joints, edges):
-    A = np.eye(num_joints, dtype=np.float32)
+def build_adj_kipf(num_joints, edges):
+    """
+    Kipf's normalized adjacency:  Â = D̃^(-½) Ã D̃^(-½)
+    where  Ã = A + I  (self-loops added)
+    """
+    # Ã = A + I  (add self-loops)
+    A = np.zeros((num_joints, num_joints), dtype=np.float32)
     for i, j in edges:
         A[i, j] = 1.0
         A[j, i] = 1.0
-    deg      = A.sum(axis=1)
-    d_inv_sq = np.diag(np.power(deg, -0.5))
-    return torch.tensor(d_inv_sq @ A @ d_inv_sq, dtype=torch.float32)
+    A_tilde = A + np.eye(num_joints, dtype=np.float32)          # Ã
+
+    # D̃^(-½)
+    deg      = A_tilde.sum(axis=1)                              # degree vector
+    d_inv_sq = np.diag(np.power(deg, -0.5))                    # D̃^(-½)
+
+    # Â = D̃^(-½) Ã D̃^(-½)
+    A_hat = d_inv_sq @ A_tilde @ d_inv_sq
+    return torch.tensor(A_hat, dtype=torch.float32)             # shape (J, J)
 
 
-class STGCNBlock(nn.Module):
-    def __init__(self, in_ch, out_ch, A, t_kernel=9, stride=1, dropout=0.0):
+# ── Single Graph Convolution Layer (exact Kipf formulation) ───────────────
+class GraphConvolution(nn.Module):
+    """
+    Implements one GCN layer:
+        H_out = σ( Â · H_in · W )
+
+    Input  : (B*T, J, C_in)
+    Output : (B*T, J, C_out)
+    """
+    def __init__(self, in_features, out_features, bias=True):
         super().__init__()
-        self.register_buffer('A', A)
-        pad = (t_kernel - 1) // 2
+        self.W    = nn.Linear(in_features, out_features, bias=bias)
+        self._init_weights()
 
-        self.W_s    = nn.Linear(in_ch, out_ch, bias=False)
-        self.bn_s   = nn.BatchNorm2d(out_ch)
-        self.t_conv = nn.Sequential(
-            nn.Conv2d(out_ch, out_ch,
-                      kernel_size=(t_kernel, 1),
-                      padding=(pad, 0),
-                      stride=(stride, 1),
-                      bias=False),
-            nn.BatchNorm2d(out_ch),
-            nn.Dropout(dropout),
-        )
-        self.res = (
-            nn.Sequential(
-                nn.Conv2d(in_ch, out_ch, kernel_size=1,
-                          stride=(stride, 1), bias=False),
-                nn.BatchNorm2d(out_ch),
-            ) if (in_ch != out_ch or stride != 1) else nn.Identity()
-        )
+    def _init_weights(self):
+        nn.init.xavier_uniform_(self.W.weight)
+        if self.W.bias is not None:
+            nn.init.zeros_(self.W.bias)
 
-    def forward(self, x):
-        B, C, T, J = x.shape
-        xs = x.permute(0, 2, 3, 1).reshape(B * T, J, C)
-        xs = self.W_s(xs)
-        A_exp = self.A.unsqueeze(0).expand(B * T, -1, -1).contiguous()
-        xs = torch.bmm(A_exp, xs)
-        xs = xs.reshape(B, T, J, -1).permute(0, 3, 1, 2)
-        xs = F.relu(self.bn_s(xs))
-        return F.relu(self.t_conv(xs) + self.res(x))
+    def forward(self, H, A_hat):
+        """
+        H     : (N, J, C_in)   — N = B*T
+        A_hat : (J, J)         — fixed normalized adjacency
+        Returns (N, J, C_out)
+        """
+        # Step 1: linear projection  →  H · W        shape (N, J, C_out)
+        support = self.W(H)
+
+        # Step 2: graph propagation  →  Â · (H · W)  shape (N, J, C_out)
+        # A_hat: (J,J), support: (N,J,C_out)  →  bmm needs (N,J,J)×(N,J,C_out)
+        A_exp = A_hat.unsqueeze(0).expand(H.size(0), -1, -1)   # (N, J, J)
+        out   = torch.bmm(A_exp, support)                       # (N, J, C_out)
+        return out
 
 
-class STGCN_Regression(nn.Module):
-    """Predicts quality score directly — no classification head."""
-    def __init__(self, dropout=0.3):
+# ── Stacked GCN backbone (multiple layers with residuals) ─────────────────
+class GCNBackbone(nn.Module):
+    """
+    Applies L graph conv layers per frame independently,
+    exactly as in Kipf's paper:
+        H^(0) = X  (node features)
+        H^(l+1) = ReLU( Â · H^(l) · W^(l) )   for l = 0 … L-2
+        H^(L)   = Â · H^(L-1) · W^(L-1)        (last layer — no activation)
+    """
+    def __init__(self, in_features, hidden_dims, dropout=0.5):
+        """
+        hidden_dims : list of output dims per layer, e.g. [64, 128, 256]
+        The final entry is the embedding dimension.
+        """
         super().__init__()
-        A = build_adj(NUM_JOINTS, SKELETON_EDGES)
+        dims   = [in_features] + hidden_dims
+        layers = []
+        for i in range(len(hidden_dims)):
+            layers.append(GraphConvolution(dims[i], dims[i + 1]))
+            layers.append(nn.BatchNorm1d(dims[i + 1]))    # BN over feature dim
+        self.layers  = nn.ModuleList(layers)
+        self.dropout = nn.Dropout(dropout)
+        self.n_gcn   = len(hidden_dims)
 
-        self.data_bn = nn.BatchNorm1d(3)   # BN over 3 coordinate channels
+    def forward(self, x, A_hat):
+        """
+        x     : (B, T, J, C)
+        A_hat : (J, J)
+        Returns (B, T, J, C_out) — same spatial shape, richer features
+        """
+        B, T, J, C = x.shape
+        h = x.reshape(B * T, J, C)              # flatten batch×time → (N, J, C)
 
-        cfg = [
-            (3,   64,  1, 3),
-            (64,  64,  1, 9),
-            (64,  128, 2, 9),
-            (128, 128, 1, 9),
-            (128, 256, 2, 9),
-            (256, 256, 1, 9),
-        ]
-        self.blocks = nn.ModuleList(
-            [STGCNBlock(ic, oc, A, t_kernel=tk, stride=s, dropout=dropout)
-            for ic, oc, s, tk in cfg]
-        )
+        gcn_idx = 0
+        for i in range(0, len(self.layers), 2):  # step by 2: (GCN, BN) pairs
+            gcn_layer = self.layers[i]
+            bn_layer  = self.layers[i + 1]
 
-        self.drop     = nn.Dropout(dropout)
-        # Regression head only
+            h = gcn_layer(h, A_hat)              # (N, J, C_out)
+
+            # BatchNorm1d expects (N, C) or (N, C, L) — reshape accordingly
+            N, J2, Co = h.shape
+            h = bn_layer(h.reshape(N * J2, Co)).reshape(N, J2, Co)
+
+            # ReLU + Dropout on all but the last layer
+            gcn_idx += 1
+            if gcn_idx < self.n_gcn:
+                h = F.relu(h)
+                h = self.dropout(h)
+
+        return h.reshape(B, T, J, -1)            # (B, T, J, C_out)
+
+
+# ── Full Regression Model ──────────────────────────────────────────────────
+NUM_EXERCISES = 10
+
+class GCN_Regression(nn.Module):
+    """
+    Kipf-style GCN for physiotherapy quality regression.
+
+    Architecture (faithful to the paper):
+      1. Input normalisation (BatchNorm on raw features)
+      2. GCN backbone  — H^(l+1) = σ( Â · H^(l) · W^(l) )
+      3. Temporal average pooling  →  mean over T frames
+      4. Joint average pooling     →  mean over J joints
+      5. Exercise embedding concatenation
+      6. MLP regression head       →  predicted quality score
+    """
+    def __init__(self, in_features=6, hidden_dims=None, dropout=0.5):
+        super().__init__()
+        if hidden_dims is None:
+            hidden_dims = [64, 128, 256]           # 3-layer GCN
+
+        # Pre-compute and register fixed Kipf adjacency
+        A_hat = build_adj_kipf(NUM_JOINTS, SKELETON_EDGES)
+        self.register_buffer('A_hat', A_hat)       # (J, J)
+
+        # Input BN (normalise raw 6-channel features per channel)
+        self.data_bn  = nn.BatchNorm1d(in_features)
+
+        # GCN backbone
+        self.gcn      = GCNBackbone(in_features, hidden_dims, dropout=dropout)
+
+        feat_dim      = hidden_dims[-1]
+
+        # Exercise embedding
+        self.ex_embed = nn.Embedding(NUM_EXERCISES, 32)
+
+        # Regression head
         self.reg_head = nn.Sequential(
-            nn.Linear(256, 64),
+            nn.Linear(feat_dim + 32, 128),
             nn.ReLU(),
             nn.Dropout(0.2),
-            nn.Linear(64, 1),
+            nn.Linear(128, 1),
         )
         self._init_weights()
 
@@ -599,25 +771,50 @@ class STGCN_Regression(nn.Module):
                 nn.init.ones_(m.weight)
                 nn.init.zeros_(m.bias)
 
-    def forward(self, x):
-        B, T, J, C = x.shape   # (B, 100, 17, 3)
+    def forward(self, x, exercise_id):
+        """
+        x           : (B, T, J, 6)  — position (3) + velocity (3)
+        exercise_id : (B,)
+        Returns     : (B,)          — predicted quality score in [1, 5]
+        """
+        B, T, J, C = x.shape
 
-        xbn = x.permute(0, 3, 1, 2).reshape(B, C, T * J)
+        # ── Input BN over channel dimension ──────────────────────────────
+        xbn = x.permute(0, 3, 1, 2).reshape(B, C, T * J)  # (B, C, T*J)
         xbn = self.data_bn(xbn)
-        x   = xbn.reshape(B, C, T, J).permute(0, 2, 3, 1)
-        x   = x.permute(0, 3, 1, 2)          # (B, 3, T, J)
+        x   = xbn.reshape(B, C, T, J).permute(0, 2, 3, 1) # (B, T, J, C)
 
-        for blk in self.blocks:
-            x = blk(x)
+        # ── GCN backbone  [core Kipf operation] ──────────────────────────
+        # H^(l+1) = ReLU( Â · H^(l) · W^(l) )
+        h = self.gcn(x, self.A_hat)                        # (B, T, J, feat_dim)
 
-        x = x.mean(dim=[2, 3])               # (B, 256)
-        x = self.drop(x)
+        # ── Pooling: mean over T (temporal) then J (joints) ──────────────
+        h = h.mean(dim=1)                                  # (B, J, feat_dim)
+        h = h.mean(dim=1)                                  # (B, feat_dim)
 
-        # Produce a score in (1,5) range — adjust if your quality scale differs
-        qua = 3.0 + 2.0 * torch.tanh(self.reg_head(x).squeeze(1))
-        return qua
+        # ── Exercise embedding ────────────────────────────────────────────
+        ex = self.ex_embed(exercise_id)                    # (B, 32)
+        h  = torch.cat([h, ex], dim=1)                     # (B, feat_dim+32)
 
-print('✓ ST-GCN regression model defined')
+        # ── Regression head → clamp to [1, 5] via tanh ───────────────────
+        # 3.0 + 2.0*tanh maps (-∞,+∞) → (1, 5)
+        out = 3.0 + 2.0 * torch.tanh(self.reg_head(h).squeeze(1))
+        return out
+
+
+# ── Quick sanity check ────────────────────────────────────────────────────
+_dummy_x  = torch.zeros(2, TARGET_FRAMES, NUM_JOINTS, 6)
+_dummy_ex = torch.zeros(2, dtype=torch.long)
+_model    = GCN_Regression()
+_out      = _model(_dummy_x, _dummy_ex)
+assert _out.shape == (2,), f"Expected (2,), got {_out.shape}"
+print(f'✓ Kipf GCN sanity check passed — output shape: {_out.shape}')
+
+total_params = sum(p.numel() for p in _model.parameters() if p.requires_grad)
+print(f'✓ Total trainable parameters: {total_params:,}')
+del _dummy_x, _dummy_ex, _model, _out
+
+print('✓ GCN_Regression (Kipf & Welling) defined')
 
 
 # ══════════════════════════════════════════════════════════════════════════
@@ -629,37 +826,38 @@ print(f'Device : {DEVICE}')
 if DEVICE == 'cuda':
     print(f'GPU    : {torch.cuda.get_device_name(0)}')
 
-
+# ══════════════════════════════════════════════════════
+# 3) centre_and_scale و run_epoch — عدّل للـ 6 channels
+#    وأضف exercise_id
+# ══════════════════════════════════════════════════════
 def centre_and_scale(x):
-    """
-    Root-relative normalisation + torso-height scaling.
-    x: (B, T, J, 3)  — after axis swap: dim1=X, dim2=Y(height), dim3=Z(depth)
-    """
-    hip  = (x[:, :, 1:2, :] + x[:, :, 4:5, :]) / 2.0
-    x    = x - hip
+    """x: (B, T, J, 6) — first 3 = position, last 3 = velocity"""
+    pos = x[:, :, :, :3]
+    vel = x[:, :, :, 3:]
 
-    # Now Y (index 1) is height — torso_h will be meaningful
-    shoulder = (x[:, :, 11:12, :] + x[:, :, 14:15, :]) / 2.0
-    torso_h  = shoulder[:, :, :, 1:2].abs()   # index 1 = Y = height ✓
-    torso_h  = torso_h.mean(dim=1, keepdim=True).clamp(min=1e-6)
-    return x / torso_h
+    hip     = (pos[:, :, 1:2, :] + pos[:, :, 4:5, :]) / 2.0
+    pos     = pos - hip
+    shoulder = (pos[:, :, 11:12, :] + pos[:, :, 14:15, :]) / 2.0
+    torso_h  = shoulder[:, :, :, 1:2].abs().mean(dim=1, keepdim=True).clamp(min=1e-6)
+    pos      = pos / torso_h
+    vel      = vel / torso_h   # نفس الـ scale للـ velocity
+
+    return torch.cat([pos, vel], dim=-1)
 
 
 def run_epoch(model, loader, optimiser, reg_fn, is_train=True):
-    """
-    One epoch over loader. Returns dict with loss, rmse, mae, r2.
-    """
     model.train() if is_train else model.eval()
     total_loss = 0.0
     q_true, q_pred = [], []
 
     ctx = torch.enable_grad() if is_train else torch.no_grad()
     with ctx:
-        for skels, qualities in loader:
-            skels     = centre_and_scale(skels.to(DEVICE))
-            qualities = qualities.to(DEVICE)
+        for skels, qualities, exercise_ids in loader:   # ← أضف exercise_ids
+            skels        = centre_and_scale(skels.to(DEVICE))
+            qualities    = qualities.to(DEVICE)
+            exercise_ids = exercise_ids.to(DEVICE)
 
-            preds = model(skels)                       # (B,)
+            preds = model(skels, exercise_ids)
             loss  = reg_fn(preds, qualities)
 
             if is_train:
@@ -672,17 +870,15 @@ def run_epoch(model, loader, optimiser, reg_fn, is_train=True):
             q_true.extend(qualities.cpu().numpy())
             q_pred.extend(preds.detach().cpu().numpy())
 
-    n   = max(1, len(loader))
-    qt  = np.array(q_true)
-    qp  = np.array(q_pred)
-
+    n  = max(1, len(loader))
+    qt = np.array(q_true)
+    qp = np.array(q_pred)
     return {
         'loss': total_loss / n,
         'rmse': float(np.sqrt(np.mean((qt - qp) ** 2))),
         'mae' : float(np.mean(np.abs(qt - qp))),
         'r2'  : float(r2_score(qt, qp)) if len(qt) > 1 else 0.0,
     }
-
 print('✓ centre_and_scale and run_epoch (regression) defined')
 
 
@@ -690,64 +886,37 @@ print('✓ centre_and_scale and run_epoch (regression) defined')
 # Cell 13 — Trial-ID-based train / val / test split
 # ══════════════════════════════════════════════════════════════════════════
 
-def get_trial_split(df, train_ratio=TRAIN_RATIO, val_ratio=VAL_RATIO, random_state=42):
-    """
-    Split by trial_id WITHIN each exercise.
-    Stratifies correct (T0-T2) vs erroneous (T3-T6) separately
-    to ensure both types appear in every split.
-    """
-    rng = np.random.default_rng(random_state)
+def get_person_split(df):
+    # train_persons = ['P0','P1','P2','P3','P4','P5','P6','P10','P11','P12']
+    # val_persons   = ['P7','P8','P13']
+    # test_persons  = ['P9','P14','P15']
 
-    train_rows, val_rows, test_rows = [], [], []
+    # train_persons = ['P0','P1','P2','P3','P4','P5','P10','P11','P12']
+    # val_persons   = ['P6','P7','P13']
+    # test_persons  = ['P8','P9','P14','P15']
 
-    for exercise_id, ex_df in df.groupby('exercise'):
-        correct_trials   = sorted(ex_df[ex_df['trial_num'] <= 2]['trial_id'].unique())
-        erroneous_trials = sorted(ex_df[ex_df['trial_num'] >= 3]['trial_id'].unique())
+    # train_persons = ['P0','P1','P2','P3','P4','P5','P6','P10','P11']
+    # val_persons   = ['P7','P8','P12','P13']
+    # test_persons  = ['P9','P14','P15']
 
-        print(f'\n  E{exercise_id}:')
-        print(f'    Correct   trials : {correct_trials}')
-        print(f'    Erroneous trials : {erroneous_trials}')
+    # train_persons = ['P0','P1','P2','P3','P4','P15','P10','P11','P12']
+    # val_persons   = ['P6','P7','P8','P13']
+    # test_persons  = ['P9','P14','P5']    
 
-        ex_train, ex_val, ex_test = [], [], []
+    # train_persons = ['P0','P1','P2','P3','P4', 'P8','P15','P10','P11','P12']
+    # val_persons   = ['P6','P7','P13']
+    # test_persons  = ['P9','P14','P5']
 
-        for group_name, trial_group in [('correct',   correct_trials),
-                                         ('erroneous', erroneous_trials)]:
-            trials = np.array(trial_group)
-            rng.shuffle(trials)
-            n = len(trials)
+    train_persons = ['P0','P1','P2','P3','P4','P8','P10','P11','P12']
+    val_persons   = ['P6','P7','P13','P15']   # ← أضف P15 للـ val
+    test_persons  = ['P9','P14','P5']    
 
-            if n == 0:
-                continue
-            elif n == 1:
-                print(f'    ⚠️  {group_name}: only 1 trial → train only')
-                ex_train.extend(trials)
-            elif n == 2:
-                ex_train.append(trials[0])
-                ex_val.append(trials[1])
-                print(f'    ⚠️  {group_name}: only 2 trials → no test split')
-            else:
-                n_test  = max(1, int((1 - train_ratio - val_ratio) * n))
-                n_val   = max(1, int(val_ratio * n))
-                n_train = max(1, n - n_val - n_test)
-                ex_train.extend(trials[:n_train])
-                ex_val.extend(trials[n_train:n_train + n_val])
-                ex_test.extend(trials[n_train + n_val:])
-
-        train_rows.append(ex_df[ex_df['trial_id'].isin(ex_train)])
-        val_rows.append(ex_df[ex_df['trial_id'].isin(ex_val)])
-        test_rows.append(ex_df[ex_df['trial_id'].isin(ex_test)])
-
-        print(f'    → train={sorted(ex_train)}  val={sorted(ex_val)}  test={sorted(ex_test)}')
-
-    train_df = pd.concat(train_rows).reset_index(drop=True)
-    val_df   = pd.concat(val_rows).reset_index(drop=True)
-    test_df  = pd.concat(test_rows).reset_index(drop=True)
+    train_df = df[df['person'].isin(train_persons)].reset_index(drop=True)
+    val_df   = df[df['person'].isin(val_persons)].reset_index(drop=True)
+    test_df  = df[df['person'].isin(test_persons)].reset_index(drop=True)
 
     print(f'\n{"="*55}')
     print(f'Samples → train={len(train_df)}, val={len(val_df)}, test={len(test_df)}')
-    print(f'Exercises in train : {sorted(train_df["exercise"].unique())}')
-    print(f'Exercises in val   : {sorted(val_df["exercise"].unique())}')
-    print(f'Exercises in test  : {sorted(test_df["exercise"].unique())}')
 
     print(f'\nCorrect vs Erroneous per split:')
     for name, d in [('Train', train_df), ('Val', val_df), ('Test', test_df)]:
@@ -760,8 +929,8 @@ def get_trial_split(df, train_ratio=TRAIN_RATIO, val_ratio=VAL_RATIO, random_sta
     return train_df, val_df, test_df
 
 
-train_df, val_df, test_df = get_trial_split(df_index)
-print('\n✓ Train / Val / Test split ready (trial_id within each exercise)')
+train_df, val_df, test_df = get_person_split(df_index)
+print('\n✓ Train / Val / Test split ready (person-based)')
 
 # ══════════════════════════════════════════════════════════════════════════
 # Cell 14 — Plotting helpers (regression only)
@@ -926,7 +1095,11 @@ test_loader  = DataLoader(make_ds(test_df, False),
                           batch_size=BATCH_SIZE, shuffle=False,
                           num_workers=0, pin_memory=(DEVICE == 'cuda'))
 
-model      = STGCN_Regression(dropout=0.3).to(DEVICE)
+model = GCN_Regression(
+    in_features  = 6,
+    hidden_dims  = [64, 128, 256],   # 3-layer GCN (mirrors Kipf's 2016 paper depth)
+    dropout      = 0.5               # Kipf used 0.5 dropout
+).to(DEVICE)
 optimiser  = torch.optim.AdamW(model.parameters(), lr=LR, weight_decay=WEIGHT_DECAY)
 
 # Warmup + cosine schedule
@@ -1009,9 +1182,10 @@ print(f'  R²   : {final_te["r2"]:.4f}')
 model.eval()
 all_true_q, all_pred_q = [], []
 with torch.no_grad():
-    for skels, qualities in test_loader:
-        skels = centre_and_scale(skels.to(DEVICE))
-        preds = model(skels)
+    for skels, qualities, exercise_ids in test_loader:   # ← أضف exercise_ids
+        skels        = centre_and_scale(skels.to(DEVICE))
+        exercise_ids = exercise_ids.to(DEVICE)
+        preds        = model(skels, exercise_ids)        # ← أضف exercise_ids
         all_true_q.extend(qualities.numpy())
         all_pred_q.extend(preds.cpu().numpy())
 
