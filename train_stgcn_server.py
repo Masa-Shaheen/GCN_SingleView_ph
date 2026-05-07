@@ -1,4 +1,3 @@
-
 # ══════════════════════════════════════════════════════════════════════════
 # Cell 1 — Configuration
 # ══════════════════════════════════════════════════════════════════════════
@@ -1602,7 +1601,12 @@ print(f'  Best Val RMSE    : {best_val_rmse:.4f}')
 print(f'  Best Val R²      : {best_val_r2:.4f}')
 
 print(f'  Best Val PCC     : {best_val_pcc:.4f}')   # ← add this line
-print(f'  Test PCC         : {final_te["pcc"]:.4f}') # ← add this line
+print('─' * 60)
+print(f'  Test MAE         : {final_te["mae"]:.4f}')
+print(f'  Test RMSE        : {final_te["rmse"]:.4f}')
+print(f'  Test R²          : {final_te["r2"]:.4f}')
+print(f'  Test PCC         : {final_te["pcc"]:.4f}')
+print('=' * 60)
 
 # print('─' * 60)
 # print(f'  Test MAE         : {final_te["mae"]:.4f}')
@@ -1614,6 +1618,8 @@ log.info(f'Best Epoch={best_epoch}  stopped_epoch={stopped_epoch}')
 log.info(f'Test MAE={final_te["mae"]:.4f}')
 log.info(f'Test RMSE={final_te["rmse"]:.4f}')
 log.info(f'Test R²={final_te["r2"]:.4f}')
+log.info(f'Test PCC={final_te["pcc"]:.4f}')   # ← was missing
+
 
 
 
