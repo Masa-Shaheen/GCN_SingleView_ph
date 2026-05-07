@@ -905,86 +905,132 @@ print('✓ centre_and_scale and run_epoch (regression) defined')
 
 
 # ══════════════════════════════════════════════════════════════════════════
-# Cell 13 — Trial-ID-based train / val / test split (balanced)
+# Cell 13 — Trial-ID-based split, stratified by trial_type + quality bin
 # ══════════════════════════════════════════════════════════════════════════
 
 def get_trial_split(df, train_ratio=0.70, val_ratio=0.15, seed=42):
     """
-    Splits by unique trial_key (e.g. 'P0_T0'), stratified by correct/erroneous,
-    so each set has the same correct:erroneous ratio.
-    
-    Stratification groups:
-        - correct   = trial_num <= 2
-        - erroneous = trial_num >= 3
+    Splits by unique trial_key, stratified on:
+        - trial type  : correct (T≤2) vs erroneous (T≥3)
+        - quality bin : quartile of quality score within each type
+    This ensures all 3 sets see the full quality range for both trial types.
+    No trial_key (and all its segments) appears in more than one set.
     """
     rng = np.random.default_rng(seed)
 
-    # ── Build unique trial → label mapping ───────────────────────────────
+    # ── 1. One row per unique trial ───────────────────────────────────────
     trial_info = (
-        df[['trial_key', 'trial_num']]
-        .drop_duplicates('trial_key')
-        .copy()
+        df[['trial_key', 'trial_num', 'person', 'exercise', 'quality']]
+        .groupby('trial_key')
+        .agg(
+            trial_num = ('trial_num',  'first'),
+            person    = ('person',     'first'),
+            exercise  = ('exercise',   'first'),
+            quality   = ('quality',    'mean'),   # mean quality across segments
+        )
+        .reset_index()
     )
+
     trial_info['is_correct'] = trial_info['trial_num'] <= 2
 
-    def split_group(keys):
-        keys = list(rng.permutation(keys))
+    # ── 2. Quality quartile bins within each trial type ───────────────────
+    for flag, label in [(True, 'correct'), (False, 'erroneous')]:
+        mask = trial_info['is_correct'] == flag
+        trial_info.loc[mask, 'q_bin'] = pd.qcut(
+            trial_info.loc[mask, 'quality'],
+            q=4, labels=False, duplicates='drop'
+        )
+
+    # ── 3. Stratified split per (is_correct, q_bin) cell ─────────────────
+    train_keys, val_keys, test_keys = [], [], []
+
+    strat_col = trial_info.groupby(['is_correct', 'q_bin'])
+
+    print(f"\n{'Stratum':<30} {'Total':>6} {'Train':>7} {'Val':>6} {'Test':>6}")
+    print("-" * 60)
+
+    for (is_correct, q_bin), group in strat_col:
+        keys = list(rng.permutation(group['trial_key'].tolist()))
         n    = len(keys)
+
         n_tr = max(1, int(round(n * train_ratio)))
         n_vl = max(1, int(round(n * val_ratio)))
-        # rest goes to test
-        return keys[:n_tr], keys[n_tr:n_tr + n_vl], keys[n_tr + n_vl:]
+        # Ensure at least 1 in val and test when n >= 3
+        if n >= 3 and n_vl == 0:
+            n_vl = 1
+        n_te = n - n_tr - n_vl
+        if n_te <= 0:
+            # Borrow 1 from train if needed
+            n_tr -= 1
+            n_te  = 1
 
-    correct_keys   = trial_info[trial_info['is_correct']]['trial_key'].tolist()
-    erroneous_keys = trial_info[~trial_info['is_correct']]['trial_key'].tolist()
+        tr = keys[:n_tr]
+        vl = keys[n_tr:n_tr + n_vl]
+        te = keys[n_tr + n_vl:]
 
-    tr_c,  vl_c,  te_c  = split_group(correct_keys)
-    tr_e,  vl_e,  te_e  = split_group(erroneous_keys)
+        train_keys.extend(tr)
+        val_keys.extend(vl)
+        test_keys.extend(te)
 
-    train_keys = set(tr_c + tr_e)
-    val_keys   = set(vl_c + vl_e)
-    test_keys  = set(te_c + te_e)
+        type_str = f"{'Correct' if is_correct else 'Erroneous'} Q-bin={int(q_bin)}"
+        print(f"  {type_str:<28} {n:>6} {len(tr):>7} {len(vl):>6} {len(te):>6}")
 
-    # Sanity: no leakage
+    train_keys = set(train_keys)
+    val_keys   = set(val_keys)
+    test_keys  = set(test_keys)
+
+    # ── 4. Sanity checks ──────────────────────────────────────────────────
     assert train_keys.isdisjoint(val_keys),  "LEAK: train ∩ val"
     assert train_keys.isdisjoint(test_keys), "LEAK: train ∩ test"
     assert val_keys.isdisjoint(test_keys),   "LEAK: val ∩ test"
+    all_assigned = train_keys | val_keys | test_keys
+    all_trials   = set(trial_info['trial_key'])
+    unassigned   = all_trials - all_assigned
+    if unassigned:
+        print(f"\n  ⚠️  {len(unassigned)} trials unassigned: {sorted(unassigned)}")
 
+    # ── 5. Build DataFrames ───────────────────────────────────────────────
     train_df = df[df['trial_key'].isin(train_keys)].reset_index(drop=True)
     val_df   = df[df['trial_key'].isin(val_keys)].reset_index(drop=True)
     test_df  = df[df['trial_key'].isin(test_keys)].reset_index(drop=True)
 
-    # ── Report ────────────────────────────────────────────────────────────
-    print(f'\n{"="*65}')
-    print(f'  Trial-based split  (seed={seed})')
-    print(f'  Correct   trials → {len(correct_keys):3d} total  '
-          f'({len(tr_c)} train / {len(vl_c)} val / {len(te_c)} test)')
-    print(f'  Erroneous trials → {len(erroneous_keys):3d} total  '
-          f'({len(tr_e)} train / {len(vl_e)} val / {len(te_e)} test)')
-    print(f'{"="*65}')
-    print(f'{"Split":<8} {"Samples":>8} {"Correct":>9} {"Erroneous":>11} '
-          f'{"Q mean":>8} {"Q std":>7}')
-    print(f'{"-"*55}')
+    # ── 6. Report ─────────────────────────────────────────────────────────
+    print(f"\n{'='*65}")
+    print(f"  Trial-based split  (seed={seed}, stratified by type + Q-bin)")
+    print(f"  Correct   trials → {len(trial_info[trial_info['is_correct']]):3d} total  "
+          f"({sum(1 for k in train_keys if k in set(trial_info[trial_info['is_correct']]['trial_key']))} train / "
+          f"{sum(1 for k in val_keys   if k in set(trial_info[trial_info['is_correct']]['trial_key']))} val / "
+          f"{sum(1 for k in test_keys  if k in set(trial_info[trial_info['is_correct']]['trial_key']))} test)")
+    print(f"  Erroneous trials → {len(trial_info[~trial_info['is_correct']]):3d} total  "
+          f"({sum(1 for k in train_keys if k in set(trial_info[~trial_info['is_correct']]['trial_key']))} train / "
+          f"{sum(1 for k in val_keys   if k in set(trial_info[~trial_info['is_correct']]['trial_key']))} val / "
+          f"{sum(1 for k in test_keys  if k in set(trial_info[~trial_info['is_correct']]['trial_key']))} test)")
+    print(f"{'='*65}")
+
+    print(f"\n{'Split':<8} {'Samples':>8} {'Correct':>9} {'Erroneous':>11} "
+          f"{'Q mean':>8} {'Q std':>7} {'Q min':>7} {'Q max':>7}")
+    print(f"{'-'*65}")
     for name, d in [('Train', train_df), ('Val', val_df), ('Test', test_df)]:
         cor = (d['trial_num'] <= 2).sum()
         err = (d['trial_num'] >= 3).sum()
         q   = d['quality']
-        print(f'{name:<8} {len(d):>8} {cor:>9} {err:>11} '
-              f'{q.mean():>8.3f} {q.std():>7.3f}')
-    print(f'{"="*65}')
+        print(f"{name:<8} {len(d):>8} {cor:>9} {err:>11} "
+              f"{q.mean():>8.3f} {q.std():>7.3f} "
+              f"{q.min():>7.3f} {q.max():>7.3f}")
+    print(f"{'='*65}")
 
-    # ── Person overlap warning ────────────────────────────────────────────
-    tr_persons = set(train_df['person'])
-    vl_persons = set(val_df['person'])
-    te_persons = set(test_df['person'])
-    overlap_vt = tr_persons & vl_persons
-    overlap_tt = tr_persons & te_persons
-    if overlap_vt or overlap_tt:
-        print(f'\n  ⚠️  Person overlap (expected with trial-based split):')
-        print(f'     train ∩ val  : {sorted(overlap_vt)}')
-        print(f'     train ∩ test : {sorted(overlap_tt)}')
+    # ── 7. Person overlap warning ─────────────────────────────────────────
+    tr_p = set(train_df['person'])
+    vl_p = set(val_df['person'])
+    te_p = set(test_df['person'])
+    print(f"\n  Train persons : {sorted(tr_p)}")
+    print(f"  Val   persons : {sorted(vl_p)}")
+    print(f"  Test  persons : {sorted(te_p)}")
+    shared = (tr_p & vl_p) | (tr_p & te_p) | (vl_p & te_p)
+    if shared:
+        print(f"  ⚠️  Shared persons (expected): {sorted(shared)}")
     else:
-        print('\n  ✓ No person overlap (clean split)')
+        print(f"  ✓ No person overlap")
 
     return train_df, val_df, test_df
 
@@ -995,9 +1041,7 @@ train_df, val_df, test_df = get_trial_split(
     val_ratio   = VAL_RATIO,
     seed        = 42,
 )
-print('\n✓ Train / Val / Test split ready (trial-based, balanced)')
-
-
+print('\n✓ Train / Val / Test split ready (trial-based, type + Q-bin stratified)')
 # ══════════════════════════════════════════════════════════════════════════
 # Cell 13.5 — Split quality distribution audit
 # ══════════════════════════════════════════════════════════════════════════
