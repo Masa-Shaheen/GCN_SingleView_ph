@@ -905,61 +905,98 @@ print('✓ centre_and_scale and run_epoch (regression) defined')
 
 
 # ══════════════════════════════════════════════════════════════════════════
-# Cell 13 — Trial-ID-based train / val / test split
+# Cell 13 — Trial-ID-based train / val / test split (balanced)
 # ══════════════════════════════════════════════════════════════════════════
 
-def get_trial_split(df):
+def get_trial_split(df, train_ratio=0.70, val_ratio=0.15, seed=42):
     """
-    Split by trial_id to prevent leakage across trials.
-    Correct  trials : T0, T1, T2
-    Erroneous trials: T3, T4, T5, T6, T7, ...  (all remaining)
+    Splits by unique trial_key (e.g. 'P0_T0'), stratified by correct/erroneous,
+    so each set has the same correct:erroneous ratio.
     
-    Strategy — keep correct/erroneous balance in every split:
-      Train : T0, T1  + T3, T4, T5
-      Val   : T2      + T6
-      Test  :           T7  (or whatever remains)
+    Stratification groups:
+        - correct   = trial_num <= 2
+        - erroneous = trial_num >= 3
     """
-    # ── Adjust these lists to match what actually exists in your CSV ──────
-    train_trials = ['T0', 'T1', 'T3', 'T4', 'T5']
-    val_trials   = ['T2', 'T6']
-    test_trials  = ['T7', 'T8', 'T9']          # add/remove as needed
+    rng = np.random.default_rng(seed)
 
-    # ── Auto-detect any unseen trial IDs → dump into train ────────────────
-    all_known = set(train_trials) | set(val_trials) | set(test_trials)
-    extra     = [t for t in df['trial_id'].unique() if t not in all_known]
-    if extra:
-        print(f'⚠️  Unseen trial IDs → assigned to Train: {sorted(extra)}')
-        train_trials = train_trials + extra
+    # ── Build unique trial → label mapping ───────────────────────────────
+    trial_info = (
+        df[['trial_key', 'trial_num']]
+        .drop_duplicates('trial_key')
+        .copy()
+    )
+    trial_info['is_correct'] = trial_info['trial_num'] <= 2
 
-    train_df = df[df['trial_id'].isin(train_trials)].reset_index(drop=True)
-    val_df   = df[df['trial_id'].isin(val_trials)  ].reset_index(drop=True)
-    test_df  = df[df['trial_id'].isin(test_trials) ].reset_index(drop=True)
+    def split_group(keys):
+        keys = list(rng.permutation(keys))
+        n    = len(keys)
+        n_tr = max(1, int(round(n * train_ratio)))
+        n_vl = max(1, int(round(n * val_ratio)))
+        # rest goes to test
+        return keys[:n_tr], keys[n_tr:n_tr + n_vl], keys[n_tr + n_vl:]
 
-    print(f'\n{"="*55}')
-    print(f'Split by trial_id')
-    print(f'  Train trials : {sorted(train_trials)}')
-    print(f'  Val   trials : {sorted(val_trials)}')
-    print(f'  Test  trials : {sorted(test_trials)}')
-    print(f'\nSamples → train={len(train_df)}, val={len(val_df)}, test={len(test_df)}')
+    correct_keys   = trial_info[trial_info['is_correct']]['trial_key'].tolist()
+    erroneous_keys = trial_info[~trial_info['is_correct']]['trial_key'].tolist()
 
-    print(f'\nCorrect vs Erroneous per split:')
+    tr_c,  vl_c,  te_c  = split_group(correct_keys)
+    tr_e,  vl_e,  te_e  = split_group(erroneous_keys)
+
+    train_keys = set(tr_c + tr_e)
+    val_keys   = set(vl_c + vl_e)
+    test_keys  = set(te_c + te_e)
+
+    # Sanity: no leakage
+    assert train_keys.isdisjoint(val_keys),  "LEAK: train ∩ val"
+    assert train_keys.isdisjoint(test_keys), "LEAK: train ∩ test"
+    assert val_keys.isdisjoint(test_keys),   "LEAK: val ∩ test"
+
+    train_df = df[df['trial_key'].isin(train_keys)].reset_index(drop=True)
+    val_df   = df[df['trial_key'].isin(val_keys)].reset_index(drop=True)
+    test_df  = df[df['trial_key'].isin(test_keys)].reset_index(drop=True)
+
+    # ── Report ────────────────────────────────────────────────────────────
+    print(f'\n{"="*65}')
+    print(f'  Trial-based split  (seed={seed})')
+    print(f'  Correct   trials → {len(correct_keys):3d} total  '
+          f'({len(tr_c)} train / {len(vl_c)} val / {len(te_c)} test)')
+    print(f'  Erroneous trials → {len(erroneous_keys):3d} total  '
+          f'({len(tr_e)} train / {len(vl_e)} val / {len(te_e)} test)')
+    print(f'{"="*65}')
+    print(f'{"Split":<8} {"Samples":>8} {"Correct":>9} {"Erroneous":>11} '
+          f'{"Q mean":>8} {"Q std":>7}')
+    print(f'{"-"*55}')
     for name, d in [('Train', train_df), ('Val', val_df), ('Test', test_df)]:
-        correct   = (d['trial_num'] <= 2).sum()
-        erroneous = (d['trial_num'] >= 3).sum()
-        q = d['quality']
-        print(f'  {name:5s}: correct={correct:4d}  erroneous={erroneous:4d} | '
-              f'mean={q.mean():.3f}  std={q.std():.3f}')
+        cor = (d['trial_num'] <= 2).sum()
+        err = (d['trial_num'] >= 3).sum()
+        q   = d['quality']
+        print(f'{name:<8} {len(d):>8} {cor:>9} {err:>11} '
+              f'{q.mean():>8.3f} {q.std():>7.3f}')
+    print(f'{"="*65}')
 
-    print(f'\nPerson coverage per split (leakage check):')
-    for name, d in [('Train', train_df), ('Val', val_df), ('Test', test_df)]:
-        persons = sorted(d['person'].unique())
-        print(f'  {name:5s}: {len(persons)} persons → {persons}')
+    # ── Person overlap warning ────────────────────────────────────────────
+    tr_persons = set(train_df['person'])
+    vl_persons = set(val_df['person'])
+    te_persons = set(test_df['person'])
+    overlap_vt = tr_persons & vl_persons
+    overlap_tt = tr_persons & te_persons
+    if overlap_vt or overlap_tt:
+        print(f'\n  ⚠️  Person overlap (expected with trial-based split):')
+        print(f'     train ∩ val  : {sorted(overlap_vt)}')
+        print(f'     train ∩ test : {sorted(overlap_tt)}')
+    else:
+        print('\n  ✓ No person overlap (clean split)')
 
     return train_df, val_df, test_df
 
 
-train_df, val_df, test_df = get_trial_split(df_index)
-print('\n✓ Train / Val / Test split ready (trial-based)')
+train_df, val_df, test_df = get_trial_split(
+    df_index,
+    train_ratio = TRAIN_RATIO,
+    val_ratio   = VAL_RATIO,
+    seed        = 42,
+)
+print('\n✓ Train / Val / Test split ready (trial-based, balanced)')
+
 # ══════════════════════════════════════════════════════════════════════════
 # Cell 14 — Plotting helpers (regression only)
 # ══════════════════════════════════════════════════════════════════════════
