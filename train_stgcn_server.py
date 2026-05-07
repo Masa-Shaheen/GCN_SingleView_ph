@@ -908,37 +908,39 @@ print('✓ centre_and_scale and run_epoch (regression) defined')
 # Cell 13 — Trial-ID-based train / val / test split
 # ══════════════════════════════════════════════════════════════════════════
 
-def get_person_split(df):
-    # train_persons = ['P0','P1','P2','P3','P4','P5','P6','P10','P11','P12']
-    # val_persons   = ['P7','P8','P13']
-    # test_persons  = ['P9','P14','P15']
+def get_trial_split(df):
+    """
+    Split by trial_id to prevent leakage across trials.
+    Correct  trials : T0, T1, T2
+    Erroneous trials: T3, T4, T5, T6, T7, ...  (all remaining)
+    
+    Strategy — keep correct/erroneous balance in every split:
+      Train : T0, T1  + T3, T4, T5
+      Val   : T2      + T6
+      Test  :           T7  (or whatever remains)
+    """
+    # ── Adjust these lists to match what actually exists in your CSV ──────
+    train_trials = ['T0', 'T1', 'T3', 'T4', 'T5']
+    val_trials   = ['T2', 'T6']
+    test_trials  = ['T7', 'T8', 'T9']          # add/remove as needed
 
-    # train_persons = ['P0','P1','P2','P3','P4','P5','P10','P11','P12']
-    # val_persons   = ['P6','P7','P13']
-    # test_persons  = ['P8','P9','P14','P15']
+    # ── Auto-detect any unseen trial IDs → dump into train ────────────────
+    all_known = set(train_trials) | set(val_trials) | set(test_trials)
+    extra     = [t for t in df['trial_id'].unique() if t not in all_known]
+    if extra:
+        print(f'⚠️  Unseen trial IDs → assigned to Train: {sorted(extra)}')
+        train_trials = train_trials + extra
 
-    # train_persons = ['P0','P1','P2','P3','P4','P5','P6','P10','P11']
-    # val_persons   = ['P7','P8','P12','P13']
-    # test_persons  = ['P9','P14','P15']
-
-    # train_persons = ['P0','P1','P2','P3','P4','P15','P10','P11','P12']
-    # val_persons   = ['P6','P7','P8','P13']
-    # test_persons  = ['P9','P14','P5']    
-
-    # train_persons = ['P0','P1','P2','P3','P4', 'P8','P15','P10','P11','P12']
-    # val_persons   = ['P6','P7','P13']
-    # test_persons  = ['P9','P14','P5']
-
-    train_persons = ['P0','P1','P2','P3','P4','P8','P10','P11','P12']
-    val_persons   = ['P6','P7','P13','P15']   # ← أضف P15 للـ val
-    test_persons  = ['P9','P14','P5']    
-
-    train_df = df[df['person'].isin(train_persons)].reset_index(drop=True)
-    val_df   = df[df['person'].isin(val_persons)].reset_index(drop=True)
-    test_df  = df[df['person'].isin(test_persons)].reset_index(drop=True)
+    train_df = df[df['trial_id'].isin(train_trials)].reset_index(drop=True)
+    val_df   = df[df['trial_id'].isin(val_trials)  ].reset_index(drop=True)
+    test_df  = df[df['trial_id'].isin(test_trials) ].reset_index(drop=True)
 
     print(f'\n{"="*55}')
-    print(f'Samples → train={len(train_df)}, val={len(val_df)}, test={len(test_df)}')
+    print(f'Split by trial_id')
+    print(f'  Train trials : {sorted(train_trials)}')
+    print(f'  Val   trials : {sorted(val_trials)}')
+    print(f'  Test  trials : {sorted(test_trials)}')
+    print(f'\nSamples → train={len(train_df)}, val={len(val_df)}, test={len(test_df)}')
 
     print(f'\nCorrect vs Erroneous per split:')
     for name, d in [('Train', train_df), ('Val', val_df), ('Test', test_df)]:
@@ -946,14 +948,18 @@ def get_person_split(df):
         erroneous = (d['trial_num'] >= 3).sum()
         q = d['quality']
         print(f'  {name:5s}: correct={correct:4d}  erroneous={erroneous:4d} | '
-              f'mean={q.mean():.3f} std={q.std():.3f}')
+              f'mean={q.mean():.3f}  std={q.std():.3f}')
+
+    print(f'\nPerson coverage per split (leakage check):')
+    for name, d in [('Train', train_df), ('Val', val_df), ('Test', test_df)]:
+        persons = sorted(d['person'].unique())
+        print(f'  {name:5s}: {len(persons)} persons → {persons}')
 
     return train_df, val_df, test_df
 
 
-train_df, val_df, test_df = get_person_split(df_index)
-print('\n✓ Train / Val / Test split ready (person-based)')
-
+train_df, val_df, test_df = get_trial_split(df_index)
+print('\n✓ Train / Val / Test split ready (trial-based)')
 # ══════════════════════════════════════════════════════════════════════════
 # Cell 14 — Plotting helpers (regression only)
 # ══════════════════════════════════════════════════════════════════════════
