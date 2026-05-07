@@ -934,12 +934,31 @@ def get_trial_split(df, train_ratio=0.70, val_ratio=0.15, seed=42):
     trial_info['is_correct'] = trial_info['trial_num'] <= 2
 
     # ── 2. Quality quartile bins within each trial type ───────────────────
-    for flag, label in [(True, 'correct'), (False, 'erroneous')]:
+    for flag in [True, False]:
         mask = trial_info['is_correct'] == flag
-        trial_info.loc[mask, 'q_bin'] = pd.qcut(
-            trial_info.loc[mask, 'quality'],
-            q=4, labels=False, duplicates='drop'
-        )
+        vals = trial_info.loc[mask, 'quality']
+        
+        # جرب 4 bins، لو فشل نزّل لـ 3 أو 2
+        for n_bins in [4, 3, 2]:
+            try:
+                bins = pd.qcut(vals, q=n_bins, labels=False, duplicates='drop')
+                # تأكد إن في أكثر من bin واحد
+                if bins.nunique() >= 2:
+                    trial_info.loc[mask, 'q_bin'] = bins
+                    break
+            except Exception:
+                continue
+        else:
+            # fallback: كل شي في bin واحد
+            trial_info.loc[mask, 'q_bin'] = 0
+            
+        actual_bins = trial_info.loc[mask, 'q_bin'].nunique()
+        type_label  = "Correct" if flag else "Erroneous"
+        print(f"  {type_label}: {actual_bins} quality bins created from {mask.sum()} trials")
+        
+        # اطبع توزيع الـ bins
+        print(f"    Quality range: [{vals.min():.3f}, {vals.max():.3f}]")
+        print(f"    Bin counts: {trial_info.loc[mask, 'q_bin'].value_counts().sort_index().to_dict()}")
 
     # ── 3. Stratified split per (is_correct, q_bin) cell ─────────────────
     train_keys, val_keys, test_keys = [], [], []
