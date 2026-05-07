@@ -6,11 +6,11 @@ nohup: ignoring input
   EXISTS      : True
   PATIENCE    : 80 epochs
 ✓ Run directory created:
-   /mvdlph/masa/GCN_SingleView_Regression_Results/run_2026_05_07_11_45_59
+   /mvdlph/masa/GCN_SingleView_Regression_Results/run_2026_05_07_11_49_07
 ✓ Libraries imported
 ✓ Output folders ready:
-   /mvdlph/masa/GCN_SingleView_Regression_Results/run_2026_05_07_11_45_59/plots
-   /mvdlph/masa/GCN_SingleView_Regression_Results/run_2026_05_07_11_45_59/logs
+   /mvdlph/masa/GCN_SingleView_Regression_Results/run_2026_05_07_11_49_07/plots
+   /mvdlph/masa/GCN_SingleView_Regression_Results/run_2026_05_07_11_49_07/logs
 Total NPZ files found : 15375
 First file: E0_P0_T0_C0_seg0_MMPose_human3d_motionbert_3D.npz
 Keys      : ['keypoints_3d', 'fps', 'video_shape', 'video_name']
@@ -553,11 +553,11 @@ Shape   : (531, 7)
 527       E9    P15    T3     C1            4  4.4250  1.3566
 528       E9    P15    T4     C1            4  3.6500  1.7029
 529       E9    P15    T5     C1            4  2.7750  1.7466
-530       E9    P15    T6     C1            4  3.3750  1.90392026-05-07 11:45:59,329 | INFO | ======================================================================
-2026-05-07 11:45:59,329 | INFO | ST-GCN Single-View Regression | BZU Physiotherapy Dataset
-2026-05-07 11:45:59,329 | INFO | Camera : CNone  |  Split : 70/15/15  |  Epochs : 300  |  Patience : 80
-2026-05-07 11:45:59,329 | INFO | Log file : /mvdlph/masa/GCN_SingleView_Regression_Results/run_2026_05_07_11_45_59/logs/training_20260507_114559.log
-2026-05-07 11:45:59,330 | INFO | ======================================================================
+530       E9    P15    T6     C1            4  3.3750  1.90392026-05-07 11:49:07,381 | INFO | ======================================================================
+2026-05-07 11:49:07,381 | INFO | ST-GCN Single-View Regression | BZU Physiotherapy Dataset
+2026-05-07 11:49:07,381 | INFO | Camera : CNone  |  Split : 70/15/15  |  Epochs : 300  |  Patience : 80
+2026-05-07 11:49:07,381 | INFO | Log file : /mvdlph/masa/GCN_SingleView_Regression_Results/run_2026_05_07_11_49_07/logs/training_20260507_114907.log
+2026-05-07 11:49:07,382 | INFO | ======================================================================
 
 ============================================================
 Quality stats per person:
@@ -620,7 +620,7 @@ P6: correct= 29 rows | erroneous=  0 rows | quality mean=4.571
 P7: correct= 29 rows | erroneous=  0 rows | quality mean=4.657
 P8: correct= 29 rows | erroneous=  0 rows | quality mean=4.603
 P9: correct= 29 rows | erroneous=  0 rows | quality mean=4.413
-✓ stdout → also writing to /mvdlph/masa/GCN_SingleView_Regression_Results/run_2026_05_07_11_45_59/logs/training_20260507_114559.log
+✓ stdout → also writing to /mvdlph/masa/GCN_SingleView_Regression_Results/run_2026_05_07_11_49_07/logs/training_20260507_114907.log
 ✓ parse_filename and load_skeleton defined
 NPZ files found (all cameras) : 15375
 
@@ -735,8 +735,8 @@ Skeleton shape : (61, 17, 3)
 X range : [-0.369, 0.592]
 Y range : [0.000, 0.994]
 Z range : [-0.193, 0.198]
-  ✓ Skeleton plot saved → /mvdlph/masa/GCN_SingleView_Regression_Results/run_2026_05_07_11_45_59/plots/sample_skeleton_3views.png
-  ✓ Motion frames saved → /mvdlph/masa/GCN_SingleView_Regression_Results/run_2026_05_07_11_45_59/plots/sample_skeleton_motion.png
+  ✓ Skeleton plot saved → /mvdlph/masa/GCN_SingleView_Regression_Results/run_2026_05_07_11_49_07/plots/sample_skeleton_3views.png
+  ✓ Motion frames saved → /mvdlph/masa/GCN_SingleView_Regression_Results/run_2026_05_07_11_49_07/plots/sample_skeleton_motion.png
 Axis ranges across all frames:
 X: [-0.369, 0.592] — likely left/right
 Y: [0.000, 0.994] — likely ???
@@ -771,16 +771,23 @@ Camera 2:
 Device : cuda
 GPU    : Tesla V100-PCIE-32GB
 ✓ centre_and_scale and run_epoch (regression) defined
+  Correct: 4 quality bins created from 36 trials
+    Quality range: [4.123, 4.812]
+    Bin counts: {0.0: 9, 1.0: 9, 2.0: 9, 3.0: 9}
+  Erroneous: 4 quality bins created from 25 trials
+    Quality range: [2.592, 4.720]
+    Bin counts: {0.0: 7, 1.0: 6, 2.0: 6, 3.0: 6}
 
 Stratum                         Total   Train    Val   Test
-------------------------------------------------------------
-  Erroneous Q-bin=0                 7       5      1      1
-  Erroneous Q-bin=1                 6       4      1      1
-  Erroneous Q-bin=2                 6       4      1      1
-2026-05-07 11:46:31,397 | INFO | ======================================================================
-2026-05-07 11:46:31,397 | INFO | STARTING REGRESSION TRAINING  (with Early Stopping on MAE)
-2026-05-07 11:46:31,397 | INFO | ======================================================================
-2026-05-07 11:46:31,398 | INFO | train=10512 val=1799 test=3061
-2026-05-07 11:47:03,083 | INFO |   Ep   1/300 | Tr loss=0.7521 mae=0.624 r2=-0.175 pcc=0.444 | Vl loss=0.3748 mae=0.444 r2=0.446 pcc=0.719 | Te loss=0.2573 mae=0.374 r2=0.545 pcc=0.808 | ES 0/80 ★
-2026-05-07 11:47:34,249 | INFO |   Ep   2/300 | Tr loss=0.5252 mae=0.530 r2=0.179 pcc=0.614 | Vl loss=0.4305 mae=0.491 r2=0.363 pcc=0.684 | Te loss=0.2485 mae=0.356 r2=0.561 pcc=0.793 | ES 1/80
-2026-05-07 11:48:05,140 | INFO |   Ep   3/300 | Tr loss=0.4470 mae=0.494 r2=0.302 pcc=0.658 | Vl loss=0.3938 mae=0.474 r2=0.417 pcc=0.687 | Te loss=0.2356 mae=0.337 r2=0.583 pcc=0.786 | ES 2/80
+2026-05-07 11:49:39,393 | INFO | ======================================================================
+2026-05-07 11:49:39,393 | INFO | STARTING REGRESSION TRAINING  (with Early Stopping on MAE)
+2026-05-07 11:49:39,393 | INFO | ======================================================================
+2026-05-07 11:49:39,393 | INFO | train=10512 val=1799 test=3061
+2026-05-07 11:50:10,985 | INFO |   Ep   1/300 | Tr loss=0.9262 mae=0.685 r2=-0.447 pcc=0.431 | Vl loss=0.4216 mae=0.501 r2=0.379 pcc=0.699 | Te loss=0.3265 mae=0.447 r2=0.424 pcc=0.815 | ES 0/80 ★
+2026-05-07 11:50:41,917 | INFO |   Ep   2/300 | Tr loss=0.5626 mae=0.549 r2=0.121 pcc=0.613 | Vl loss=0.4188 mae=0.520 r2=0.383 pcc=0.680 | Te loss=0.3350 mae=0.444 r2=0.409 pcc=0.751 | ES 1/80
+2026-05-07 11:51:13,185 | INFO |   Ep   3/300 | Tr loss=0.4681 mae=0.509 r2=0.269 pcc=0.655 | Vl loss=0.4389 mae=0.527 r2=0.353 pcc=0.668 | Te loss=0.3200 mae=0.425 r2=0.436 pcc=0.751 | ES 2/80
+2026-05-07 11:51:44,546 | INFO |   Ep   4/300 | Tr loss=0.4151 mae=0.482 r2=0.351 pcc=0.682 | Vl loss=0.4366 mae=0.520 r2=0.357 pcc=0.674 | Te loss=0.3051 mae=0.413 r2=0.462 pcc=0.761 | ES 3/80
+2026-05-07 11:52:15,560 | INFO |   Ep   5/300 | Tr loss=0.3986 mae=0.473 r2=0.377 pcc=0.688 | Vl loss=0.4308 mae=0.507 r2=0.364 pcc=0.674 | Te loss=0.2801 mae=0.389 r2=0.506 pcc=0.767 | ES 4/80
+2026-05-07 11:52:46,919 | INFO |   Ep   6/300 | Tr loss=0.3776 mae=0.457 r2=0.410 pcc=0.695 | Vl loss=0.4015 mae=0.487 r2=0.407 pcc=0.677 | Te loss=0.2496 mae=0.363 r2=0.560 pcc=0.775 | ES 0/80 ★
+2026-05-07 11:53:18,257 | INFO |   Ep   7/300 | Tr loss=0.3598 mae=0.443 r2=0.438 pcc=0.704 | Vl loss=0.4008 mae=0.484 r2=0.407 pcc=0.682 | Te loss=0.2354 mae=0.343 r2=0.584 pcc=0.779 | ES 0/80 ★
+2026-05-07 11:53:49,604 | INFO |   Ep   8/300 | Tr loss=0.3502 mae=0.436 r2=0.453 pcc=0.704 | Vl loss=0.3969 mae=0.481 r2=0.413 pcc=0.683 | Te loss=0.2234 mae=0.332 r2=0.605 pcc=0.784 | ES 0/80 ★
