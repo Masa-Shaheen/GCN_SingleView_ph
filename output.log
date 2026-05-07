@@ -6,11 +6,11 @@ nohup: ignoring input
   EXISTS      : True
   PATIENCE    : 80 epochs
 ✓ Run directory created:
-   /mvdlph/masa/GCN_SingleView_Regression_Results/run_2026_05_07_11_03_20
+   /mvdlph/masa/GCN_SingleView_Regression_Results/run_2026_05_07_11_35_38
 ✓ Libraries imported
 ✓ Output folders ready:
-   /mvdlph/masa/GCN_SingleView_Regression_Results/run_2026_05_07_11_03_20/plots
-   /mvdlph/masa/GCN_SingleView_Regression_Results/run_2026_05_07_11_03_20/logs
+   /mvdlph/masa/GCN_SingleView_Regression_Results/run_2026_05_07_11_35_38/plots
+   /mvdlph/masa/GCN_SingleView_Regression_Results/run_2026_05_07_11_35_38/logs
 Total NPZ files found : 15375
 First file: E0_P0_T0_C0_seg0_MMPose_human3d_motionbert_3D.npz
 Keys      : ['keypoints_3d', 'fps', 'video_shape', 'video_name']
@@ -553,11 +553,11 @@ Shape   : (531, 7)
 527       E9    P15    T3     C1            4  4.4250  1.3566
 528       E9    P15    T4     C1            4  3.6500  1.7029
 529       E9    P15    T5     C1            4  2.7750  1.7466
-530       E9    P15    T6     C1            4  3.3750  1.90392026-05-07 11:03:20,846 | INFO | ======================================================================
-2026-05-07 11:03:20,847 | INFO | ST-GCN Single-View Regression | BZU Physiotherapy Dataset
-2026-05-07 11:03:20,847 | INFO | Camera : CNone  |  Split : 70/15/15  |  Epochs : 300  |  Patience : 80
-2026-05-07 11:03:20,847 | INFO | Log file : /mvdlph/masa/GCN_SingleView_Regression_Results/run_2026_05_07_11_03_20/logs/training_20260507_110320.log
-2026-05-07 11:03:20,847 | INFO | ======================================================================
+530       E9    P15    T6     C1            4  3.3750  1.90392026-05-07 11:35:38,315 | INFO | ======================================================================
+2026-05-07 11:35:38,315 | INFO | ST-GCN Single-View Regression | BZU Physiotherapy Dataset
+2026-05-07 11:35:38,315 | INFO | Camera : CNone  |  Split : 70/15/15  |  Epochs : 300  |  Patience : 80
+2026-05-07 11:35:38,316 | INFO | Log file : /mvdlph/masa/GCN_SingleView_Regression_Results/run_2026_05_07_11_35_38/logs/training_20260507_113538.log
+2026-05-07 11:35:38,316 | INFO | ======================================================================
 
 ============================================================
 Quality stats per person:
@@ -620,7 +620,7 @@ P6: correct= 29 rows | erroneous=  0 rows | quality mean=4.571
 P7: correct= 29 rows | erroneous=  0 rows | quality mean=4.657
 P8: correct= 29 rows | erroneous=  0 rows | quality mean=4.603
 P9: correct= 29 rows | erroneous=  0 rows | quality mean=4.413
-✓ stdout → also writing to /mvdlph/masa/GCN_SingleView_Regression_Results/run_2026_05_07_11_03_20/logs/training_20260507_110320.log
+✓ stdout → also writing to /mvdlph/masa/GCN_SingleView_Regression_Results/run_2026_05_07_11_35_38/logs/training_20260507_113538.log
 ✓ parse_filename and load_skeleton defined
 NPZ files found (all cameras) : 15375
 
@@ -735,8 +735,8 @@ Skeleton shape : (61, 17, 3)
 X range : [-0.369, 0.592]
 Y range : [0.000, 0.994]
 Z range : [-0.193, 0.198]
-  ✓ Skeleton plot saved → /mvdlph/masa/GCN_SingleView_Regression_Results/run_2026_05_07_11_03_20/plots/sample_skeleton_3views.png
-  ✓ Motion frames saved → /mvdlph/masa/GCN_SingleView_Regression_Results/run_2026_05_07_11_03_20/plots/sample_skeleton_motion.png
+  ✓ Skeleton plot saved → /mvdlph/masa/GCN_SingleView_Regression_Results/run_2026_05_07_11_35_38/plots/sample_skeleton_3views.png
+  ✓ Motion frames saved → /mvdlph/masa/GCN_SingleView_Regression_Results/run_2026_05_07_11_35_38/plots/sample_skeleton_motion.png
 Axis ranges across all frames:
 X: [-0.369, 0.592] — likely left/right
 Y: [0.000, 0.994] — likely ???
@@ -772,371 +772,20 @@ Device : cuda
 GPU    : Tesla V100-PCIE-32GB
 ✓ centre_and_scale and run_epoch (regression) defined
 
-=======================================================
-Split by trial_id
-  Train trials : ['T0', 'T1', 'T3', 'T4', 'T5']
-  Val   trials : ['T2', 'T6']
-  Test  trials : ['T7', 'T8', 'T9']
-
-Samples → train=11311, val=4061, test=0
-
-Correct vs Erroneous per split:
-  Train: correct=7248  erroneous=4063 | mean=4.141  std=0.757
-2026-05-07 11:03:50,179 | INFO | ======================================================================
-2026-05-07 11:03:50,179 | INFO | STARTING REGRESSION TRAINING  (with Early Stopping on MAE)
-2026-05-07 11:03:50,179 | INFO | ======================================================================
-2026-05-07 11:03:50,179 | INFO | train=11311 val=4061 test=0
-/usr/local/lib/python3.8/dist-packages/numpy/core/fromnumeric.py:3372: RuntimeWarning: Mean of empty slice.
-  return _methods._mean(a, axis=axis, dtype=dtype,
-/usr/local/lib/python3.8/dist-packages/numpy/core/_methods.py:170: RuntimeWarning: invalid value encountered in double_scalars
-  ret = ret.dtype.type(ret / rcount)
-2026-05-07 11:04:22,116 | INFO |   Ep   1/300 | Tr loss=0.9137 mae=0.689 r2=-0.595 pcc=0.347 | Vl loss=0.4600 mae=0.499 r2=0.421 pcc=0.835 | Te loss=0.0000 mae=nan r2=0.000 pcc=0.000 | ES 0/80 ★
-/usr/local/lib/python3.8/dist-packages/numpy/core/fromnumeric.py:3372: RuntimeWarning: Mean of empty slice.
-  return _methods._mean(a, axis=axis, dtype=dtype,
-/usr/local/lib/python3.8/dist-packages/numpy/core/_methods.py:170: RuntimeWarning: invalid value encountered in double_scalars
-  ret = ret.dtype.type(ret / rcount)
-2026-05-07 11:04:53,689 | INFO |   Ep   2/300 | Tr loss=0.5668 mae=0.554 r2=0.010 pcc=0.554 | Vl loss=0.2366 mae=0.354 r2=0.703 pcc=0.858 | Te loss=0.0000 mae=nan r2=0.000 pcc=0.000 | ES 0/80 ★
-/usr/local/lib/python3.8/dist-packages/numpy/core/fromnumeric.py:3372: RuntimeWarning: Mean of empty slice.
-  return _methods._mean(a, axis=axis, dtype=dtype,
-/usr/local/lib/python3.8/dist-packages/numpy/core/_methods.py:170: RuntimeWarning: invalid value encountered in double_scalars
-  ret = ret.dtype.type(ret / rcount)
-2026-05-07 11:05:25,935 | INFO |   Ep   3/300 | Tr loss=0.4606 mae=0.502 r2=0.196 pcc=0.612 | Vl loss=0.2366 mae=0.342 r2=0.702 pcc=0.850 | Te loss=0.0000 mae=nan r2=0.000 pcc=0.000 | ES 0/80 ★
-/usr/local/lib/python3.8/dist-packages/numpy/core/fromnumeric.py:3372: RuntimeWarning: Mean of empty slice.
-  return _methods._mean(a, axis=axis, dtype=dtype,
-/usr/local/lib/python3.8/dist-packages/numpy/core/_methods.py:170: RuntimeWarning: invalid value encountered in double_scalars
-  ret = ret.dtype.type(ret / rcount)
-2026-05-07 11:05:57,362 | INFO |   Ep   4/300 | Tr loss=0.4062 mae=0.475 r2=0.291 pcc=0.642 | Vl loss=0.2132 mae=0.340 r2=0.731 pcc=0.864 | Te loss=0.0000 mae=nan r2=0.000 pcc=0.000 | ES 0/80 ★
-/usr/local/lib/python3.8/dist-packages/numpy/core/fromnumeric.py:3372: RuntimeWarning: Mean of empty slice.
-  return _methods._mean(a, axis=axis, dtype=dtype,
-/usr/local/lib/python3.8/dist-packages/numpy/core/_methods.py:170: RuntimeWarning: invalid value encountered in double_scalars
-  ret = ret.dtype.type(ret / rcount)
-2026-05-07 11:06:28,661 | INFO |   Ep   5/300 | Tr loss=0.3770 mae=0.456 r2=0.342 pcc=0.654 | Vl loss=0.2866 mae=0.435 r2=0.637 pcc=0.841 | Te loss=0.0000 mae=nan r2=0.000 pcc=0.000 | ES 1/80
-/usr/local/lib/python3.8/dist-packages/numpy/core/fromnumeric.py:3372: RuntimeWarning: Mean of empty slice.
-  return _methods._mean(a, axis=axis, dtype=dtype,
-/usr/local/lib/python3.8/dist-packages/numpy/core/_methods.py:170: RuntimeWarning: invalid value encountered in double_scalars
-  ret = ret.dtype.type(ret / rcount)
-2026-05-07 11:07:00,311 | INFO |   Ep   6/300 | Tr loss=0.3587 mae=0.441 r2=0.374 pcc=0.664 | Vl loss=0.2883 mae=0.439 r2=0.635 pcc=0.848 | Te loss=0.0000 mae=nan r2=0.000 pcc=0.000 | ES 2/80
-/usr/local/lib/python3.8/dist-packages/numpy/core/fromnumeric.py:3372: RuntimeWarning: Mean of empty slice.
-  return _methods._mean(a, axis=axis, dtype=dtype,
-/usr/local/lib/python3.8/dist-packages/numpy/core/_methods.py:170: RuntimeWarning: invalid value encountered in double_scalars
-  ret = ret.dtype.type(ret / rcount)
-2026-05-07 11:07:31,942 | INFO |   Ep   7/300 | Tr loss=0.3427 mae=0.431 r2=0.402 pcc=0.673 | Vl loss=0.2756 mae=0.429 r2=0.651 pcc=0.852 | Te loss=0.0000 mae=nan r2=0.000 pcc=0.000 | ES 3/80
-/usr/local/lib/python3.8/dist-packages/numpy/core/fromnumeric.py:3372: RuntimeWarning: Mean of empty slice.
-  return _methods._mean(a, axis=axis, dtype=dtype,
-/usr/local/lib/python3.8/dist-packages/numpy/core/_methods.py:170: RuntimeWarning: invalid value encountered in double_scalars
-  ret = ret.dtype.type(ret / rcount)
-2026-05-07 11:08:03,634 | INFO |   Ep   8/300 | Tr loss=0.3363 mae=0.426 r2=0.413 pcc=0.675 | Vl loss=0.2645 mae=0.423 r2=0.665 pcc=0.859 | Te loss=0.0000 mae=nan r2=0.000 pcc=0.000 | ES 4/80
-/usr/local/lib/python3.8/dist-packages/numpy/core/fromnumeric.py:3372: RuntimeWarning: Mean of empty slice.
-  return _methods._mean(a, axis=axis, dtype=dtype,
-/usr/local/lib/python3.8/dist-packages/numpy/core/_methods.py:170: RuntimeWarning: invalid value encountered in double_scalars
-  ret = ret.dtype.type(ret / rcount)
-2026-05-07 11:08:35,689 | INFO |   Ep   9/300 | Tr loss=0.3248 mae=0.418 r2=0.433 pcc=0.682 | Vl loss=0.2756 mae=0.439 r2=0.651 pcc=0.857 | Te loss=0.0000 mae=nan r2=0.000 pcc=0.000 | ES 5/80
-/usr/local/lib/python3.8/dist-packages/numpy/core/fromnumeric.py:3372: RuntimeWarning: Mean of empty slice.
-  return _methods._mean(a, axis=axis, dtype=dtype,
-/usr/local/lib/python3.8/dist-packages/numpy/core/_methods.py:170: RuntimeWarning: invalid value encountered in double_scalars
-  ret = ret.dtype.type(ret / rcount)
-2026-05-07 11:09:07,312 | INFO |   Ep  10/300 | Tr loss=0.3152 mae=0.412 r2=0.450 pcc=0.689 | Vl loss=0.2519 mae=0.406 r2=0.681 pcc=0.863 | Te loss=0.0000 mae=nan r2=0.000 pcc=0.000 | ES 6/80
-/usr/local/lib/python3.8/dist-packages/numpy/core/fromnumeric.py:3372: RuntimeWarning: Mean of empty slice.
-  return _methods._mean(a, axis=axis, dtype=dtype,
-/usr/local/lib/python3.8/dist-packages/numpy/core/_methods.py:170: RuntimeWarning: invalid value encountered in double_scalars
-  ret = ret.dtype.type(ret / rcount)
-2026-05-07 11:09:39,012 | INFO |   Ep  11/300 | Tr loss=0.3095 mae=0.405 r2=0.460 pcc=0.695 | Vl loss=0.2453 mae=0.394 r2=0.689 pcc=0.867 | Te loss=0.0000 mae=nan r2=0.000 pcc=0.000 | ES 7/80
-/usr/local/lib/python3.8/dist-packages/numpy/core/fromnumeric.py:3372: RuntimeWarning: Mean of empty slice.
-  return _methods._mean(a, axis=axis, dtype=dtype,
-/usr/local/lib/python3.8/dist-packages/numpy/core/_methods.py:170: RuntimeWarning: invalid value encountered in double_scalars
-  ret = ret.dtype.type(ret / rcount)
-2026-05-07 11:10:10,340 | INFO |   Ep  12/300 | Tr loss=0.3030 mae=0.401 r2=0.471 pcc=0.699 | Vl loss=0.2636 mae=0.415 r2=0.666 pcc=0.862 | Te loss=0.0000 mae=nan r2=0.000 pcc=0.000 | ES 8/80
-/usr/local/lib/python3.8/dist-packages/numpy/core/fromnumeric.py:3372: RuntimeWarning: Mean of empty slice.
-  return _methods._mean(a, axis=axis, dtype=dtype,
-/usr/local/lib/python3.8/dist-packages/numpy/core/_methods.py:170: RuntimeWarning: invalid value encountered in double_scalars
-  ret = ret.dtype.type(ret / rcount)
-2026-05-07 11:10:42,116 | INFO |   Ep  13/300 | Tr loss=0.2994 mae=0.400 r2=0.478 pcc=0.702 | Vl loss=0.2506 mae=0.402 r2=0.683 pcc=0.866 | Te loss=0.0000 mae=nan r2=0.000 pcc=0.000 | ES 9/80
-/usr/local/lib/python3.8/dist-packages/numpy/core/fromnumeric.py:3372: RuntimeWarning: Mean of empty slice.
-  return _methods._mean(a, axis=axis, dtype=dtype,
-/usr/local/lib/python3.8/dist-packages/numpy/core/_methods.py:170: RuntimeWarning: invalid value encountered in double_scalars
-  ret = ret.dtype.type(ret / rcount)
-2026-05-07 11:11:13,639 | INFO |   Ep  14/300 | Tr loss=0.3014 mae=0.399 r2=0.474 pcc=0.699 | Vl loss=0.2471 mae=0.403 r2=0.687 pcc=0.868 | Te loss=0.0000 mae=nan r2=0.000 pcc=0.000 | ES 10/80
-/usr/local/lib/python3.8/dist-packages/numpy/core/fromnumeric.py:3372: RuntimeWarning: Mean of empty slice.
-  return _methods._mean(a, axis=axis, dtype=dtype,
-/usr/local/lib/python3.8/dist-packages/numpy/core/_methods.py:170: RuntimeWarning: invalid value encountered in double_scalars
-  ret = ret.dtype.type(ret / rcount)
-2026-05-07 11:11:45,181 | INFO |   Ep  15/300 | Tr loss=0.2959 mae=0.396 r2=0.484 pcc=0.704 | Vl loss=0.2319 mae=0.375 r2=0.707 pcc=0.873 | Te loss=0.0000 mae=nan r2=0.000 pcc=0.000 | ES 11/80
-/usr/local/lib/python3.8/dist-packages/numpy/core/fromnumeric.py:3372: RuntimeWarning: Mean of empty slice.
-  return _methods._mean(a, axis=axis, dtype=dtype,
-/usr/local/lib/python3.8/dist-packages/numpy/core/_methods.py:170: RuntimeWarning: invalid value encountered in double_scalars
-  ret = ret.dtype.type(ret / rcount)
-2026-05-07 11:12:16,702 | INFO |   Ep  16/300 | Tr loss=0.2919 mae=0.394 r2=0.491 pcc=0.710 | Vl loss=0.2461 mae=0.391 r2=0.689 pcc=0.868 | Te loss=0.0000 mae=nan r2=0.000 pcc=0.000 | ES 12/80
-/usr/local/lib/python3.8/dist-packages/numpy/core/fromnumeric.py:3372: RuntimeWarning: Mean of empty slice.
-  return _methods._mean(a, axis=axis, dtype=dtype,
-/usr/local/lib/python3.8/dist-packages/numpy/core/_methods.py:170: RuntimeWarning: invalid value encountered in double_scalars
-  ret = ret.dtype.type(ret / rcount)
-2026-05-07 11:12:48,269 | INFO |   Ep  17/300 | Tr loss=0.2863 mae=0.388 r2=0.500 pcc=0.714 | Vl loss=0.2376 mae=0.388 r2=0.699 pcc=0.871 | Te loss=0.0000 mae=nan r2=0.000 pcc=0.000 | ES 13/80
-/usr/local/lib/python3.8/dist-packages/numpy/core/fromnumeric.py:3372: RuntimeWarning: Mean of empty slice.
-  return _methods._mean(a, axis=axis, dtype=dtype,
-/usr/local/lib/python3.8/dist-packages/numpy/core/_methods.py:170: RuntimeWarning: invalid value encountered in double_scalars
-  ret = ret.dtype.type(ret / rcount)
-2026-05-07 11:13:19,849 | INFO |   Ep  18/300 | Tr loss=0.2879 mae=0.388 r2=0.497 pcc=0.713 | Vl loss=0.2435 mae=0.392 r2=0.692 pcc=0.870 | Te loss=0.0000 mae=nan r2=0.000 pcc=0.000 | ES 14/80
-/usr/local/lib/python3.8/dist-packages/numpy/core/fromnumeric.py:3372: RuntimeWarning: Mean of empty slice.
-  return _methods._mean(a, axis=axis, dtype=dtype,
-/usr/local/lib/python3.8/dist-packages/numpy/core/_methods.py:170: RuntimeWarning: invalid value encountered in double_scalars
-  ret = ret.dtype.type(ret / rcount)
-2026-05-07 11:13:51,635 | INFO |   Ep  19/300 | Tr loss=0.2821 mae=0.384 r2=0.508 pcc=0.719 | Vl loss=0.2410 mae=0.388 r2=0.695 pcc=0.870 | Te loss=0.0000 mae=nan r2=0.000 pcc=0.000 | ES 15/80
-/usr/local/lib/python3.8/dist-packages/numpy/core/fromnumeric.py:3372: RuntimeWarning: Mean of empty slice.
-  return _methods._mean(a, axis=axis, dtype=dtype,
-/usr/local/lib/python3.8/dist-packages/numpy/core/_methods.py:170: RuntimeWarning: invalid value encountered in double_scalars
-  ret = ret.dtype.type(ret / rcount)
-2026-05-07 11:14:23,312 | INFO |   Ep  20/300 | Tr loss=0.2836 mae=0.387 r2=0.505 pcc=0.717 | Vl loss=0.2311 mae=0.375 r2=0.707 pcc=0.872 | Te loss=0.0000 mae=nan r2=0.000 pcc=0.000 | ES 16/80
-/usr/local/lib/python3.8/dist-packages/numpy/core/fromnumeric.py:3372: RuntimeWarning: Mean of empty slice.
-  return _methods._mean(a, axis=axis, dtype=dtype,
-/usr/local/lib/python3.8/dist-packages/numpy/core/_methods.py:170: RuntimeWarning: invalid value encountered in double_scalars
-  ret = ret.dtype.type(ret / rcount)
-2026-05-07 11:14:54,853 | INFO |   Ep  21/300 | Tr loss=0.2857 mae=0.387 r2=0.501 pcc=0.715 | Vl loss=0.2399 mae=0.385 r2=0.696 pcc=0.870 | Te loss=0.0000 mae=nan r2=0.000 pcc=0.000 | ES 17/80
-/usr/local/lib/python3.8/dist-packages/numpy/core/fromnumeric.py:3372: RuntimeWarning: Mean of empty slice.
-  return _methods._mean(a, axis=axis, dtype=dtype,
-/usr/local/lib/python3.8/dist-packages/numpy/core/_methods.py:170: RuntimeWarning: invalid value encountered in double_scalars
-  ret = ret.dtype.type(ret / rcount)
-2026-05-07 11:15:26,242 | INFO |   Ep  22/300 | Tr loss=0.2802 mae=0.381 r2=0.511 pcc=0.720 | Vl loss=0.2379 mae=0.384 r2=0.699 pcc=0.872 | Te loss=0.0000 mae=nan r2=0.000 pcc=0.000 | ES 18/80
-/usr/local/lib/python3.8/dist-packages/numpy/core/fromnumeric.py:3372: RuntimeWarning: Mean of empty slice.
-  return _methods._mean(a, axis=axis, dtype=dtype,
-/usr/local/lib/python3.8/dist-packages/numpy/core/_methods.py:170: RuntimeWarning: invalid value encountered in double_scalars
-  ret = ret.dtype.type(ret / rcount)
-2026-05-07 11:15:58,276 | INFO |   Ep  23/300 | Tr loss=0.2802 mae=0.382 r2=0.511 pcc=0.720 | Vl loss=0.2343 mae=0.375 r2=0.703 pcc=0.873 | Te loss=0.0000 mae=nan r2=0.000 pcc=0.000 | ES 19/80
-/usr/local/lib/python3.8/dist-packages/numpy/core/fromnumeric.py:3372: RuntimeWarning: Mean of empty slice.
-  return _methods._mean(a, axis=axis, dtype=dtype,
-/usr/local/lib/python3.8/dist-packages/numpy/core/_methods.py:170: RuntimeWarning: invalid value encountered in double_scalars
-  ret = ret.dtype.type(ret / rcount)
-2026-05-07 11:16:29,962 | INFO |   Ep  24/300 | Tr loss=0.2805 mae=0.384 r2=0.510 pcc=0.720 | Vl loss=0.2327 mae=0.375 r2=0.705 pcc=0.875 | Te loss=0.0000 mae=nan r2=0.000 pcc=0.000 | ES 20/80
-/usr/local/lib/python3.8/dist-packages/numpy/core/fromnumeric.py:3372: RuntimeWarning: Mean of empty slice.
-  return _methods._mean(a, axis=axis, dtype=dtype,
-/usr/local/lib/python3.8/dist-packages/numpy/core/_methods.py:170: RuntimeWarning: invalid value encountered in double_scalars
-  ret = ret.dtype.type(ret / rcount)
-2026-05-07 11:17:02,392 | INFO |   Ep  25/300 | Tr loss=0.2802 mae=0.383 r2=0.511 pcc=0.720 | Vl loss=0.2392 mae=0.384 r2=0.697 pcc=0.872 | Te loss=0.0000 mae=nan r2=0.000 pcc=0.000 | ES 21/80
-/usr/local/lib/python3.8/dist-packages/numpy/core/fromnumeric.py:3372: RuntimeWarning: Mean of empty slice.
-  return _methods._mean(a, axis=axis, dtype=dtype,
-/usr/local/lib/python3.8/dist-packages/numpy/core/_methods.py:170: RuntimeWarning: invalid value encountered in double_scalars
-  ret = ret.dtype.type(ret / rcount)
-2026-05-07 11:17:34,227 | INFO |   Ep  26/300 | Tr loss=0.2771 mae=0.379 r2=0.516 pcc=0.723 | Vl loss=0.2370 mae=0.380 r2=0.700 pcc=0.872 | Te loss=0.0000 mae=nan r2=0.000 pcc=0.000 | ES 22/80
-/usr/local/lib/python3.8/dist-packages/numpy/core/fromnumeric.py:3372: RuntimeWarning: Mean of empty slice.
-  return _methods._mean(a, axis=axis, dtype=dtype,
-/usr/local/lib/python3.8/dist-packages/numpy/core/_methods.py:170: RuntimeWarning: invalid value encountered in double_scalars
-  ret = ret.dtype.type(ret / rcount)
-2026-05-07 11:18:06,158 | INFO |   Ep  27/300 | Tr loss=0.2784 mae=0.381 r2=0.514 pcc=0.722 | Vl loss=0.2253 mae=0.362 r2=0.715 pcc=0.876 | Te loss=0.0000 mae=nan r2=0.000 pcc=0.000 | ES 23/80
-/usr/local/lib/python3.8/dist-packages/numpy/core/fromnumeric.py:3372: RuntimeWarning: Mean of empty slice.
-  return _methods._mean(a, axis=axis, dtype=dtype,
-/usr/local/lib/python3.8/dist-packages/numpy/core/_methods.py:170: RuntimeWarning: invalid value encountered in double_scalars
-  ret = ret.dtype.type(ret / rcount)
-2026-05-07 11:18:38,537 | INFO |   Ep  28/300 | Tr loss=0.2771 mae=0.382 r2=0.516 pcc=0.723 | Vl loss=0.2280 mae=0.366 r2=0.711 pcc=0.875 | Te loss=0.0000 mae=nan r2=0.000 pcc=0.000 | ES 24/80
-/usr/local/lib/python3.8/dist-packages/numpy/core/fromnumeric.py:3372: RuntimeWarning: Mean of empty slice.
-  return _methods._mean(a, axis=axis, dtype=dtype,
-/usr/local/lib/python3.8/dist-packages/numpy/core/_methods.py:170: RuntimeWarning: invalid value encountered in double_scalars
-  ret = ret.dtype.type(ret / rcount)
-2026-05-07 11:19:10,360 | INFO |   Ep  29/300 | Tr loss=0.2746 mae=0.377 r2=0.520 pcc=0.726 | Vl loss=0.2265 mae=0.365 r2=0.713 pcc=0.876 | Te loss=0.0000 mae=nan r2=0.000 pcc=0.000 | ES 25/80
-/usr/local/lib/python3.8/dist-packages/numpy/core/fromnumeric.py:3372: RuntimeWarning: Mean of empty slice.
-  return _methods._mean(a, axis=axis, dtype=dtype,
-/usr/local/lib/python3.8/dist-packages/numpy/core/_methods.py:170: RuntimeWarning: invalid value encountered in double_scalars
-  ret = ret.dtype.type(ret / rcount)
-2026-05-07 11:19:42,243 | INFO |   Ep  30/300 | Tr loss=0.2740 mae=0.377 r2=0.521 pcc=0.727 | Vl loss=0.2329 mae=0.376 r2=0.705 pcc=0.874 | Te loss=0.0000 mae=nan r2=0.000 pcc=0.000 | ES 26/80
-/usr/local/lib/python3.8/dist-packages/numpy/core/fromnumeric.py:3372: RuntimeWarning: Mean of empty slice.
-  return _methods._mean(a, axis=axis, dtype=dtype,
-/usr/local/lib/python3.8/dist-packages/numpy/core/_methods.py:170: RuntimeWarning: invalid value encountered in double_scalars
-  ret = ret.dtype.type(ret / rcount)
-2026-05-07 11:20:13,955 | INFO |   Ep  31/300 | Tr loss=0.2761 mae=0.380 r2=0.518 pcc=0.724 | Vl loss=0.2249 mae=0.364 r2=0.715 pcc=0.877 | Te loss=0.0000 mae=nan r2=0.000 pcc=0.000 | ES 27/80
-/usr/local/lib/python3.8/dist-packages/numpy/core/fromnumeric.py:3372: RuntimeWarning: Mean of empty slice.
-  return _methods._mean(a, axis=axis, dtype=dtype,
-/usr/local/lib/python3.8/dist-packages/numpy/core/_methods.py:170: RuntimeWarning: invalid value encountered in double_scalars
-  ret = ret.dtype.type(ret / rcount)
-2026-05-07 11:20:45,615 | INFO |   Ep  32/300 | Tr loss=0.2740 mae=0.379 r2=0.522 pcc=0.727 | Vl loss=0.2298 mae=0.372 r2=0.709 pcc=0.875 | Te loss=0.0000 mae=nan r2=0.000 pcc=0.000 | ES 28/80
-/usr/local/lib/python3.8/dist-packages/numpy/core/fromnumeric.py:3372: RuntimeWarning: Mean of empty slice.
-  return _methods._mean(a, axis=axis, dtype=dtype,
-/usr/local/lib/python3.8/dist-packages/numpy/core/_methods.py:170: RuntimeWarning: invalid value encountered in double_scalars
-  ret = ret.dtype.type(ret / rcount)
-2026-05-07 11:21:17,316 | INFO |   Ep  33/300 | Tr loss=0.2730 mae=0.377 r2=0.524 pcc=0.727 | Vl loss=0.2210 mae=0.357 r2=0.720 pcc=0.878 | Te loss=0.0000 mae=nan r2=0.000 pcc=0.000 | ES 29/80
-/usr/local/lib/python3.8/dist-packages/numpy/core/fromnumeric.py:3372: RuntimeWarning: Mean of empty slice.
-  return _methods._mean(a, axis=axis, dtype=dtype,
-/usr/local/lib/python3.8/dist-packages/numpy/core/_methods.py:170: RuntimeWarning: invalid value encountered in double_scalars
-  ret = ret.dtype.type(ret / rcount)
-2026-05-07 11:21:49,472 | INFO |   Ep  34/300 | Tr loss=0.2738 mae=0.378 r2=0.522 pcc=0.726 | Vl loss=0.2212 mae=0.358 r2=0.720 pcc=0.878 | Te loss=0.0000 mae=nan r2=0.000 pcc=0.000 | ES 30/80
-/usr/local/lib/python3.8/dist-packages/numpy/core/fromnumeric.py:3372: RuntimeWarning: Mean of empty slice.
-  return _methods._mean(a, axis=axis, dtype=dtype,
-/usr/local/lib/python3.8/dist-packages/numpy/core/_methods.py:170: RuntimeWarning: invalid value encountered in double_scalars
-  ret = ret.dtype.type(ret / rcount)
-2026-05-07 11:22:21,577 | INFO |   Ep  35/300 | Tr loss=0.2722 mae=0.376 r2=0.525 pcc=0.728 | Vl loss=0.2207 mae=0.356 r2=0.721 pcc=0.878 | Te loss=0.0000 mae=nan r2=0.000 pcc=0.000 | ES 31/80
-/usr/local/lib/python3.8/dist-packages/numpy/core/fromnumeric.py:3372: RuntimeWarning: Mean of empty slice.
-  return _methods._mean(a, axis=axis, dtype=dtype,
-/usr/local/lib/python3.8/dist-packages/numpy/core/_methods.py:170: RuntimeWarning: invalid value encountered in double_scalars
-  ret = ret.dtype.type(ret / rcount)
-2026-05-07 11:22:53,469 | INFO |   Ep  36/300 | Tr loss=0.2734 mae=0.376 r2=0.523 pcc=0.726 | Vl loss=0.2209 mae=0.358 r2=0.720 pcc=0.879 | Te loss=0.0000 mae=nan r2=0.000 pcc=0.000 | ES 32/80
-/usr/local/lib/python3.8/dist-packages/numpy/core/fromnumeric.py:3372: RuntimeWarning: Mean of empty slice.
-  return _methods._mean(a, axis=axis, dtype=dtype,
-/usr/local/lib/python3.8/dist-packages/numpy/core/_methods.py:170: RuntimeWarning: invalid value encountered in double_scalars
-  ret = ret.dtype.type(ret / rcount)
-2026-05-07 11:23:25,212 | INFO |   Ep  37/300 | Tr loss=0.2734 mae=0.377 r2=0.523 pcc=0.727 | Vl loss=0.2237 mae=0.361 r2=0.717 pcc=0.878 | Te loss=0.0000 mae=nan r2=0.000 pcc=0.000 | ES 33/80
-/usr/local/lib/python3.8/dist-packages/numpy/core/fromnumeric.py:3372: RuntimeWarning: Mean of empty slice.
-  return _methods._mean(a, axis=axis, dtype=dtype,
-/usr/local/lib/python3.8/dist-packages/numpy/core/_methods.py:170: RuntimeWarning: invalid value encountered in double_scalars
-  ret = ret.dtype.type(ret / rcount)
-2026-05-07 11:23:57,445 | INFO |   Ep  38/300 | Tr loss=0.2685 mae=0.375 r2=0.531 pcc=0.732 | Vl loss=0.2247 mae=0.363 r2=0.716 pcc=0.877 | Te loss=0.0000 mae=nan r2=0.000 pcc=0.000 | ES 34/80
-/usr/local/lib/python3.8/dist-packages/numpy/core/fromnumeric.py:3372: RuntimeWarning: Mean of empty slice.
-  return _methods._mean(a, axis=axis, dtype=dtype,
-/usr/local/lib/python3.8/dist-packages/numpy/core/_methods.py:170: RuntimeWarning: invalid value encountered in double_scalars
-  ret = ret.dtype.type(ret / rcount)
-2026-05-07 11:24:29,604 | INFO |   Ep  39/300 | Tr loss=0.2725 mae=0.377 r2=0.524 pcc=0.727 | Vl loss=0.2228 mae=0.359 r2=0.718 pcc=0.878 | Te loss=0.0000 mae=nan r2=0.000 pcc=0.000 | ES 35/80
-/usr/local/lib/python3.8/dist-packages/numpy/core/fromnumeric.py:3372: RuntimeWarning: Mean of empty slice.
-  return _methods._mean(a, axis=axis, dtype=dtype,
-/usr/local/lib/python3.8/dist-packages/numpy/core/_methods.py:170: RuntimeWarning: invalid value encountered in double_scalars
-  ret = ret.dtype.type(ret / rcount)
-2026-05-07 11:25:01,619 | INFO |   Ep  40/300 | Tr loss=0.2727 mae=0.377 r2=0.524 pcc=0.727 | Vl loss=0.2226 mae=0.359 r2=0.718 pcc=0.877 | Te loss=0.0000 mae=nan r2=0.000 pcc=0.000 | ES 36/80
-/usr/local/lib/python3.8/dist-packages/numpy/core/fromnumeric.py:3372: RuntimeWarning: Mean of empty slice.
-  return _methods._mean(a, axis=axis, dtype=dtype,
-/usr/local/lib/python3.8/dist-packages/numpy/core/_methods.py:170: RuntimeWarning: invalid value encountered in double_scalars
-  ret = ret.dtype.type(ret / rcount)
-2026-05-07 11:25:33,981 | INFO |   Ep  41/300 | Tr loss=0.2705 mae=0.376 r2=0.528 pcc=0.730 | Vl loss=0.2197 mae=0.355 r2=0.722 pcc=0.879 | Te loss=0.0000 mae=nan r2=0.000 pcc=0.000 | ES 37/80
-  Val  : correct=2709  erroneous=1352 | mean=4.087  std=0.891
-  Test : correct=   0  erroneous=   0 | mean=nan  std=nan
-
-Person coverage per split (leakage check):
-  Train: 16 persons → ['P0', 'P1', 'P10', 'P11', 'P12', 'P13', 'P14', 'P15', 'P2', 'P3', 'P4', 'P5', 'P6', 'P7', 'P8', 'P9']
-  Val  : 16 persons → ['P0', 'P1', 'P10', 'P11', 'P12', 'P13', 'P14', 'P15', 'P2', 'P3', 'P4', 'P5', 'P6', 'P7', 'P8', 'P9']
-  Test : 0 persons → []
-
-✓ Train / Val / Test split ready (trial-based)
-✓ Plotting helpers (regression) defined
-✓ EarlyStopping defined (monitoring MAE)
-
-════════════════════════════════════════════════════════════════════
-  Camera CNone  |  Train: 11311  Val: 4061  Test: 0
-  Patience: 80  |  LR: 1e-4  |  Batch: 48
-════════════════════════════════════════════════════════════════════
-  Ep   1/300 | Tr loss=0.9137 mae=0.689 r2=-0.595 pcc=0.347 | Vl loss=0.4600 mae=0.499 r2=0.421 pcc=0.835 | Te loss=0.0000 mae=nan r2=0.000 pcc=0.000 | ES 0/80 ★
-    ★ val_mae=0.4990  rmse=0.6778  r2=0.4211  pcc=0.8352
-  Ep   2/300 | Tr loss=0.5668 mae=0.554 r2=0.010 pcc=0.554 | Vl loss=0.2366 mae=0.354 r2=0.703 pcc=0.858 | Te loss=0.0000 mae=nan r2=0.000 pcc=0.000 | ES 0/80 ★
-    ★ val_mae=0.3540  rmse=0.4854  r2=0.7031  pcc=0.8579
-  Ep   3/300 | Tr loss=0.4606 mae=0.502 r2=0.196 pcc=0.612 | Vl loss=0.2366 mae=0.342 r2=0.702 pcc=0.850 | Te loss=0.0000 mae=nan r2=0.000 pcc=0.000 | ES 0/80 ★
-    ★ val_mae=0.3423  rmse=0.4860  r2=0.7024  pcc=0.8505
-  Ep   4/300 | Tr loss=0.4062 mae=0.475 r2=0.291 pcc=0.642 | Vl loss=0.2132 mae=0.340 r2=0.731 pcc=0.864 | Te loss=0.0000 mae=nan r2=0.000 pcc=0.000 | ES 0/80 ★
-    ★ val_mae=0.3395  rmse=0.4619  r2=0.7311  pcc=0.8638
-  Ep   5/300 | Tr loss=0.3770 mae=0.456 r2=0.342 pcc=0.654 | Vl loss=0.2866 mae=0.435 r2=0.637 pcc=0.841 | Te loss=0.0000 mae=nan r2=0.000 pcc=0.000 | ES 1/80
-  Ep   6/300 | Tr loss=0.3587 mae=0.441 r2=0.374 pcc=0.664 | Vl loss=0.2883 mae=0.439 r2=0.635 pcc=0.848 | Te loss=0.0000 mae=nan r2=0.000 pcc=0.000 | ES 2/80
-  Ep   7/300 | Tr loss=0.3427 mae=0.431 r2=0.402 pcc=0.673 | Vl loss=0.2756 mae=0.429 r2=0.651 pcc=0.852 | Te loss=0.0000 mae=nan r2=0.000 pcc=0.000 | ES 3/80
-  Ep   8/300 | Tr loss=0.3363 mae=0.426 r2=0.413 pcc=0.675 | Vl loss=0.2645 mae=0.423 r2=0.665 pcc=0.859 | Te loss=0.0000 mae=nan r2=0.000 pcc=0.000 | ES 4/80
-  Ep   9/300 | Tr loss=0.3248 mae=0.418 r2=0.433 pcc=0.682 | Vl loss=0.2756 mae=0.439 r2=0.651 pcc=0.857 | Te loss=0.0000 mae=nan r2=0.000 pcc=0.000 | ES 5/80
-  Ep  10/300 | Tr loss=0.3152 mae=0.412 r2=0.450 pcc=0.689 | Vl loss=0.2519 mae=0.406 r2=0.681 pcc=0.863 | Te loss=0.0000 mae=nan r2=0.000 pcc=0.000 | ES 6/80
-  Ep  11/300 | Tr loss=0.3095 mae=0.405 r2=0.460 pcc=0.695 | Vl loss=0.2453 mae=0.394 r2=0.689 pcc=0.867 | Te loss=0.0000 mae=nan r2=0.000 pcc=0.000 | ES 7/80
-  Ep  12/300 | Tr loss=0.3030 mae=0.401 r2=0.471 pcc=0.699 | Vl loss=0.2636 mae=0.415 r2=0.666 pcc=0.862 | Te loss=0.0000 mae=nan r2=0.000 pcc=0.000 | ES 8/80
-  Ep  13/300 | Tr loss=0.2994 mae=0.400 r2=0.478 pcc=0.702 | Vl loss=0.2506 mae=0.402 r2=0.683 pcc=0.866 | Te loss=0.0000 mae=nan r2=0.000 pcc=0.000 | ES 9/80
-  Ep  14/300 | Tr loss=0.3014 mae=0.399 r2=0.474 pcc=0.699 | Vl loss=0.2471 mae=0.403 r2=0.687 pcc=0.868 | Te loss=0.0000 mae=nan r2=0.000 pcc=0.000 | ES 10/80
-Epoch 00015: reducing learning rate of group 0 to 2.5000e-05.
-  Ep  15/300 | Tr loss=0.2959 mae=0.396 r2=0.484 pcc=0.704 | Vl loss=0.2319 mae=0.375 r2=0.707 pcc=0.873 | Te loss=0.0000 mae=nan r2=0.000 pcc=0.000 | ES 11/80
-  Ep  16/300 | Tr loss=0.2919 mae=0.394 r2=0.491 pcc=0.710 | Vl loss=0.2461 mae=0.391 r2=0.689 pcc=0.868 | Te loss=0.0000 mae=nan r2=0.000 pcc=0.000 | ES 12/80
-  Ep  17/300 | Tr loss=0.2863 mae=0.388 r2=0.500 pcc=0.714 | Vl loss=0.2376 mae=0.388 r2=0.699 pcc=0.871 | Te loss=0.0000 mae=nan r2=0.000 pcc=0.000 | ES 13/80
-  Ep  18/300 | Tr loss=0.2879 mae=0.388 r2=0.497 pcc=0.713 | Vl loss=0.2435 mae=0.392 r2=0.692 pcc=0.870 | Te loss=0.0000 mae=nan r2=0.000 pcc=0.000 | ES 14/80
-  Ep  19/300 | Tr loss=0.2821 mae=0.384 r2=0.508 pcc=0.719 | Vl loss=0.2410 mae=0.388 r2=0.695 pcc=0.870 | Te loss=0.0000 mae=nan r2=0.000 pcc=0.000 | ES 15/80
-  Ep  20/300 | Tr loss=0.2836 mae=0.387 r2=0.505 pcc=0.717 | Vl loss=0.2311 mae=0.375 r2=0.707 pcc=0.872 | Te loss=0.0000 mae=nan r2=0.000 pcc=0.000 | ES 16/80
-  Ep  21/300 | Tr loss=0.2857 mae=0.387 r2=0.501 pcc=0.715 | Vl loss=0.2399 mae=0.385 r2=0.696 pcc=0.870 | Te loss=0.0000 mae=nan r2=0.000 pcc=0.000 | ES 17/80
-  Ep  22/300 | Tr loss=0.2802 mae=0.381 r2=0.511 pcc=0.720 | Vl loss=0.2379 mae=0.384 r2=0.699 pcc=0.872 | Te loss=0.0000 mae=nan r2=0.000 pcc=0.000 | ES 18/80
-  Ep  23/300 | Tr loss=0.2802 mae=0.382 r2=0.511 pcc=0.720 | Vl loss=0.2343 mae=0.375 r2=0.703 pcc=0.873 | Te loss=0.0000 mae=nan r2=0.000 pcc=0.000 | ES 19/80
-  Ep  24/300 | Tr loss=0.2805 mae=0.384 r2=0.510 pcc=0.720 | Vl loss=0.2327 mae=0.375 r2=0.705 pcc=0.875 | Te loss=0.0000 mae=nan r2=0.000 pcc=0.000 | ES 20/80
-  Ep  25/300 | Tr loss=0.2802 mae=0.383 r2=0.511 pcc=0.720 | Vl loss=0.2392 mae=0.384 r2=0.697 pcc=0.872 | Te loss=0.0000 mae=nan r2=0.000 pcc=0.000 | ES 21/80
-Epoch 00026: reducing learning rate of group 0 to 1.2500e-05.
-  Ep  26/300 | Tr loss=0.2771 mae=0.379 r2=0.516 pcc=0.723 | Vl loss=0.2370 mae=0.380 r2=0.700 pcc=0.872 | Te loss=0.0000 mae=nan r2=0.000 pcc=0.000 | ES 22/80
-  Ep  27/300 | Tr loss=0.2784 mae=0.381 r2=0.514 pcc=0.722 | Vl loss=0.2253 mae=0.362 r2=0.715 pcc=0.876 | Te loss=0.0000 mae=nan r2=0.000 pcc=0.000 | ES 23/80
-  Ep  28/300 | Tr loss=0.2771 mae=0.382 r2=0.516 pcc=0.723 | Vl loss=0.2280 mae=0.366 r2=0.711 pcc=0.875 | Te loss=0.0000 mae=nan r2=0.000 pcc=0.000 | ES 24/80
-  Ep  29/300 | Tr loss=0.2746 mae=0.377 r2=0.520 pcc=0.726 | Vl loss=0.2265 mae=0.365 r2=0.713 pcc=0.876 | Te loss=0.0000 mae=nan r2=0.000 pcc=0.000 | ES 25/80
-  Ep  30/300 | Tr loss=0.2740 mae=0.377 r2=0.521 pcc=0.727 | Vl loss=0.2329 mae=0.376 r2=0.705 pcc=0.874 | Te loss=0.0000 mae=nan r2=0.000 pcc=0.000 | ES 26/80
-  Ep  31/300 | Tr loss=0.2761 mae=0.380 r2=0.518 pcc=0.724 | Vl loss=0.2249 mae=0.364 r2=0.715 pcc=0.877 | Te loss=0.0000 mae=nan r2=0.000 pcc=0.000 | ES 27/80
-  Ep  32/300 | Tr loss=0.2740 mae=0.379 r2=0.522 pcc=0.727 | Vl loss=0.2298 mae=0.372 r2=0.709 pcc=0.875 | Te loss=0.0000 mae=nan r2=0.000 pcc=0.000 | ES 28/80
-  Ep  33/300 | Tr loss=0.2730 mae=0.377 r2=0.524 pcc=0.727 | Vl loss=0.2210 mae=0.357 r2=0.720 pcc=0.878 | Te loss=0.0000 mae=nan r2=0.000 pcc=0.000 | ES 29/80
-  Ep  34/300 | Tr loss=0.2738 mae=0.378 r2=0.522 pcc=0.726 | Vl loss=0.2212 mae=0.358 r2=0.720 pcc=0.878 | Te loss=0.0000 mae=nan r2=0.000 pcc=0.000 | ES 30/80
-  Ep  35/300 | Tr loss=0.2722 mae=0.376 r2=0.525 pcc=0.728 | Vl loss=0.2207 mae=0.356 r2=0.721 pcc=0.878 | Te loss=0.0000 mae=nan r2=0.000 pcc=0.000 | ES 31/80
-  Ep  36/300 | Tr loss=0.2734 mae=0.376 r2=0.523 pcc=0.726 | Vl loss=0.2209 mae=0.358 r2=0.720 pcc=0.879 | Te loss=0.0000 mae=nan r2=0.000 pcc=0.000 | ES 32/80
-Epoch 00037: reducing learning rate of group 0 to 6.2500e-06.
-  Ep  37/300 | Tr loss=0.2734 mae=0.377 r2=0.523 pcc=0.727 | Vl loss=0.2237 mae=0.361 r2=0.717 pcc=0.878 | Te loss=0.0000 mae=nan r2=0.000 pcc=0.000 | ES 33/80
-  Ep  38/300 | Tr loss=0.2685 mae=0.375 r2=0.531 pcc=0.732 | Vl loss=0.2247 mae=0.363 r2=0.716 pcc=0.877 | Te loss=0.0000 mae=nan r2=0.000 pcc=0.000 | ES 34/80
-  Ep  39/300 | Tr loss=0.2725 mae=0.377 r2=0.524 pcc=0.727 | Vl loss=0.2228 mae=0.359 r2=0.718 pcc=0.878 | Te loss=0.0000 mae=nan r2=0.000 pcc=0.000 | ES 35/80
-  Ep  40/300 | Tr loss=0.2727 mae=0.377 r2=0.524 pcc=0.727 | Vl loss=0.2226 mae=0.359 r2=0.718 pcc=0.877 | Te loss=0.0000 mae=nan r2=0.000 pcc=0.000 | ES 36/80
-  Ep  41/300 | Tr loss=0.2705 mae=0.376 r2=0.528 pcc=0.730 | Vl loss=0.2197 mae=0.355 r2=0.722 pcc=0.879 | Te loss=0.0000 mae=nan r2=0.000 pcc=0.000 | ES 37/80
-/usr/local/lib/python3.8/dist-packages/numpy/core/fromnumeric.py:3372: RuntimeWarning: Mean of empty slice.
-  return _methods._mean(a, axis=axis, dtype=dtype,
-/usr/local/lib/python3.8/dist-packages/numpy/core/_methods.py:170: RuntimeWarning: invalid value encountered in double_scalars
-  ret = ret.dtype.type(ret / rcount)
-2026-05-07 11:26:06,374 | INFO |   Ep  42/300 | Tr loss=0.2728 mae=0.377 r2=0.524 pcc=0.727 | Vl loss=0.2194 mae=0.353 r2=0.722 pcc=0.879 | Te loss=0.0000 mae=nan r2=0.000 pcc=0.000 | ES 38/80
-/usr/local/lib/python3.8/dist-packages/numpy/core/fromnumeric.py:3372: RuntimeWarning: Mean of empty slice.
-  return _methods._mean(a, axis=axis, dtype=dtype,
-/usr/local/lib/python3.8/dist-packages/numpy/core/_methods.py:170: RuntimeWarning: invalid value encountered in double_scalars
-  ret = ret.dtype.type(ret / rcount)
-2026-05-07 11:26:38,163 | INFO |   Ep  43/300 | Tr loss=0.2738 mae=0.378 r2=0.522 pcc=0.727 | Vl loss=0.2172 mae=0.350 r2=0.725 pcc=0.880 | Te loss=0.0000 mae=nan r2=0.000 pcc=0.000 | ES 39/80
-/usr/local/lib/python3.8/dist-packages/numpy/core/fromnumeric.py:3372: RuntimeWarning: Mean of empty slice.
-  return _methods._mean(a, axis=axis, dtype=dtype,
-/usr/local/lib/python3.8/dist-packages/numpy/core/_methods.py:170: RuntimeWarning: invalid value encountered in double_scalars
-  ret = ret.dtype.type(ret / rcount)
-2026-05-07 11:27:10,276 | INFO |   Ep  44/300 | Tr loss=0.2715 mae=0.375 r2=0.526 pcc=0.729 | Vl loss=0.2185 mae=0.352 r2=0.723 pcc=0.879 | Te loss=0.0000 mae=nan r2=0.000 pcc=0.000 | ES 40/80
-/usr/local/lib/python3.8/dist-packages/numpy/core/fromnumeric.py:3372: RuntimeWarning: Mean of empty slice.
-  return _methods._mean(a, axis=axis, dtype=dtype,
-/usr/local/lib/python3.8/dist-packages/numpy/core/_methods.py:170: RuntimeWarning: invalid value encountered in double_scalars
-  ret = ret.dtype.type(ret / rcount)
-2026-05-07 11:27:42,235 | INFO |   Ep  45/300 | Tr loss=0.2702 mae=0.374 r2=0.529 pcc=0.730 | Vl loss=0.2207 mae=0.355 r2=0.721 pcc=0.878 | Te loss=0.0000 mae=nan r2=0.000 pcc=0.000 | ES 41/80
-/usr/local/lib/python3.8/dist-packages/numpy/core/fromnumeric.py:3372: RuntimeWarning: Mean of empty slice.
-  return _methods._mean(a, axis=axis, dtype=dtype,
-/usr/local/lib/python3.8/dist-packages/numpy/core/_methods.py:170: RuntimeWarning: invalid value encountered in double_scalars
-  ret = ret.dtype.type(ret / rcount)
-2026-05-07 11:28:14,036 | INFO |   Ep  46/300 | Tr loss=0.2687 mae=0.373 r2=0.531 pcc=0.731 | Vl loss=0.2210 mae=0.355 r2=0.720 pcc=0.878 | Te loss=0.0000 mae=nan r2=0.000 pcc=0.000 | ES 42/80
-/usr/local/lib/python3.8/dist-packages/numpy/core/fromnumeric.py:3372: RuntimeWarning: Mean of empty slice.
-  return _methods._mean(a, axis=axis, dtype=dtype,
-/usr/local/lib/python3.8/dist-packages/numpy/core/_methods.py:170: RuntimeWarning: invalid value encountered in double_scalars
-  ret = ret.dtype.type(ret / rcount)
-2026-05-07 11:28:45,866 | INFO |   Ep  47/300 | Tr loss=0.2713 mae=0.375 r2=0.526 pcc=0.729 | Vl loss=0.2198 mae=0.353 r2=0.722 pcc=0.879 | Te loss=0.0000 mae=nan r2=0.000 pcc=0.000 | ES 43/80
-/usr/local/lib/python3.8/dist-packages/numpy/core/fromnumeric.py:3372: RuntimeWarning: Mean of empty slice.
-  return _methods._mean(a, axis=axis, dtype=dtype,
-/usr/local/lib/python3.8/dist-packages/numpy/core/_methods.py:170: RuntimeWarning: invalid value encountered in double_scalars
-  ret = ret.dtype.type(ret / rcount)
-2026-05-07 11:29:18,026 | INFO |   Ep  48/300 | Tr loss=0.2708 mae=0.375 r2=0.527 pcc=0.730 | Vl loss=0.2206 mae=0.354 r2=0.721 pcc=0.878 | Te loss=0.0000 mae=nan r2=0.000 pcc=0.000 | ES 44/80
-/usr/local/lib/python3.8/dist-packages/numpy/core/fromnumeric.py:3372: RuntimeWarning: Mean of empty slice.
-  return _methods._mean(a, axis=axis, dtype=dtype,
-/usr/local/lib/python3.8/dist-packages/numpy/core/_methods.py:170: RuntimeWarning: invalid value encountered in double_scalars
-  ret = ret.dtype.type(ret / rcount)
-2026-05-07 11:29:50,344 | INFO |   Ep  49/300 | Tr loss=0.2692 mae=0.372 r2=0.530 pcc=0.731 | Vl loss=0.2211 mae=0.354 r2=0.720 pcc=0.878 | Te loss=0.0000 mae=nan r2=0.000 pcc=0.000 | ES 45/80
-/usr/local/lib/python3.8/dist-packages/numpy/core/fromnumeric.py:3372: RuntimeWarning: Mean of empty slice.
-  return _methods._mean(a, axis=axis, dtype=dtype,
-/usr/local/lib/python3.8/dist-packages/numpy/core/_methods.py:170: RuntimeWarning: invalid value encountered in double_scalars
-  ret = ret.dtype.type(ret / rcount)
-2026-05-07 11:30:22,091 | INFO |   Ep  50/300 | Tr loss=0.2654 mae=0.372 r2=0.537 pcc=0.736 | Vl loss=0.2213 mae=0.354 r2=0.720 pcc=0.878 | Te loss=0.0000 mae=nan r2=0.000 pcc=0.000 | ES 46/80
-/usr/local/lib/python3.8/dist-packages/numpy/core/fromnumeric.py:3372: RuntimeWarning: Mean of empty slice.
-  return _methods._mean(a, axis=axis, dtype=dtype,
-/usr/local/lib/python3.8/dist-packages/numpy/core/_methods.py:170: RuntimeWarning: invalid value encountered in double_scalars
-  ret = ret.dtype.type(ret / rcount)
-2026-05-07 11:30:53,981 | INFO |   Ep  51/300 | Tr loss=0.2668 mae=0.372 r2=0.534 pcc=0.734 | Vl loss=0.2227 mae=0.357 r2=0.718 pcc=0.877 | Te loss=0.0000 mae=nan r2=0.000 pcc=0.000 | ES 47/80
-/usr/local/lib/python3.8/dist-packages/numpy/core/fromnumeric.py:3372: RuntimeWarning: Mean of empty slice.
-  return _methods._mean(a, axis=axis, dtype=dtype,
-/usr/local/lib/python3.8/dist-packages/numpy/core/_methods.py:170: RuntimeWarning: invalid value encountered in double_scalars
-  ret = ret.dtype.type(ret / rcount)
-2026-05-07 11:31:25,613 | INFO |   Ep  52/300 | Tr loss=0.2731 mae=0.376 r2=0.524 pcc=0.727 | Vl loss=0.2221 mae=0.357 r2=0.719 pcc=0.877 | Te loss=0.0000 mae=nan r2=0.000 pcc=0.000 | ES 48/80
-/usr/local/lib/python3.8/dist-packages/numpy/core/fromnumeric.py:3372: RuntimeWarning: Mean of empty slice.
-  return _methods._mean(a, axis=axis, dtype=dtype,
-/usr/local/lib/python3.8/dist-packages/numpy/core/_methods.py:170: RuntimeWarning: invalid value encountered in double_scalars
-  ret = ret.dtype.type(ret / rcount)
-2026-05-07 11:31:57,507 | INFO |   Ep  53/300 | Tr loss=0.2682 mae=0.371 r2=0.532 pcc=0.733 | Vl loss=0.2225 mae=0.358 r2=0.718 pcc=0.877 | Te loss=0.0000 mae=nan r2=0.000 pcc=0.000 | ES 49/80
-/usr/local/lib/python3.8/dist-packages/numpy/core/fromnumeric.py:3372: RuntimeWarning: Mean of empty slice.
-  return _methods._mean(a, axis=axis, dtype=dtype,
-/usr/local/lib/python3.8/dist-packages/numpy/core/_methods.py:170: RuntimeWarning: invalid value encountered in double_scalars
-  ret = ret.dtype.type(ret / rcount)
-2026-05-07 11:32:29,258 | INFO |   Ep  54/300 | Tr loss=0.2681 mae=0.373 r2=0.532 pcc=0.732 | Vl loss=0.2226 mae=0.358 r2=0.718 pcc=0.877 | Te loss=0.0000 mae=nan r2=0.000 pcc=0.000 | ES 50/80
-/usr/local/lib/python3.8/dist-packages/numpy/core/fromnumeric.py:3372: RuntimeWarning: Mean of empty slice.
-  return _methods._mean(a, axis=axis, dtype=dtype,
-/usr/local/lib/python3.8/dist-packages/numpy/core/_methods.py:170: RuntimeWarning: invalid value encountered in double_scalars
-  ret = ret.dtype.type(ret / rcount)
-2026-05-07 11:33:01,727 | INFO |   Ep  55/300 | Tr loss=0.2696 mae=0.373 r2=0.530 pcc=0.731 | Vl loss=0.2224 mae=0.358 r2=0.718 pcc=0.877 | Te loss=0.0000 mae=nan r2=0.000 pcc=0.000 | ES 51/80
-/usr/local/lib/python3.8/dist-packages/numpy/core/fromnumeric.py:3372: RuntimeWarning: Mean of empty slice.
-  return _methods._mean(a, axis=axis, dtype=dtype,
-/usr/local/lib/python3.8/dist-packages/numpy/core/_methods.py:170: RuntimeWarning: invalid value encountered in double_scalars
-  ret = ret.dtype.type(ret / rcount)
-2026-05-07 11:33:33,629 | INFO |   Ep  56/300 | Tr loss=0.2658 mae=0.372 r2=0.536 pcc=0.735 | Vl loss=0.2195 mae=0.352 r2=0.722 pcc=0.879 | Te loss=0.0000 mae=nan r2=0.000 pcc=0.000 | ES 52/80
-/usr/local/lib/python3.8/dist-packages/numpy/core/fromnumeric.py:3372: RuntimeWarning: Mean of empty slice.
-  return _methods._mean(a, axis=axis, dtype=dtype,
-/usr/local/lib/python3.8/dist-packages/numpy/core/_methods.py:170: RuntimeWarning: invalid value encountered in double_scalars
-  ret = ret.dtype.type(ret / rcount)
-2026-05-07 11:34:05,242 | INFO |   Ep  57/300 | Tr loss=0.2660 mae=0.371 r2=0.536 pcc=0.735 | Vl loss=0.2213 mae=0.356 r2=0.720 pcc=0.878 | Te loss=0.0000 mae=nan r2=0.000 pcc=0.000 | ES 53/80
-/usr/local/lib/python3.8/dist-packages/numpy/core/fromnumeric.py:3372: RuntimeWarning: Mean of empty slice.
-  return _methods._mean(a, axis=axis, dtype=dtype,
-/usr/local/lib/python3.8/dist-packages/numpy/core/_methods.py:170: RuntimeWarning: invalid value encountered in double_scalars
-  ret = ret.dtype.type(ret / rcount)
-2026-05-07 11:34:37,091 | INFO |   Ep  58/300 | Tr loss=0.2664 mae=0.372 r2=0.535 pcc=0.734 | Vl loss=0.2194 mae=0.352 r2=0.722 pcc=0.879 | Te loss=0.0000 mae=nan r2=0.000 pcc=0.000 | ES 54/80
+=================================================================
+  Trial-based split  (seed=42)
+  Correct   trials →  36 total  (25 train / 5 val / 6 test)
+  Erroneous trials →  25 total  (18 train / 4 val / 3 test)
+=================================================================
+Split     Samples   Correct   Erroneous   Q mean   Q std
+2026-05-07 11:36:07,757 | INFO | ======================================================================
+2026-05-07 11:36:07,758 | INFO | STARTING REGRESSION TRAINING  (with Early Stopping on MAE)
+2026-05-07 11:36:07,758 | INFO | ======================================================================
+2026-05-07 11:36:07,758 | INFO | train=10702 val=2397 test=2273
+2026-05-07 11:36:39,418 | INFO |   Ep   1/300 | Tr loss=1.3276 mae=0.826 r2=-0.970 pcc=0.346 | Vl loss=0.3290 mae=0.410 r2=0.500 pcc=0.802 | Te loss=0.4401 mae=0.522 r2=-0.167 pcc=0.646 | ES 0/80 ★
+2026-05-07 11:37:10,532 | INFO |   Ep   2/300 | Tr loss=0.5900 mae=0.562 r2=0.125 pcc=0.609 | Vl loss=0.2233 mae=0.359 r2=0.661 pcc=0.852 | Te loss=0.4304 mae=0.493 r2=-0.142 pcc=0.673 | ES 0/80 ★
+2026-05-07 11:37:42,162 | INFO |   Ep   3/300 | Tr loss=0.4989 mae=0.519 r2=0.260 pcc=0.647 | Vl loss=0.2353 mae=0.361 r2=0.642 pcc=0.825 | Te loss=0.3713 mae=0.443 r2=0.015 pcc=0.660 | ES 1/80
+2026-05-07 11:38:13,587 | INFO |   Ep   4/300 | Tr loss=0.4527 mae=0.493 r2=0.328 pcc=0.665 | Vl loss=0.2314 mae=0.358 r2=0.648 pcc=0.822 | Te loss=0.3574 mae=0.428 r2=0.051 pcc=0.659 | ES 0/80 ★
+2026-05-07 11:38:44,960 | INFO |   Ep   5/300 | Tr loss=0.4236 mae=0.477 r2=0.371 pcc=0.674 | Vl loss=0.2206 mae=0.344 r2=0.664 pcc=0.818 | Te loss=0.2907 mae=0.371 r2=0.227 pcc=0.673 | ES 0/80 ★
+2026-05-07 11:39:16,175 | INFO |   Ep   6/300 | Tr loss=0.3994 mae=0.463 r2=0.407 pcc=0.686 | Vl loss=0.2243 mae=0.343 r2=0.659 pcc=0.817 | Te loss=0.2765 mae=0.366 r2=0.259 pcc=0.689 | ES 0/80 ★
+2026-05-07 11:39:47,662 | INFO |   Ep   7/300 | Tr loss=0.3854 mae=0.454 r2=0.428 pcc=0.692 | Vl loss=0.2165 mae=0.345 r2=0.671 pcc=0.830 | Te loss=0.2667 mae=0.366 r2=0.283 pcc=0.703 | ES 1/80

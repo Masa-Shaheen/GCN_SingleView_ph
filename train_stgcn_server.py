@@ -997,6 +997,100 @@ train_df, val_df, test_df = get_trial_split(
 )
 print('\n✓ Train / Val / Test split ready (trial-based, balanced)')
 
+
+# ══════════════════════════════════════════════════════════════════════════
+# Cell 13.5 — Split quality distribution audit
+# ══════════════════════════════════════════════════════════════════════════
+
+import matplotlib.pyplot as plt
+
+print("=" * 65)
+print("Quality score distribution audit")
+print("=" * 65)
+
+fig, axes = plt.subplots(2, 3, figsize=(15, 8))
+fig.suptitle("Quality Score Distributions per Split", fontsize=14, fontweight='bold')
+
+splits     = [('Train', train_df), ('Val', val_df), ('Test', test_df)]
+trial_types = [('Correct (T≤2)', lambda d: d[d['trial_num'] <= 2]),
+               ('Erroneous (T≥3)', lambda d: d[d['trial_num'] >= 3])]
+
+for col, (split_name, split_df) in enumerate(splits):
+    for row, (type_name, filter_fn) in enumerate(trial_types):
+        ax  = axes[row][col]
+        sub = filter_fn(split_df)
+        if len(sub) == 0:
+            ax.text(0.5, 0.5, 'No data', ha='center', va='center')
+            ax.set_title(f'{split_name} — {type_name}')
+            continue
+        q = sub['quality']
+        ax.hist(q, bins=30, color='steelblue' if row == 0 else 'tomato',
+                edgecolor='black', alpha=0.8)
+        ax.axvline(q.mean(), color='red',    linestyle='--', linewidth=2,
+                   label=f'mean={q.mean():.3f}')
+        ax.axvline(q.median(), color='gold', linestyle=':',  linewidth=2,
+                   label=f'med={q.median():.3f}')
+        ax.set_title(f'{split_name} — {type_name}\n'
+                     f'n={len(sub)}  std={q.std():.3f}  '
+                     f'[{q.min():.2f}, {q.max():.2f}]', fontsize=9)
+        ax.set_xlabel('Quality Score')
+        ax.set_ylabel('Count')
+        ax.legend(fontsize=8)
+        ax.grid(alpha=0.3)
+
+plt.tight_layout()
+save_path = os.path.join(PLOTS_DIR, 'split_quality_distributions.png')
+plt.savefig(save_path, dpi=150, bbox_inches='tight')
+plt.close()
+print(f"  ✓ Saved → {save_path}")
+
+# ── Numeric summary ───────────────────────────────────────────────────────
+print(f"\n{'Split':<8} {'Type':<12} {'n':>6} {'mean':>7} {'std':>7} "
+      f"{'min':>6} {'25%':>6} {'50%':>6} {'75%':>6} {'max':>6}")
+print("-" * 70)
+for split_name, split_df in splits:
+    for type_name, filter_fn in trial_types:
+        sub = filter_fn(split_df)
+        if len(sub) == 0:
+            continue
+        q = sub['quality']
+        print(f"{split_name:<8} {type_name:<12} {len(sub):>6} "
+              f"{q.mean():>7.3f} {q.std():>7.3f} "
+              f"{q.min():>6.2f} {q.quantile(.25):>6.2f} "
+              f"{q.median():>6.2f} {q.quantile(.75):>6.2f} {q.max():>6.2f}")
+    print()
+
+# ── Person × split overlap ────────────────────────────────────────────────
+print("=" * 65)
+print("Person distribution across splits")
+print("=" * 65)
+for split_name, split_df in splits:
+    persons = sorted(split_df['person'].unique())
+    print(f"  {split_name:<6}: {persons}")
+
+# ── Per-person quality mean (to spot outlier persons) ─────────────────────
+print("\nPer-person quality mean per split:")
+for split_name, split_df in splits:
+    print(f"\n  {split_name}:")
+    summary = (split_df.groupby('person')['quality']
+               .agg(['mean', 'std', 'count'])
+               .round(3))
+    print(summary.to_string())
+
+# ── Exercise balance check ────────────────────────────────────────────────
+print("\n" + "=" * 65)
+print("Exercise balance across splits")
+print("=" * 65)
+ex_counts = pd.DataFrame({
+    name: split_df['exercise'].value_counts().sort_index()
+    for name, split_df in splits
+})
+ex_counts.index = [f'E{i}' for i in ex_counts.index]
+ex_counts.columns = ['Train', 'Val', 'Test']
+ex_counts['Train%'] = (ex_counts['Train'] / ex_counts['Train'].sum() * 100).round(1)
+ex_counts['Val%']   = (ex_counts['Val']   / ex_counts['Val'].sum()   * 100).round(1)
+ex_counts['Test%']  = (ex_counts['Test']  / ex_counts['Test'].sum()  * 100).round(1)
+print(ex_counts.to_string())
 # ══════════════════════════════════════════════════════════════════════════
 # Cell 14 — Plotting helpers (regression only)
 # ══════════════════════════════════════════════════════════════════════════
