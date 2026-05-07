@@ -1014,6 +1014,19 @@ def plot_r2(history, save_dir):
     plt.tight_layout()
     save_and_show(fig, os.path.join(save_dir, 'r2_curve.png'))
 
+def plot_pcc(history, save_dir):
+    epochs = range(1, len(history['val_pcc']) + 1)
+    fig, ax = plt.subplots(figsize=(8, 4))
+    ax.plot(epochs, history['train_pcc'], label='Train',      color='steelblue')
+    ax.plot(epochs, history['val_pcc'],   label='Validation', color='darkorange')
+    ax.plot(epochs, history['test_pcc'],  label='Test',       color='green', linestyle='--')
+    ax.axhline(1.0, color='gray', linestyle=':', linewidth=1, label='Perfect (PCC=1)')
+    ax.axhline(0.0, color='red',  linestyle=':', linewidth=1, label='No correlation')
+    ax.set_title('Pearson Correlation Coefficient', fontsize=13, fontweight='bold')
+    ax.set_xlabel('Epoch'); ax.set_ylabel('PCC')
+    ax.legend(fontsize=8); ax.grid(alpha=0.3)
+    plt.tight_layout()
+    save_and_show(fig, os.path.join(save_dir, 'pcc_curve.png'))
 
 def plot_regression_scatter(q_true, q_pred, split_name='Test', save_dir=None):
     qt   = np.array(q_true)
@@ -1171,6 +1184,7 @@ for epoch in range(1, EPOCHS + 1):
         history[f'{split}_rmse'].append(res['rmse'])
         history[f'{split}_mae'].append(res['mae'])
         history[f'{split}_r2'].append(res['r2'])
+        history[f'{split}_pcc'].append(res['pcc'])   # ← ADD THIS
 
     stop, improved = early_stop.step(vl['mae'], model, epoch)
 
@@ -1180,7 +1194,7 @@ for epoch in range(1, EPOCHS + 1):
        f'r2={tr["r2"]:.3f} pcc={tr["pcc"]:.3f} | '
        f'Vl loss={vl["loss"]:.4f} mae={vl["mae"]:.3f} '
        f'r2={vl["r2"]:.3f} pcc={vl["pcc"]:.3f} | '
-       f'Te mae={te["mae"]:.3f} pcc={te["pcc"]:.3f} | '
+       f'Te loss={te["loss"]:.4f} mae={te["mae"]:.3f} r2={te["r2"]:.3f} pcc={te["pcc"]:.3f} | '
        f'ES {early_stop.counter}/{PATIENCE}{star}')
 
 
@@ -1230,6 +1244,7 @@ with torch.no_grad():
 plot_loss_curves(history, PLOTS_DIR)
 plot_rmse_mae(history, PLOTS_DIR)
 plot_r2(history, PLOTS_DIR)
+plot_pcc(history, PLOTS_DIR)   # ← add this line
 plot_regression_scatter(all_true_q, all_pred_q, split_name='Test', save_dir=PLOTS_DIR)
 plot_early_stop(history, stopped_epoch, best_epoch, PLOTS_DIR)
 
