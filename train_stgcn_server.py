@@ -18,7 +18,7 @@ WEIGHT_DECAY  = 1e-4
 OUT_DIR       = "/mvdlph/masa/GCN_SingleView_Regression_Results"
 
 # ── Early Stopping ────────────────────────────────────────────────────────
-PATIENCE  = 50
+PATIENCE  = 80
 MIN_DELTA = 1e-4
 WARMUP_EPOCHS = 10
 
@@ -859,6 +859,8 @@ def centre_and_scale(x):
     return torch.cat([pos, vel], dim=-1)
 
 
+from scipy.stats import pearsonr   # add this at the top of Cell 2 imports
+
 def run_epoch(model, loader, optimiser, reg_fn, is_train=True):
     model.train() if is_train else model.eval()
     total_loss = 0.0
@@ -866,7 +868,7 @@ def run_epoch(model, loader, optimiser, reg_fn, is_train=True):
 
     ctx = torch.enable_grad() if is_train else torch.no_grad()
     with ctx:
-        for skels, qualities, exercise_ids in loader:   # ← أضف exercise_ids
+        for skels, qualities, exercise_ids in loader:
             skels        = centre_and_scale(skels.to(DEVICE))
             qualities    = qualities.to(DEVICE)
             exercise_ids = exercise_ids.to(DEVICE)
@@ -887,12 +889,18 @@ def run_epoch(model, loader, optimiser, reg_fn, is_train=True):
     n  = max(1, len(loader))
     qt = np.array(q_true)
     qp = np.array(q_pred)
+
+    # ── NEW: Pearson Correlation ──────────────────────────────────────────
+    pcc = float(pearsonr(qt, qp)[0]) if len(qt) > 1 else 0.0
+
     return {
         'loss': total_loss / n,
         'rmse': float(np.sqrt(np.mean((qt - qp) ** 2))),
         'mae' : float(np.mean(np.abs(qt - qp))),
         'r2'  : float(r2_score(qt, qp)) if len(qt) > 1 else 0.0,
+        'pcc' : pcc,    # ← NEW
     }
+
 print('✓ centre_and_scale and run_epoch (regression) defined')
 
 
@@ -962,7 +970,7 @@ def plot_loss_curves(history, save_dir):
     ax.plot(epochs, history['train_loss'], label='Train',      color='steelblue')
     ax.plot(epochs, history['val_loss'],   label='Validation', color='darkorange')
     ax.plot(epochs, history['test_loss'],  label='Test',       color='green', linestyle='--')
-    ax.set_title('Regression Loss (SmoothL1)', fontsize=13, fontweight='bold')
+    ax.set_title('Regression Loss (MSE)', fontsize=13, fontweight='bold')
     ax.set_xlabel('Epoch'); ax.set_ylabel('Loss')
     ax.legend(); ax.grid(alpha=0.3)
     plt.tight_layout()
@@ -1118,8 +1126,8 @@ model = GCN_Regression(
 
 optimiser = torch.optim.AdamW(
     model.parameters(),
-    lr           = 1e-4,    # was 3e-4
-    weight_decay = 5e-4,    # was 1e-4
+    lr           = 5e-5,   # was 1e-4
+    weight_decay = 5e-4
 )
 
 # Warmup + cosine schedule
@@ -1129,11 +1137,14 @@ def lr_lambda(epoch):
     progress = (epoch - WARMUP_EPOCHS) / max(1, EPOCHS - WARMUP_EPOCHS)
     return 0.5 * (1.0 + np.cos(np.pi * progress))
 
-scheduler  = torch.optim.lr_scheduler.LambdaLR(optimiser, lr_lambda)
+scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(
+    optimiser, mode='min', factor=0.5,
+    patience=10, min_lr=1e-6, verbose=True
+)
 early_stop = EarlyStopping(patience=PATIENCE, min_delta=MIN_DELTA)
 
 SPLITS  = ['train', 'val', 'test']
-METRICS = ['loss', 'rmse', 'mae', 'r2']
+METRICS = ['loss', 'rmse', 'mae', 'r2', 'pcc'] 
 history = {f'{s}_{m}': [] for s in SPLITS for m in METRICS}
 stopped_epoch = EPOCHS
 
@@ -1145,14 +1156,15 @@ log.info(f'train={len(train_df)} val={len(val_df)} test={len(test_df)}')
 print(f'\n{"═"*68}')
 print(f'  Camera C{CAMERA_ID}  |  Train: {len(train_df)}  '
       f'Val: {len(val_df)}  Test: {len(test_df)}')
-print(f'  Patience: {PATIENCE}  |  LR: {LR}  |  Batch: {BATCH_SIZE}')
+print(f'  Patience: {PATIENCE}  |  LR: 1e-4  |  Batch: {BATCH_SIZE}')
 print(f'{"═"*68}')
 
 for epoch in range(1, EPOCHS + 1):
     tr = run_epoch(model, train_loader, optimiser, reg_fn, is_train=True)
     vl = run_epoch(model, val_loader,   optimiser, reg_fn, is_train=False)
     te = run_epoch(model, test_loader,  optimiser, reg_fn, is_train=False)
-    scheduler.step()
+    scheduler.step(vl['mae'])  # new — pass val MAE
+
 
     for split, res in [('train', tr), ('val', vl), ('test', te)]:
         history[f'{split}_loss'].append(res['loss'])
@@ -1163,17 +1175,22 @@ for epoch in range(1, EPOCHS + 1):
     stop, improved = early_stop.step(vl['mae'], model, epoch)
 
     star = ' ★' if improved else ''
-    msg  = (f'  Ep {epoch:3d}/{EPOCHS} | '
-            f'Tr loss={tr["loss"]:.4f} mae={tr["mae"]:.3f} r2={tr["r2"]:.3f} | '
-            f'Vl loss={vl["loss"]:.4f} mae={vl["mae"]:.3f} r2={vl["r2"]:.3f} | '
-            f'Te loss={te["loss"]:.4f} mae={te["mae"]:.3f} r2={te["r2"]:.3f} | '
-            f'ES {early_stop.counter}/{PATIENCE}{star}')
+    msg = (f'  Ep {epoch:3d}/{EPOCHS} | '
+       f'Tr loss={tr["loss"]:.4f} mae={tr["mae"]:.3f} '
+       f'r2={tr["r2"]:.3f} pcc={tr["pcc"]:.3f} | '
+       f'Vl loss={vl["loss"]:.4f} mae={vl["mae"]:.3f} '
+       f'r2={vl["r2"]:.3f} pcc={vl["pcc"]:.3f} | '
+       f'Te mae={te["mae"]:.3f} pcc={te["pcc"]:.3f} | '
+       f'ES {early_stop.counter}/{PATIENCE}{star}')
+
+
     print(msg)
     log.info(msg)
-
+    # Update the improved print:
     if improved:
         print(f'    ★ val_mae={early_stop.best_mae:.4f}  '
-              f'rmse={vl["rmse"]:.4f}  r2={vl["r2"]:.4f}')
+            f'rmse={vl["rmse"]:.4f}  r2={vl["r2"]:.4f}  pcc={vl["pcc"]:.4f}')
+
 
     if stop:
         stopped_epoch = epoch
@@ -1277,6 +1294,7 @@ bv           = best_epoch - 1   # 0-based index
 best_val_mae  = history['val_mae'][bv]
 best_val_rmse = history['val_rmse'][bv]
 best_val_r2   = history['val_r2'][bv]
+best_val_pcc  = history['val_pcc'][bv]
 
 print('=' * 60)
 print('  TRAINING SUMMARY — ST-GCN Regression (Single View)')
@@ -1285,6 +1303,10 @@ print(f'  Best Epoch       : {best_epoch}  (stopped at {stopped_epoch})')
 print(f'  Best Val MAE     : {best_val_mae:.4f}')
 print(f'  Best Val RMSE    : {best_val_rmse:.4f}')
 print(f'  Best Val R²      : {best_val_r2:.4f}')
+
+print(f'  Best Val PCC     : {best_val_pcc:.4f}')   # ← add this line
+print(f'  Test PCC         : {final_te["pcc"]:.4f}') # ← add this line
+
 print('─' * 60)
 print(f'  Test MAE         : {final_te["mae"]:.4f}')
 print(f'  Test RMSE        : {final_te["rmse"]:.4f}')
@@ -1303,9 +1325,11 @@ pd.DataFrame([{
     'val_mae'      : best_val_mae,
     'val_rmse'     : best_val_rmse,
     'val_r2'       : best_val_r2,
+    'val_pcc'      : best_val_pcc,      # ← NEW
     'test_mae'     : final_te['mae'],
     'test_rmse'    : final_te['rmse'],
     'test_r2'      : final_te['r2'],
+    'test_pcc'     : final_te['pcc'],   # ← NEW
 }]).to_csv(summary_path, index=False)
 print(f'\n✓ Summary CSV saved → {summary_path}')
 log.info('✓ All done!')
