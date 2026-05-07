@@ -1,3 +1,4 @@
+
 # ══════════════════════════════════════════════════════════════════════════
 # Cell 1 — Configuration
 # ══════════════════════════════════════════════════════════════════════════
@@ -1104,35 +1105,52 @@ def save_and_show(fig, path):
     print(f'  ✓ Saved → {path}')
 
 
-def plot_loss_curves(history, save_dir):
+def _add_test_line(ax, val, label, color='green'):
+    """Draw a horizontal dashed line for the final test value."""
+    ax.axhline(val, color=color, linestyle='-.', linewidth=1.5,
+               label=f'Test {label}={val:.4f}')
+
+
+def plot_loss_curves(history, save_dir, test_loss=None):
     epochs = range(1, len(history['train_loss']) + 1)
     fig, ax = plt.subplots(figsize=(10, 4))
     ax.plot(epochs, history['train_loss'], label='Train',      color='steelblue')
     ax.plot(epochs, history['val_loss'],   label='Validation', color='darkorange')
-    # ← no test line
+    if test_loss is not None:
+        _add_test_line(ax, test_loss, 'Loss')
     ax.set_title('Regression Loss (MSE)', fontsize=13, fontweight='bold')
     ax.set_xlabel('Epoch'); ax.set_ylabel('Loss')
     ax.legend(); ax.grid(alpha=0.3)
     plt.tight_layout()
     save_and_show(fig, os.path.join(save_dir, 'loss_curve.png'))
 
-def plot_rmse_mae(history, save_dir):
+
+def plot_rmse_mae(history, save_dir, test_rmse=None, test_mae=None):
     epochs = range(1, len(history['val_rmse']) + 1)
     fig, axes = plt.subplots(1, 2, figsize=(12, 4))
-    fig.suptitle('RMSE & MAE — Train / Val', fontsize=14, fontweight='bold')
-    for ax, metric, title in [(axes[0], 'rmse', 'RMSE'), (axes[1], 'mae', 'MAE')]:
+    fig.suptitle('RMSE & MAE — Train / Val / Test', fontsize=14, fontweight='bold')
+
+    for ax, metric, title, test_val in [
+        (axes[0], 'rmse', 'RMSE', test_rmse),
+        (axes[1], 'mae',  'MAE',  test_mae),
+    ]:
         ax.plot(epochs, history[f'train_{metric}'], label='Train',      color='steelblue')
         ax.plot(epochs, history[f'val_{metric}'],   label='Validation', color='darkorange')
+        if test_val is not None:
+            _add_test_line(ax, test_val, title)
         ax.set_title(title); ax.set_xlabel('Epoch'); ax.set_ylabel(title)
         ax.legend(); ax.grid(alpha=0.3)
     plt.tight_layout()
     save_and_show(fig, os.path.join(save_dir, 'rmse_mae.png'))
 
-def plot_r2(history, save_dir):
+
+def plot_r2(history, save_dir, test_r2=None):
     epochs = range(1, len(history['val_r2']) + 1)
     fig, ax = plt.subplots(figsize=(8, 4))
     ax.plot(epochs, history['train_r2'], label='Train',      color='steelblue')
     ax.plot(epochs, history['val_r2'],   label='Validation', color='darkorange')
+    if test_r2 is not None:
+        _add_test_line(ax, test_r2, 'R²')
     ax.axhline(1.0, color='gray', linestyle=':', linewidth=1, label='Perfect (R²=1)')
     ax.axhline(0.0, color='red',  linestyle=':', linewidth=1, label='Baseline (R²=0)')
     ax.set_title('R² Score', fontsize=13, fontweight='bold')
@@ -1141,11 +1159,14 @@ def plot_r2(history, save_dir):
     plt.tight_layout()
     save_and_show(fig, os.path.join(save_dir, 'r2_curve.png'))
 
-def plot_pcc(history, save_dir):
+
+def plot_pcc(history, save_dir, test_pcc=None):
     epochs = range(1, len(history['val_pcc']) + 1)
     fig, ax = plt.subplots(figsize=(8, 4))
     ax.plot(epochs, history['train_pcc'], label='Train',      color='steelblue')
     ax.plot(epochs, history['val_pcc'],   label='Validation', color='darkorange')
+    if test_pcc is not None:
+        _add_test_line(ax, test_pcc, 'PCC')
     ax.axhline(1.0, color='gray', linestyle=':', linewidth=1, label='Perfect (PCC=1)')
     ax.axhline(0.0, color='red',  linestyle=':', linewidth=1, label='No correlation')
     ax.set_title('Pearson Correlation Coefficient', fontsize=13, fontweight='bold')
@@ -1153,6 +1174,8 @@ def plot_pcc(history, save_dir):
     ax.legend(fontsize=8); ax.grid(alpha=0.3)
     plt.tight_layout()
     save_and_show(fig, os.path.join(save_dir, 'pcc_curve.png'))
+
+
 
 def plot_regression_scatter(q_true, q_pred, split_name='Test', save_dir=None):
     qt   = np.array(q_true)
@@ -1361,12 +1384,13 @@ with torch.no_grad():
         all_exercise_ids.extend(exercise_ids.cpu().numpy())   # ← add this
 
 # ── Save all plots ────────────────────────────────────────────────────────
-plot_loss_curves(history, PLOTS_DIR)
-plot_rmse_mae(history, PLOTS_DIR)
-plot_r2(history, PLOTS_DIR)
-plot_pcc(history, PLOTS_DIR)   # ← add this line
+plot_loss_curves(history, PLOTS_DIR, test_loss=final_te['loss'])
+plot_rmse_mae(history, PLOTS_DIR,    test_rmse=final_te['rmse'], test_mae=final_te['mae'])
+plot_r2(history, PLOTS_DIR,          test_r2=final_te['r2'])
+plot_pcc(history, PLOTS_DIR,         test_pcc=final_te['pcc'])
 plot_regression_scatter(all_true_q, all_pred_q, split_name='Test', save_dir=PLOTS_DIR)
 plot_early_stop(history, stopped_epoch, best_epoch, PLOTS_DIR)
+
 
 # ── Save history JSON ─────────────────────────────────────────────────────
 json_path = os.path.join(LOGS_DIR, 'training_history.json')
