@@ -908,106 +908,87 @@ print('✓ centre_and_scale and run_epoch (regression) defined')
 def get_trial_split(df, train_ratio=0.70, val_ratio=0.15, seed=42):
     rng = np.random.default_rng(seed)
 
-    # ── 1. واحد لكل trial ────────────────────────────────────────────────
+    # ── 1. واحد لكل trial_key ─────────────────────────────────────────
     trial_info = (
         df[['trial_key', 'trial_num', 'person', 'exercise', 'quality']]
         .groupby('trial_key')
         .agg(
             trial_num = ('trial_num', 'first'),
             person    = ('person',    'first'),
-            exercise  = ('exercise',  'first'),  # ← هلق مفيد
+            exercise  = ('exercise',  'first'),
             quality   = ('quality',   'mean'),
         )
         .reset_index()
     )
     trial_info['is_correct'] = trial_info['trial_num'] <= 2
 
-    # ── 2. استراتيجية مختلفة لكل نوع ────────────────────────────────────
-    # Correct: نطاق ضيق [4.1-4.8] → استراتيف بالـ person بس
-    # Erroneous: نطاق واسع [2.6-4.7] → استراتيف بالـ quality bin
+    n_correct   = trial_info['is_correct'].sum()
+    n_erroneous = (~trial_info['is_correct']).sum()
+    print(f"\n  Unique trial_keys : {len(trial_info)}")
+    print(f"  Correct           : {n_correct}")
+    print(f"  Erroneous         : {n_erroneous}")
 
-    def split_by_person(keys_df):
-        """للـ correct: وزّع بحيث كل split فيه persons متنوعين"""
-        persons = keys_df['person'].unique()
-        persons = list(rng.permutation(persons))
-        n  = len(persons)
-        n_tr = max(1, int(round(n * train_ratio)))
-        n_vl = max(1, int(round(n * val_ratio)))
-        if n - n_tr - n_vl < 1:
-            n_tr -= 1
-        tr_p = set(persons[:n_tr])
-        vl_p = set(persons[n_tr:n_tr + n_vl])
-        te_p = set(persons[n_tr + n_vl:])
-        return (
-            keys_df[keys_df['person'].isin(tr_p)]['trial_key'].tolist(),
-            keys_df[keys_df['person'].isin(vl_p)]['trial_key'].tolist(),
-            keys_df[keys_df['person'].isin(te_p)]['trial_key'].tolist(),
-        )
-
-    def split_by_qbin(keys_df):
-        """للـ erroneous: وزّع من كل quality bin"""
-        # 3 bins بس لأن 25 trial
-        keys_df = keys_df.copy()
-        keys_df['q_bin'] = pd.qcut(
-            keys_df['quality'], q=3, labels=False, duplicates='drop'
+    # ── 2. قسّم كل نوع بالـ quality bin ──────────────────────────────
+    def split_by_qbin(df_sub, label, n_bins=3):
+        df_sub = df_sub.copy()
+        df_sub['q_bin'] = pd.qcut(
+            df_sub['quality'], q=n_bins, labels=False, duplicates='drop'
         )
         tr, vl, te = [], [], []
-        print(f"\n  Erroneous quality bins:")
-        for qb, grp in keys_df.groupby('q_bin'):
+        print(f"\n  {label} split by quality bin:")
+        for qb, grp in df_sub.groupby('q_bin'):
             keys = list(rng.permutation(grp['trial_key'].tolist()))
             n    = len(keys)
             n_tr = max(1, int(round(n * train_ratio)))
             n_vl = max(1, int(round(n * val_ratio)))
-            if n - n_tr - n_vl < 1:
-                n_tr -= 1
+            n_te = n - n_tr - n_vl
+            if n_te < 1: n_tr -= 1; n_te = 1
+            if n_vl < 1: n_tr -= 1; n_vl = 1
+
             tr.extend(keys[:n_tr])
             vl.extend(keys[n_tr:n_tr + n_vl])
             te.extend(keys[n_tr + n_vl:])
+
             q = grp['quality']
-            print(f"    bin={int(qb)} [{q.min():.2f}-{q.max():.2f}] "
-                  f"n={n} → {len(keys[:n_tr])} train / "
-                  f"{len(keys[n_tr:n_tr+n_vl])} val / "
-                  f"{len(keys[n_tr+n_vl:])} test")
+            print(f"    bin={int(qb)} [{q.min():.2f}–{q.max():.2f}] "
+                  f"n={n} → {n_tr} train / {n_vl} val / {n_te} test")
         return tr, vl, te
 
     correct_df   = trial_info[trial_info['is_correct']]
     erroneous_df = trial_info[~trial_info['is_correct']]
 
-    tr_c, vl_c, te_c = split_by_person(correct_df)
-    tr_e, vl_e, te_e = split_by_qbin(erroneous_df)
+    # Correct: نطاق ضيق → 2 bins كافية
+    # Erroneous: نطاق واسع → 3 bins
+    tr_c, vl_c, te_c = split_by_qbin(correct_df,   'Correct',   n_bins=2)
+    tr_e, vl_e, te_e = split_by_qbin(erroneous_df, 'Erroneous', n_bins=3)
 
     train_keys = set(tr_c + tr_e)
     val_keys   = set(vl_c + vl_e)
     test_keys  = set(te_c + te_e)
 
-    # ── 3. Sanity ─────────────────────────────────────────────────────────
+    # ── 3. Sanity ──────────────────────────────────────────────────────
     assert train_keys.isdisjoint(val_keys),  "LEAK: train ∩ val"
     assert train_keys.isdisjoint(test_keys), "LEAK: train ∩ test"
     assert val_keys.isdisjoint(test_keys),   "LEAK: val ∩ test"
 
-    # ── 4. DataFrames ─────────────────────────────────────────────────────
+    # ── 4. DataFrames ──────────────────────────────────────────────────
     train_df = df[df['trial_key'].isin(train_keys)].reset_index(drop=True)
     val_df   = df[df['trial_key'].isin(val_keys)].reset_index(drop=True)
     test_df  = df[df['trial_key'].isin(test_keys)].reset_index(drop=True)
 
-    # ── 5. Report ─────────────────────────────────────────────────────────
-    print(f"\n{'='*65}")
-    print(f"  Correct   trials → {len(correct_df):3d} total  "
-          f"({len(tr_c)} train / {len(vl_c)} val / {len(te_c)} test)")
-    print(f"  Erroneous trials → {len(erroneous_df):3d} total  "
-          f"({len(tr_e)} train / {len(vl_e)} val / {len(te_e)} test)")
-    print(f"{'='*65}")
-    print(f"\n{'Split':<8} {'Samples':>8} {'Correct':>9} {'Erroneous':>11} "
+    # ── 5. Report ──────────────────────────────────────────────────────
+    print(f"\n{'='*68}")
+    print(f"  {'Split':<8} {'Samples':>8} {'Correct':>9} {'Erroneous':>11} "
           f"{'Q mean':>8} {'Q std':>7} {'Q min':>7} {'Q max':>7}")
-    print(f"{'-'*65}")
+    print(f"  {'-'*66}")
     for name, d in [('Train', train_df), ('Val', val_df), ('Test', test_df)]:
         cor = (d['trial_num'] <= 2).sum()
         err = (d['trial_num'] >= 3).sum()
         q   = d['quality']
-        print(f"{name:<8} {len(d):>8} {cor:>9} {err:>11} "
+        print(f"  {name:<8} {len(d):>8} {cor:>9} {err:>11} "
               f"{q.mean():>8.3f} {q.std():>7.3f} "
               f"{q.min():>7.3f} {q.max():>7.3f}")
-    print(f"{'='*65}")
+    print(f"{'='*68}")
 
     return train_df, val_df, test_df
 
@@ -1019,6 +1000,7 @@ train_df, val_df, test_df = get_trial_split(
     seed        = 42,
 )
 print('\n✓ Split ready')
+
 # ══════════════════════════════════════════════════════════════════════════
 # Cell 13.5 — Split quality distribution audit
 # ══════════════════════════════════════════════════════════════════════════
