@@ -1109,43 +1109,30 @@ def plot_loss_curves(history, save_dir):
     fig, ax = plt.subplots(figsize=(10, 4))
     ax.plot(epochs, history['train_loss'], label='Train',      color='steelblue')
     ax.plot(epochs, history['val_loss'],   label='Validation', color='darkorange')
-    ax.plot(epochs, history['test_loss'],  label='Test',       color='green', linestyle='--')
+    # ← no test line
     ax.set_title('Regression Loss (MSE)', fontsize=13, fontweight='bold')
     ax.set_xlabel('Epoch'); ax.set_ylabel('Loss')
     ax.legend(); ax.grid(alpha=0.3)
     plt.tight_layout()
     save_and_show(fig, os.path.join(save_dir, 'loss_curve.png'))
 
-
 def plot_rmse_mae(history, save_dir):
     epochs = range(1, len(history['val_rmse']) + 1)
     fig, axes = plt.subplots(1, 2, figsize=(12, 4))
-    fig.suptitle('RMSE & MAE — Train / Val / Test', fontsize=14, fontweight='bold')
-
-    axes[0].plot(epochs, history['train_rmse'], label='Train',      color='steelblue')
-    axes[0].plot(epochs, history['val_rmse'],   label='Validation', color='darkorange')
-    axes[0].plot(epochs, history['test_rmse'],  label='Test',       color='green', linestyle='--')
-    axes[0].set_title('RMSE')
-    axes[0].set_xlabel('Epoch'); axes[0].set_ylabel('RMSE')
-    axes[0].legend(); axes[0].grid(alpha=0.3)
-
-    axes[1].plot(epochs, history['train_mae'], label='Train',      color='steelblue')
-    axes[1].plot(epochs, history['val_mae'],   label='Validation', color='darkorange')
-    axes[1].plot(epochs, history['test_mae'],  label='Test',       color='green', linestyle='--')
-    axes[1].set_title('MAE')
-    axes[1].set_xlabel('Epoch'); axes[1].set_ylabel('MAE')
-    axes[1].legend(); axes[1].grid(alpha=0.3)
-
+    fig.suptitle('RMSE & MAE — Train / Val', fontsize=14, fontweight='bold')
+    for ax, metric, title in [(axes[0], 'rmse', 'RMSE'), (axes[1], 'mae', 'MAE')]:
+        ax.plot(epochs, history[f'train_{metric}'], label='Train',      color='steelblue')
+        ax.plot(epochs, history[f'val_{metric}'],   label='Validation', color='darkorange')
+        ax.set_title(title); ax.set_xlabel('Epoch'); ax.set_ylabel(title)
+        ax.legend(); ax.grid(alpha=0.3)
     plt.tight_layout()
     save_and_show(fig, os.path.join(save_dir, 'rmse_mae.png'))
-
 
 def plot_r2(history, save_dir):
     epochs = range(1, len(history['val_r2']) + 1)
     fig, ax = plt.subplots(figsize=(8, 4))
     ax.plot(epochs, history['train_r2'], label='Train',      color='steelblue')
     ax.plot(epochs, history['val_r2'],   label='Validation', color='darkorange')
-    ax.plot(epochs, history['test_r2'],  label='Test',       color='green', linestyle='--')
     ax.axhline(1.0, color='gray', linestyle=':', linewidth=1, label='Perfect (R²=1)')
     ax.axhline(0.0, color='red',  linestyle=':', linewidth=1, label='Baseline (R²=0)')
     ax.set_title('R² Score', fontsize=13, fontweight='bold')
@@ -1159,7 +1146,6 @@ def plot_pcc(history, save_dir):
     fig, ax = plt.subplots(figsize=(8, 4))
     ax.plot(epochs, history['train_pcc'], label='Train',      color='steelblue')
     ax.plot(epochs, history['val_pcc'],   label='Validation', color='darkorange')
-    ax.plot(epochs, history['test_pcc'],  label='Test',       color='green', linestyle='--')
     ax.axhline(1.0, color='gray', linestyle=':', linewidth=1, label='Perfect (PCC=1)')
     ax.axhline(0.0, color='red',  linestyle=':', linewidth=1, label='No correlation')
     ax.set_title('Pearson Correlation Coefficient', fontsize=13, fontweight='bold')
@@ -1200,12 +1186,10 @@ def plot_regression_scatter(q_true, q_pred, split_name='Test', save_dir=None):
 
 
 def plot_early_stop(history, stopped_epoch, best_epoch, save_dir):
-    """MAE curves annotated with best epoch and early-stop epoch."""
     epochs = range(1, len(history['val_mae']) + 1)
     fig, ax = plt.subplots(figsize=(10, 4))
     ax.plot(epochs, history['train_mae'], label='Train MAE', color='steelblue')
     ax.plot(epochs, history['val_mae'],   label='Val MAE',   color='darkorange')
-    ax.plot(epochs, history['test_mae'],  label='Test MAE',  color='green', linestyle='--')
     ax.axvline(best_epoch,    color='purple', linestyle=':',  linewidth=2,
                label=f'Best epoch ({best_epoch})')
     ax.axvline(stopped_epoch, color='red',    linestyle='--', linewidth=2,
@@ -1215,7 +1199,6 @@ def plot_early_stop(history, stopped_epoch, best_epoch, save_dir):
     ax.legend(); ax.grid(alpha=0.3)
     plt.tight_layout()
     save_and_show(fig, os.path.join(save_dir, 'early_stopping.png'))
-
 
 print('✓ Plotting helpers (regression) defined')
 
@@ -1296,7 +1279,7 @@ scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(
 )
 early_stop = EarlyStopping(patience=PATIENCE, min_delta=MIN_DELTA)
 
-SPLITS  = ['train', 'val', 'test']
+SPLITS  = ['train', 'val']
 METRICS = ['loss', 'rmse', 'mae', 'r2', 'pcc'] 
 history = {f'{s}_{m}': [] for s in SPLITS for m in METRICS}
 stopped_epoch = EPOCHS
@@ -1312,39 +1295,35 @@ print(f'  Camera C{CAMERA_ID}  |  Train: {len(train_df)}  '
 print(f'  Patience: {PATIENCE}  |  LR: 1e-4  |  Batch: {BATCH_SIZE}')
 print(f'{"═"*68}')
 
+# ── REPLACE the per-epoch block inside the for loop ──────────────────────
 for epoch in range(1, EPOCHS + 1):
     tr = run_epoch(model, train_loader, optimiser, reg_fn, is_train=True)
     vl = run_epoch(model, val_loader,   optimiser, reg_fn, is_train=False)
-    te = run_epoch(model, test_loader,  optimiser, reg_fn, is_train=False)
-    scheduler.step(vl['mae'])  # new — pass val MAE
+    # ← NO test evaluation here
+    scheduler.step(vl['mae'])
 
-
-    for split, res in [('train', tr), ('val', vl), ('test', te)]:
+    for split, res in [('train', tr), ('val', vl)]:
         history[f'{split}_loss'].append(res['loss'])
         history[f'{split}_rmse'].append(res['rmse'])
         history[f'{split}_mae'].append(res['mae'])
         history[f'{split}_r2'].append(res['r2'])
-        history[f'{split}_pcc'].append(res['pcc'])   # ← ADD THIS
+        history[f'{split}_pcc'].append(res['pcc'])
 
     stop, improved = early_stop.step(vl['mae'], model, epoch)
 
     star = ' ★' if improved else ''
     msg = (f'  Ep {epoch:3d}/{EPOCHS} | '
-       f'Tr loss={tr["loss"]:.4f} mae={tr["mae"]:.3f} '
-       f'r2={tr["r2"]:.3f} pcc={tr["pcc"]:.3f} | '
-       f'Vl loss={vl["loss"]:.4f} mae={vl["mae"]:.3f} '
-       f'r2={vl["r2"]:.3f} pcc={vl["pcc"]:.3f} | '
-       f'Te loss={te["loss"]:.4f} mae={te["mae"]:.3f} r2={te["r2"]:.3f} pcc={te["pcc"]:.3f} | '
-       f'ES {early_stop.counter}/{PATIENCE}{star}')
-
-
+           f'Tr loss={tr["loss"]:.4f} mae={tr["mae"]:.3f} '
+           f'r2={tr["r2"]:.3f} pcc={tr["pcc"]:.3f} | '
+           f'Vl loss={vl["loss"]:.4f} mae={vl["mae"]:.3f} '
+           f'r2={vl["r2"]:.3f} pcc={vl["pcc"]:.3f} | '
+           f'ES {early_stop.counter}/{PATIENCE}{star}')
     print(msg)
     log.info(msg)
-    # Update the improved print:
+
     if improved:
         print(f'    ★ val_mae={early_stop.best_mae:.4f}  '
-            f'rmse={vl["rmse"]:.4f}  r2={vl["r2"]:.4f}  pcc={vl["pcc"]:.4f}')
-
+              f'rmse={vl["rmse"]:.4f}  r2={vl["r2"]:.4f}  pcc={vl["pcc"]:.4f}')
 
     if stop:
         stopped_epoch = epoch
@@ -1355,13 +1334,13 @@ for epoch in range(1, EPOCHS + 1):
 
 print('\n✓ Training complete!')
 
-
 # ── Restore best weights ──────────────────────────────────────────────────
 model.load_state_dict(early_stop.best_wts)
 best_epoch = early_stop.best_epoch
 
-# ── Final evaluation with best weights ───────────────────────────────────
+# ── Single final test evaluation (only now, with best weights) ────────────
 final_te = run_epoch(model, test_loader, optimiser, reg_fn, is_train=False)
+
 
 print(f'\n  ── Final Test Results (best epoch = {best_epoch}) ──────────────────')
 print(f'  Loss : {final_te["loss"]:.4f}')
@@ -1371,7 +1350,7 @@ print(f'  R²   : {final_te["r2"]:.4f}')
 
 # ── Collect predictions for scatter plot ──────────────────────────────────
 model.eval()
-all_true_q, all_pred_q = [], []
+all_true_q, all_pred_q, all_exercise_ids = [], [], []
 with torch.no_grad():
     for skels, qualities, exercise_ids in test_loader:   # ← أضف exercise_ids
         skels        = centre_and_scale(skels.to(DEVICE))
@@ -1379,6 +1358,7 @@ with torch.no_grad():
         preds        = model(skels, exercise_ids)        # ← أضف exercise_ids
         all_true_q.extend(qualities.numpy())
         all_pred_q.extend(preds.cpu().numpy())
+        all_exercise_ids.extend(exercise_ids.cpu().numpy())   # ← add this
 
 # ── Save all plots ────────────────────────────────────────────────────────
 plot_loss_curves(history, PLOTS_DIR)
@@ -1442,6 +1422,144 @@ for name, df_ in [('Train', train_df), ('Val', val_df), ('Test', test_df)]:
 
 
 # ══════════════════════════════════════════════════════════════════════════
+# Cell 16.5 — Per-exercise test metrics
+# ══════════════════════════════════════════════════════════════════════════
+
+from scipy.stats import pearsonr
+
+all_true_q_arr  = np.array(all_true_q)
+all_pred_q_arr  = np.array(all_pred_q)
+all_ex_arr      = np.array(all_exercise_ids)
+
+unique_exercises = sorted(np.unique(all_ex_arr))
+per_ex_results   = {}
+
+print('=' * 72)
+print(f'  {"Exercise":<12} {"n":>5} {"MAE":>8} {"RMSE":>8} {"R²":>8} {"PCC":>8}')
+print('─' * 72)
+
+for ex_id in unique_exercises:
+    mask = all_ex_arr == ex_id
+    qt   = all_true_q_arr[mask]
+    qp   = all_pred_q_arr[mask]
+    n    = mask.sum()
+
+    mae  = float(np.mean(np.abs(qt - qp)))
+    rmse = float(np.sqrt(np.mean((qt - qp) ** 2)))
+    r2   = float(r2_score(qt, qp))   if n > 1 else float('nan')
+    pcc  = float(pearsonr(qt, qp)[0]) if n > 1 else float('nan')
+
+    per_ex_results[ex_id] = dict(n=n, mae=mae, rmse=rmse, r2=r2, pcc=pcc)
+    print(f'  E{ex_id:<11} {n:>5} {mae:>8.4f} {rmse:>8.4f} {r2:>8.4f} {pcc:>8.4f}')
+
+print('─' * 72)
+# Overall row
+print(f'  {"Overall":<12} {len(all_true_q_arr):>5} '
+      f'{final_te["mae"]:>8.4f} {final_te["rmse"]:>8.4f} '
+      f'{final_te["r2"]:>8.4f} {final_te["pcc"]:>8.4f}')
+print('=' * 72)
+
+# ── Save per-exercise metrics to CSV ─────────────────────────────────────
+per_ex_df = pd.DataFrame([
+    {'exercise': f'E{ex}', **vals}
+    for ex, vals in per_ex_results.items()
+])
+per_ex_csv = os.path.join(LOGS_DIR, 'per_exercise_metrics.csv')
+per_ex_df.to_csv(per_ex_csv, index=False)
+print(f'\n  ✓ Per-exercise CSV → {per_ex_csv}')
+
+# ── Per-exercise scatter plots (grid) ─────────────────────────────────────
+n_ex   = len(unique_exercises)
+n_cols = 3
+n_rows = int(np.ceil(n_ex / n_cols))
+
+fig, axes = plt.subplots(n_rows, n_cols,
+                         figsize=(5 * n_cols, 4.5 * n_rows))
+axes = axes.flatten()
+fig.suptitle('Per-Exercise: True vs Predicted Quality (Test Set)',
+             fontsize=14, fontweight='bold')
+
+for i, ex_id in enumerate(unique_exercises):
+    ax   = axes[i]
+    mask = all_ex_arr == ex_id
+    qt   = all_true_q_arr[mask]
+    qp   = all_pred_q_arr[mask]
+    res  = per_ex_results[ex_id]
+
+    ax.scatter(qt, qp, alpha=0.65, edgecolors='black',
+               linewidths=0.4, color='steelblue', s=55)
+
+    lo = min(qt.min(), qp.min()) - 0.2
+    hi = max(qt.max(), qp.max()) + 0.2
+    ax.plot([lo, hi], [lo, hi], 'r--', linewidth=1.5, label='Perfect')
+    ax.set_xlim(lo, hi); ax.set_ylim(lo, hi)
+
+    ax.set_title(f'Exercise E{ex_id}  (n={res["n"]})',
+                 fontsize=10, fontweight='bold')
+    ax.set_xlabel('True Quality',      fontsize=9)
+    ax.set_ylabel('Predicted Quality', fontsize=9)
+    ax.grid(alpha=0.3)
+
+    textstr = (f'MAE  = {res["mae"]:.3f}\n'
+               f'RMSE = {res["rmse"]:.3f}\n'
+               f'R²   = {res["r2"]:.3f}\n'
+               f'PCC  = {res["pcc"]:.3f}')
+    ax.text(0.05, 0.97, textstr, transform=ax.transAxes,
+            fontsize=8, verticalalignment='top',
+            bbox=dict(boxstyle='round', facecolor='wheat', alpha=0.7))
+
+# hide unused subplots
+for j in range(i + 1, len(axes)):
+    axes[j].set_visible(False)
+
+plt.tight_layout()
+scatter_grid_path = os.path.join(PLOTS_DIR, 'per_exercise_scatter.png')
+plt.savefig(scatter_grid_path, dpi=150, bbox_inches='tight')
+plt.close()
+print(f'  ✓ Per-exercise scatter grid → {scatter_grid_path}')
+
+# ── Bar chart comparison across exercises ────────────────────────────────
+fig, axes = plt.subplots(1, 4, figsize=(16, 4))
+fig.suptitle('Per-Exercise Test Metrics', fontsize=13, fontweight='bold')
+
+ex_labels = [f'E{ex}' for ex in unique_exercises]
+colors    = plt.cm.tab10(np.linspace(0, 1, len(unique_exercises)))
+
+for ax, metric, ylabel, ylim in [
+    (axes[0], 'mae',  'MAE',  None),
+    (axes[1], 'rmse', 'RMSE', None),
+    (axes[2], 'r2',   'R²',   (-1.05, 1.05)),
+    (axes[3], 'pcc',  'PCC',  (-1.05, 1.05)),
+]:
+    vals = [per_ex_results[ex][metric] for ex in unique_exercises]
+    bars = ax.bar(ex_labels, vals, color=colors, edgecolor='black',
+                  linewidth=0.6, alpha=0.85)
+    ax.set_title(ylabel, fontweight='bold')
+    ax.set_ylabel(ylabel)
+    ax.set_xlabel('Exercise')
+    ax.tick_params(axis='x', rotation=45)
+    ax.grid(axis='y', alpha=0.3)
+    if ylim:
+        ax.set_ylim(ylim)
+    # value labels on bars
+    for bar, v in zip(bars, vals):
+        va_pos = bar.get_height() + 0.01 if v >= 0 else bar.get_height() - 0.04
+        ax.text(bar.get_x() + bar.get_width() / 2, va_pos,
+                f'{v:.3f}', ha='center', va='bottom', fontsize=8)
+
+# draw overall mean reference lines
+for ax, metric in zip(axes, ['mae', 'rmse', 'r2', 'pcc']):
+    overall = final_te[metric]
+    ax.axhline(overall, color='red', linestyle='--',
+               linewidth=1.5, label=f'Overall={overall:.3f}')
+    ax.legend(fontsize=8)
+
+plt.tight_layout()
+bar_path = os.path.join(PLOTS_DIR, 'per_exercise_bar.png')
+plt.savefig(bar_path, dpi=150, bbox_inches='tight')
+plt.close()
+print(f'  ✓ Per-exercise bar chart → {bar_path}')
+# ══════════════════════════════════════════════════════════════════════════
 # Cell 17 — Final Summary
 # ══════════════════════════════════════════════════════════════════════════
 
@@ -1462,32 +1580,36 @@ print(f'  Best Val R²      : {best_val_r2:.4f}')
 print(f'  Best Val PCC     : {best_val_pcc:.4f}')   # ← add this line
 print(f'  Test PCC         : {final_te["pcc"]:.4f}') # ← add this line
 
-print('─' * 60)
-print(f'  Test MAE         : {final_te["mae"]:.4f}')
-print(f'  Test RMSE        : {final_te["rmse"]:.4f}')
-print(f'  Test R²          : {final_te["r2"]:.4f}')
-print('=' * 60)
+# print('─' * 60)
+# print(f'  Test MAE         : {final_te["mae"]:.4f}')
+# print(f'  Test RMSE        : {final_te["rmse"]:.4f}')
+# print(f'  Test R²          : {final_te["r2"]:.4f}')
+# print('=' * 60)
 
 log.info(f'Best Epoch={best_epoch}  stopped_epoch={stopped_epoch}')
 log.info(f'Test MAE={final_te["mae"]:.4f}')
 log.info(f'Test RMSE={final_te["rmse"]:.4f}')
 log.info(f'Test R²={final_te["r2"]:.4f}')
 
+
+
 summary_path = os.path.join(OUT_DIR, 'training_summary.csv')
-pd.DataFrame([{
-    'best_epoch'   : best_epoch,
-    'stopped_epoch': stopped_epoch,
-    'val_mae'      : best_val_mae,
-    'val_rmse'     : best_val_rmse,
-    'val_r2'       : best_val_r2,
-    'val_pcc'      : best_val_pcc,      # ← NEW
-    'test_mae'     : final_te['mae'],
-    'test_rmse'    : final_te['rmse'],
-    'test_r2'      : final_te['r2'],
-    'test_pcc'     : final_te['pcc'],   # ← NEW
-}]).to_csv(summary_path, index=False)
-print(f'\n✓ Summary CSV saved → {summary_path}')
-log.info('✓ All done!')
+
+rows = [{'split': 'test_overall', 'exercise': 'all',
+         'best_epoch': best_epoch, 'stopped_epoch': stopped_epoch,
+         'val_mae': best_val_mae,  'val_rmse': best_val_rmse,
+         'val_r2':  best_val_r2,   'val_pcc':  best_val_pcc,
+         'test_mae': final_te['mae'], 'test_rmse': final_te['rmse'],
+         'test_r2':  final_te['r2'], 'test_pcc':  final_te['pcc']}]
+
+for ex, vals in per_ex_results.items():
+    rows.append({'split': 'test_per_exercise', 'exercise': f'E{ex}',
+                 'test_mae': vals['mae'], 'test_rmse': vals['rmse'],
+                 'test_r2':  vals['r2'],  'test_pcc':  vals['pcc'],
+                 'n': vals['n']})
+
+pd.DataFrame(rows).to_csv(summary_path, index=False)
+print(f'\n✓ Summary CSV (overall + per-exercise) → {summary_path}')
 
 sys.stdout.restore()
 print('✓ Log file closed and saved.')
