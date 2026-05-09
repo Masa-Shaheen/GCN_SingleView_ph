@@ -1,33 +1,37 @@
-# ══════════════════════════════════════════════════════════════════════════
-# Cell 1 — Configuration
+# Cell 1 — Configuration  (UNCHANGED except SPLIT_DIR added)
 # ══════════════════════════════════════════════════════════════════════════
 import os
-
+ 
 DATASET_DIR   = "/mvdlph/Dataset_CVDLPT_Videos_Segments_P0P15_MMPose_human3d_motionbert_H36M_3D_1_2026"
+SPLIT_DIR     = os.path.join(DATASET_DIR, "by_person")   # ← NEW: pre-split root
 CSV_PATH      = "/mvdlph/label_events_20260129_155122_stats_short.csv"
 CAMERA_ID     = None
 NPZ_KEY       = "keypoints_3d"
 NUM_JOINTS    = 17
 TARGET_FRAMES = 100
-TRAIN_RATIO   = 0.70
+TRAIN_RATIO   = 0.70   # kept for reference, no longer used for splitting
 VAL_RATIO     = 0.15
 EPOCHS        = 300
 LR            = 3e-4
 BATCH_SIZE    = 48
 WEIGHT_DECAY  = 1e-4
 OUT_DIR       = "/mvdlph/masa/GCN_SingleView_Regression_Results"
-
+ 
 # ── Early Stopping ────────────────────────────────────────────────────────
-PATIENCE  = 80
-MIN_DELTA = 1e-4
+PATIENCE      = 80
+MIN_DELTA     = 1e-4
 WARMUP_EPOCHS = 10
-
+ 
 print('✓ Configuration loaded')
 print(f'  DATASET_DIR : {DATASET_DIR}')
+print(f'  SPLIT_DIR   : {SPLIT_DIR}')
 print(f'  NPZ_KEY     : {NPZ_KEY}')
 print(f'  CAMERA_ID   : C{CAMERA_ID}')
 print(f'  EXISTS      : {os.path.exists(DATASET_DIR)}')
+print(f'  SPLIT EXISTS: {os.path.exists(SPLIT_DIR)}')
 print(f'  PATIENCE    : {PATIENCE} epochs')
+ 
+ 
 
 
 # ══════════════════════════════════════════════════════════════════════════
@@ -254,27 +258,40 @@ def load_skeleton(fpath, key=NPZ_KEY):
 print('✓ parse_filename and load_skeleton defined')
 
 
+ 
 # ══════════════════════════════════════════════════════════════════════════
-# Cell 7 — Build dataset index
+# Cell 7 — Build dataset index FROM PRE-SPLIT DIRECTORIES
+#           Replaces the old build_index + get_trial_split approach entirely.
 # ══════════════════════════════════════════════════════════════════════════
-
-def build_index(dataset_dir, camera_id, df_csv):
+ 
+def build_index_from_split(split_name, df_csv, camera_id=None):
     """
-    Scan all NPZ files for the chosen camera and merge quality labels from CSV.
-    trial_key = 'Pxx_Tyy' used as grouping key to prevent data leakage.
-    Missing quality scores are filled with split-conditional means.
+    Scan one of the pre-split folders  (train | valid | test),
+    parse every NPZ filename, and merge quality labels from the CSV.
+ 
+    Parameters
+    ----------
+    split_name : str   — 'train', 'valid', or 'test'
+    df_csv     : pd.DataFrame — loaded CSV with quality labels
+    camera_id  : int | None  — filter by camera; None = keep all cameras
+ 
+    Returns
+    -------
+    pd.DataFrame with one row per NPZ file, columns:
+        exercise, person, trial_num, trial_id, camera, segment,
+        filepath, quality, trial_key
     """
+    split_path = os.path.join(SPLIT_DIR, split_name)
+    if not os.path.exists(split_path):
+        raise FileNotFoundError(f"Split folder not found: {split_path}")
+ 
+    all_files = sorted(glob.glob(
+        os.path.join(split_path, '**/*.npz'), recursive=True))
+    print(f'\n[{split_name.upper()}] NPZ files found : {len(all_files)}')
+ 
     df_csv         = df_csv.copy()
     df_csv.columns = df_csv.columns.str.strip()
-
-    all_files = sorted(glob.glob(
-        os.path.join(dataset_dir, '**/*.npz'), recursive=True))
-    print(f'NPZ files found (all cameras) : {len(all_files)}')
-
-    if not all_files:
-        print('❌ No NPZ files found — check DATASET_DIR in Cell 1')
-        return pd.DataFrame()
-
+ 
     records = []
     for fpath in all_files:
         meta = parse_filename(fpath)
@@ -282,7 +299,8 @@ def build_index(dataset_dir, camera_id, df_csv):
             continue
         if camera_id is not None and meta['camera'] != camera_id:
             continue
-
+ 
+        # Merge quality label from CSV
         row = df_csv[
             (df_csv['exercise'] == f"E{meta['exercise']}") &
             (df_csv['person']   == meta['person'])          &
@@ -290,58 +308,84 @@ def build_index(dataset_dir, camera_id, df_csv):
         ]
         meta['quality']   = float(row.iloc[0]['mean']) if len(row) > 0 else np.nan
         meta['trial_key'] = f"E{meta['exercise']}_{meta['person']}_{meta['trial_id']}"
-
+        meta['split']     = split_name
         records.append(meta)
-
+ 
     if not records:
-        print(f'❌ No records for camera C{camera_id}. Try CAMERA_ID=1 or 2.')
+        print(f'  ⚠️  No records found for split="{split_name}", camera={camera_id}')
         return pd.DataFrame()
-
+ 
     df = pd.DataFrame(records)
-
-    # Fill NaN quality scores with split-conditional means
+ 
+    # Fill NaN quality with split-conditional means
     correct_mean   = df.loc[df['trial_num'] <= 2, 'quality'].mean()
     erroneous_mean = df.loc[df['trial_num'] >= 3, 'quality'].mean()
     if np.isnan(correct_mean):   correct_mean   = 4.0
     if np.isnan(erroneous_mean): erroneous_mean = 2.5
-
-    mask_correct   = df['quality'].isna() & (df['trial_num'] <= 2)
-    mask_erroneous = df['quality'].isna() & (df['trial_num'] >= 3)
-    df.loc[mask_correct,   'quality'] = correct_mean
-    df.loc[mask_erroneous, 'quality'] = erroneous_mean
-
-    print(f'\n✓ Total samples  (C{camera_id}) : {len(df)}')
-    print(f'✓ Unique trials              : {df["trial_key"].nunique()}')
-    print(f'✓ Quality mean ± std         : {df["quality"].mean():.3f} ± {df["quality"].std():.3f}')
-    print(f'\n✓ Exercise distribution:')
-    print(df['exercise'].value_counts().sort_index())
+ 
+    df.loc[df['quality'].isna() & (df['trial_num'] <= 2), 'quality'] = correct_mean
+    df.loc[df['quality'].isna() & (df['trial_num'] >= 3), 'quality'] = erroneous_mean
+ 
+    print(f'  Samples          : {len(df)}')
+    print(f'  Unique trials    : {df["trial_key"].nunique()}')
+    print(f'  Quality mean±std : {df["quality"].mean():.3f} ± {df["quality"].std():.3f}')
+    print(f'  Exercise dist    :\n{df["exercise"].value_counts().sort_index().to_string()}')
+ 
     return df
-
-
-df_index = build_index(DATASET_DIR, CAMERA_ID, df_csv)
-
-# Filter out corrupted NPZ files
-print("Checking for corrupted files...")
-bad_files = []
-for fpath in df_index['filepath']:
-    skel = load_skeleton(fpath)
-    if skel is None:
-        bad_files.append(fpath)
-
-if bad_files:
-    print(f"  Removing {len(bad_files)} corrupted files from index")
-    for f in bad_files:
-        print(f"    BAD: {f}")
-    df_index = df_index[~df_index['filepath'].isin(bad_files)].reset_index(drop=True)
-
-print(f"  Clean samples remaining: {len(df_index)}")
-
-if len(df_index) > 0:
-    print('\n── Sample rows ──')
-    print(df_index[['exercise', 'person', 'trial_id', 'segment', 'quality']].head(15))
-
-print(df_index['camera'].value_counts().sort_index())
-print(f'\nTotal samples: {len(df_index)}')
+ 
+ 
+def remove_corrupted(df, label=''):
+    """Drop rows whose NPZ file cannot be loaded."""
+    bad = []
+    for fpath in df['filepath']:
+        if load_skeleton(fpath) is None:
+            bad.append(fpath)
+    if bad:
+        print(f'  [{label}] Removing {len(bad)} corrupted file(s)')
+        df = df[~df['filepath'].isin(bad)].reset_index(drop=True)
+    print(f'  [{label}] Clean samples : {len(df)}')
+    return df
+ 
+ 
+# ── Build the three splits ────────────────────────────────────────────────
+train_df = build_index_from_split('train', df_csv, CAMERA_ID)
+val_df   = build_index_from_split('valid', df_csv, CAMERA_ID)
+test_df  = build_index_from_split('test',  df_csv, CAMERA_ID)
+ 
+# ── Remove corrupted files ────────────────────────────────────────────────
+print('\nChecking for corrupted files...')
+train_df = remove_corrupted(train_df, 'TRAIN')
+val_df   = remove_corrupted(val_df,   'VALID')
+test_df  = remove_corrupted(test_df,  'TEST')
+ 
+# ── Combine for shared analysis (optional) ───────────────────────────────
+df_index = pd.concat([train_df, val_df, test_df], ignore_index=True)
+ 
+# ── Sanity: no trial_key appears in more than one split ──────────────────
+tr_keys = set(train_df['trial_key'])
+vl_keys = set(val_df['trial_key'])
+te_keys = set(test_df['trial_key'])
+assert tr_keys.isdisjoint(vl_keys),  'LEAK: train ∩ val'
+assert tr_keys.isdisjoint(te_keys),  'LEAK: train ∩ test'
+assert vl_keys.isdisjoint(te_keys),  'LEAK: val ∩ test'
+print('\n✓ No data-leakage detected across splits')
+ 
+# ── Summary table ─────────────────────────────────────────────────────────
+print(f'\n{"═"*68}')
+print(f'  {"Split":<8} {"Samples":>8} {"Correct":>9} {"Erroneous":>11} '
+      f'{"Q mean":>8} {"Q std":>7} {"Q min":>7} {"Q max":>7}')
+print(f'  {"─"*66}')
+for name, d in [('Train', train_df), ('Val', val_df), ('Test', test_df)]:
+    cor = (d['trial_num'] <= 2).sum()
+    err = (d['trial_num'] >= 3).sum()
+    q   = d['quality']
+    print(f'  {name:<8} {len(d):>8} {cor:>9} {err:>11} '
+          f'{q.mean():>8.3f} {q.std():>7.3f} '
+          f'{q.min():>7.3f} {q.max():>7.3f}')
+print(f'{"═"*68}')
+ 
+print('\n✓ Pre-split index ready  →  train / val / test DataFrames built')
+ 
 
 # ══════════════════════════════════════════════════════════════════════════
 # Cell 7.5 — Camera Distribution Check
@@ -905,101 +949,6 @@ def run_epoch(model, loader, optimiser, reg_fn, is_train=True):
 print('✓ centre_and_scale and run_epoch (regression) defined')
 
 
-def get_trial_split(df, train_ratio=0.70, val_ratio=0.15, seed=42):
-    rng = np.random.default_rng(seed)
-
-    # ── 1. واحد لكل trial_key ─────────────────────────────────────────
-    trial_info = (
-        df[['trial_key', 'trial_num', 'person', 'exercise', 'quality']]
-        .groupby('trial_key')
-        .agg(
-            trial_num = ('trial_num', 'first'),
-            person    = ('person',    'first'),
-            exercise  = ('exercise',  'first'),
-            quality   = ('quality',   'mean'),
-        )
-        .reset_index()
-    )
-    trial_info['is_correct'] = trial_info['trial_num'] <= 2
-
-    n_correct   = trial_info['is_correct'].sum()
-    n_erroneous = (~trial_info['is_correct']).sum()
-    print(f"\n  Unique trial_keys : {len(trial_info)}")
-    print(f"  Correct           : {n_correct}")
-    print(f"  Erroneous         : {n_erroneous}")
-
-    # ── 2. قسّم كل نوع بالـ quality bin ──────────────────────────────
-    def split_by_qbin(df_sub, label, n_bins=3):
-        df_sub = df_sub.copy()
-        df_sub['q_bin'] = pd.qcut(
-            df_sub['quality'], q=n_bins, labels=False, duplicates='drop'
-        )
-        tr, vl, te = [], [], []
-        print(f"\n  {label} split by quality bin:")
-        for qb, grp in df_sub.groupby('q_bin'):
-            keys = list(rng.permutation(grp['trial_key'].tolist()))
-            n    = len(keys)
-            n_tr = max(1, int(round(n * train_ratio)))
-            n_vl = max(1, int(round(n * val_ratio)))
-            n_te = n - n_tr - n_vl
-            if n_te < 1: n_tr -= 1; n_te = 1
-            if n_vl < 1: n_tr -= 1; n_vl = 1
-
-            tr.extend(keys[:n_tr])
-            vl.extend(keys[n_tr:n_tr + n_vl])
-            te.extend(keys[n_tr + n_vl:])
-
-            q = grp['quality']
-            print(f"    bin={int(qb)} [{q.min():.2f}–{q.max():.2f}] "
-                  f"n={n} → {n_tr} train / {n_vl} val / {n_te} test")
-        return tr, vl, te
-
-    correct_df   = trial_info[trial_info['is_correct']]
-    erroneous_df = trial_info[~trial_info['is_correct']]
-
-    # Correct: نطاق ضيق → 2 bins كافية
-    # Erroneous: نطاق واسع → 3 bins
-    tr_c, vl_c, te_c = split_by_qbin(correct_df,   'Correct',   n_bins=2)
-    tr_e, vl_e, te_e = split_by_qbin(erroneous_df, 'Erroneous', n_bins=3)
-
-    train_keys = set(tr_c + tr_e)
-    val_keys   = set(vl_c + vl_e)
-    test_keys  = set(te_c + te_e)
-
-    # ── 3. Sanity ──────────────────────────────────────────────────────
-    assert train_keys.isdisjoint(val_keys),  "LEAK: train ∩ val"
-    assert train_keys.isdisjoint(test_keys), "LEAK: train ∩ test"
-    assert val_keys.isdisjoint(test_keys),   "LEAK: val ∩ test"
-
-    # ── 4. DataFrames ──────────────────────────────────────────────────
-    train_df = df[df['trial_key'].isin(train_keys)].reset_index(drop=True)
-    val_df   = df[df['trial_key'].isin(val_keys)].reset_index(drop=True)
-    test_df  = df[df['trial_key'].isin(test_keys)].reset_index(drop=True)
-
-    # ── 5. Report ──────────────────────────────────────────────────────
-    print(f"\n{'='*68}")
-    print(f"  {'Split':<8} {'Samples':>8} {'Correct':>9} {'Erroneous':>11} "
-          f"{'Q mean':>8} {'Q std':>7} {'Q min':>7} {'Q max':>7}")
-    print(f"  {'-'*66}")
-    for name, d in [('Train', train_df), ('Val', val_df), ('Test', test_df)]:
-        cor = (d['trial_num'] <= 2).sum()
-        err = (d['trial_num'] >= 3).sum()
-        q   = d['quality']
-        print(f"  {name:<8} {len(d):>8} {cor:>9} {err:>11} "
-              f"{q.mean():>8.3f} {q.std():>7.3f} "
-              f"{q.min():>7.3f} {q.max():>7.3f}")
-    print(f"{'='*68}")
-
-    return train_df, val_df, test_df
-
-
-train_df, val_df, test_df = get_trial_split(
-    df_index,
-    train_ratio = TRAIN_RATIO,
-    val_ratio   = VAL_RATIO,
-    seed        = 42,
-)
-print('\n✓ Split ready')
 
 # ══════════════════════════════════════════════════════════════════════════
 # Cell 13.5 — Split quality distribution audit
