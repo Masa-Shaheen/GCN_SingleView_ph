@@ -1233,7 +1233,7 @@ model = GCN_Regression(
 
 optimiser = torch.optim.AdamW(
     model.parameters(),
-    lr           = 5e-5,   # was 1e-4
+    lr           = 1e-4,   # was 5e-5
     weight_decay = 5e-4
 )
 
@@ -1246,7 +1246,7 @@ def lr_lambda(epoch):
 
 scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(
     optimiser, mode='min', factor=0.5,
-    patience=25, min_lr=1e-6, verbose=True
+    patience=30, min_lr=1e-6, verbose=True
 )
 early_stop = EarlyStopping(patience=PATIENCE, min_delta=MIN_DELTA)
 
