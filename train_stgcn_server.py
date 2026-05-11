@@ -243,12 +243,12 @@ def load_skeleton(fpath, key=NPZ_KEY):
         # ── FIX: swap axes so Y=height, Z=depth ──────────────────
         # Original: X=left/right, Y=depth(tiny), Z=height
         # Target:   X=left/right, Y=height,      Z=depth
-        x = arr[:, :, 0].copy()   # left/right  → keep as X
-        y = arr[:, :, 1].copy()   # depth        → becomes Z
-        z = arr[:, :, 2].copy()   # height       → becomes Y
-        arr[:, :, 0] = x
-        arr[:, :, 1] = z          # Y = height (was Z)
-        arr[:, :, 2] = y          # Z = depth  (was Y)
+        # x = arr[:, :, 0].copy()   # left/right  → keep as X
+        # y = arr[:, :, 1].copy()   # depth        → becomes Z
+        # z = arr[:, :, 2].copy()   # height       → becomes Y
+        # arr[:, :, 0] = x
+        # arr[:, :, 1] = z          # Y = height (was Z)
+        # arr[:, :, 2] = y          # Z = depth  (was Y)
         # ──────────────────────────────────────────────────────────
 
         return arr
