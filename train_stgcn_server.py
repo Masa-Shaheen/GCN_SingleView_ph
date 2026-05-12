@@ -1187,7 +1187,7 @@ model = GCN_MultiView_Regression(
     in_features  = 6,
     hidden_dims  = [64, 128, 256],
     dropout      = 0.5,
-    cross_view   = True,
+    cross_view   = False,
 ).to(DEVICE)
 
 optimiser = torch.optim.AdamW(
