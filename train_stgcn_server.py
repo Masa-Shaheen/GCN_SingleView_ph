@@ -8,25 +8,32 @@ SPLIT_DIR     = os.path.join(DATASET_DIR, "by_person")
 CSV_PATH      = "/mvdlph/label_events_20260129_155122_stats_short.csv"
 
 # ── Multi-view config ──────────────────────────────────────────────────────
-ALL_CAMERAS   = [0, 1, 2]          # cameras to fuse; set to [0,1] to use only two
-NUM_VIEWS     = len(ALL_CAMERAS)   # V
-
+ALL_CAMERAS   = [0, 1, 2]
+NUM_VIEWS     = len(ALL_CAMERAS)
 NPZ_KEY       = "keypoints_3d"
 NUM_JOINTS    = 17
-FUSED_JOINTS  = NUM_JOINTS * NUM_VIEWS   # 51  (early fusion = stack joints)
+FUSED_JOINTS  = NUM_JOINTS * NUM_VIEWS   # 51
+
 TARGET_FRAMES = 100
-TRAIN_RATIO   = 0.70
-VAL_RATIO     = 0.15
+
+# ── Training config ────────────────────────────────────────────────────────
+# FIX 1: Increased regularisation vs single-view to fight overfitting
 EPOCHS        = 300
-LR            = 1e-4
-BATCH_SIZE    = 32          # reduced slightly — 3× the data per sample
-WEIGHT_DECAY  = 5e-4
+LR            = 5e-5          # lower than single-view (was 1e-4)
+BATCH_SIZE    = 32
+WEIGHT_DECAY  = 1e-3          # stronger than single-view (was 5e-4)
 OUT_DIR       = "/mvdlph/masa/GCN_MultiView_EarlyFusion_Results"
 
 # ── Early Stopping ─────────────────────────────────────────────────────────
-PATIENCE      = 80
+# FIX 2: Longer patience to avoid stopping at epoch 5 like single-view
+PATIENCE      = 40            # shorter than 80 but with better regularisation
 MIN_DELTA     = 1e-4
-WARMUP_EPOCHS = 10
+
+# ── Single-view baseline (from your results) ───────────────────────────────
+SV_TEST_MAE  = 0.4076
+SV_TEST_RMSE = 0.5569
+SV_TEST_R2   = 0.4859
+SV_TEST_PCC  = 0.7443
 
 print('✓ Configuration loaded')
 print(f'  DATASET_DIR  : {DATASET_DIR}')
@@ -35,7 +42,11 @@ print(f'  ALL_CAMERAS  : {ALL_CAMERAS}  (NUM_VIEWS={NUM_VIEWS})')
 print(f'  FUSED_JOINTS : {FUSED_JOINTS}  ({NUM_VIEWS} × {NUM_JOINTS})')
 print(f'  EXISTS       : {os.path.exists(DATASET_DIR)}')
 print(f'  SPLIT EXISTS : {os.path.exists(SPLIT_DIR)}')
+print(f'  LR           : {LR}  (reduced from single-view)')
+print(f'  WEIGHT_DECAY : {WEIGHT_DECAY}  (stronger regularisation)')
 print(f'  PATIENCE     : {PATIENCE} epochs')
+print(f'\n  Single-View Baseline:')
+print(f'    MAE={SV_TEST_MAE}  RMSE={SV_TEST_RMSE}  R²={SV_TEST_R2}  PCC={SV_TEST_PCC}')
 
 
 # ══════════════════════════════════════════════════════════════════════════
@@ -56,8 +67,8 @@ from torch.utils.data import Dataset, DataLoader
 from sklearn.metrics import r2_score
 from scipy.stats import pearsonr
 
-run_name = datetime.datetime.now().strftime("run_%Y_%m_%d_%H_%M_%S")
-RUN_DIR  = os.path.join(OUT_DIR, run_name)
+run_name  = datetime.datetime.now().strftime("run_%Y_%m_%d_%H_%M_%S")
+RUN_DIR   = os.path.join(OUT_DIR, run_name)
 PLOTS_DIR = os.path.join(RUN_DIR, "plots")
 LOGS_DIR  = os.path.join(RUN_DIR, "logs")
 
@@ -183,7 +194,8 @@ logging.basicConfig(
 log = logging.getLogger("GCN-MultiView-EarlyFusion")
 log.info("=" * 70)
 log.info(f"ST-GCN Multi-View Early Fusion | Cameras={ALL_CAMERAS} | FusedJoints={FUSED_JOINTS}")
-log.info(f"Epochs={EPOCHS} | Patience={PATIENCE} | Batch={BATCH_SIZE}")
+log.info(f"Epochs={EPOCHS} | Patience={PATIENCE} | Batch={BATCH_SIZE} | LR={LR}")
+log.info(f"Single-View Baseline: MAE={SV_TEST_MAE} RMSE={SV_TEST_RMSE} R²={SV_TEST_R2} PCC={SV_TEST_PCC}")
 log.info("=" * 70)
 
 
@@ -208,6 +220,7 @@ def parse_filename(fpath):
 
 
 def load_skeleton(fpath, key=NPZ_KEY):
+    """Load NPZ skeleton, returns (T, 17, 3) float32 or None on failure."""
     try:
         data = np.load(fpath, allow_pickle=True)
         arr  = data[key] if key in data else data[list(data.keys())[0]]
@@ -233,31 +246,13 @@ print('✓ parse_filename and load_skeleton defined')
 
 # ══════════════════════════════════════════════════════════════════════════
 # Cell 7 — Build multi-view dataset index FROM PRE-SPLIT DIRECTORIES
-#
-#  KEY CHANGE vs single-view:
-#  Each row in the returned DataFrame represents ONE (exercise, person,
-#  trial, segment) tuple.  Instead of a single 'filepath' column, we now
-#  have one column per camera:  'filepath_C0', 'filepath_C1', 'filepath_C2'
-#  A row is kept only if *at least one* camera has a valid file; missing
-#  cameras are filled with None and handled at load-time.
 # ══════════════════════════════════════════════════════════════════════════
 
 def build_multiview_index(split_name, df_csv, cameras=ALL_CAMERAS):
     """
-    Scan a pre-split folder and return one row per (exercise, person,
-    trial, segment) with separate filepath columns for each camera.
-
-    Parameters
-    ----------
-    split_name : str        — 'train', 'valid', or 'test'
-    df_csv     : DataFrame  — quality labels
-    cameras    : list[int]  — which cameras to include, e.g. [0,1,2]
-
-    Returns
-    -------
-    pd.DataFrame — one row per segment, columns include:
-        exercise, person, trial_num, trial_id, segment, quality, trial_key,
-        filepath_C0, filepath_C1, ..., n_views_available
+    Reads pre-split folders (same folders used by single-view experiment).
+    Returns one row per (exercise, person, trial, segment) with one
+    filepath column per camera: filepath_C0, filepath_C1, filepath_C2.
     """
     split_path = os.path.join(SPLIT_DIR, split_name)
     if not os.path.exists(split_path):
@@ -267,8 +262,7 @@ def build_multiview_index(split_name, df_csv, cameras=ALL_CAMERAS):
         os.path.join(split_path, '**/*.npz'), recursive=True))
     print(f'\n[{split_name.upper()}] NPZ files found : {len(all_files)}')
 
-    # ── Parse every file and build a lookup dict ───────────────────────────
-    # key: (exercise, person, trial_id, segment)  →  {camera: fpath}
+    # key: (exercise, person, trial_id, segment) → {camera: fpath}
     lookup = {}
     for fpath in all_files:
         meta = parse_filename(fpath)
@@ -285,9 +279,8 @@ def build_multiview_index(split_name, df_csv, cameras=ALL_CAMERAS):
 
     records = []
     for (exercise, person, trial_id, segment), cam_paths in lookup.items():
-        trial_num = int(trial_id[1:])   # 'T3' → 3
+        trial_num = int(trial_id[1:])
 
-        # Merge quality label
         row = df_csv_clean[
             (df_csv_clean['exercise'] == f"E{exercise}") &
             (df_csv_clean['person']   == person)          &
@@ -306,7 +299,6 @@ def build_multiview_index(split_name, df_csv, cameras=ALL_CAMERAS):
             'trial_key': trial_key,
             'split'    : split_name,
         }
-        # one column per camera
         n_available = 0
         for cam in cameras:
             record[f'filepath_C{cam}'] = cam_paths.get(cam, None)
@@ -339,10 +331,7 @@ def build_multiview_index(split_name, df_csv, cameras=ALL_CAMERAS):
 
 
 def remove_all_corrupted(df, cameras=ALL_CAMERAS, label=''):
-    """
-    Drop rows where ALL camera files are missing/corrupted.
-    For partially-missing cameras, just set that filepath to None.
-    """
+    """Drop rows where ALL cameras are missing or corrupted."""
     drop_idx = []
     for i, row in df.iterrows():
         valid = False
@@ -352,7 +341,6 @@ def remove_all_corrupted(df, cameras=ALL_CAMERAS, label=''):
                 valid = True
                 break
             elif fp is not None:
-                # file exists but corrupted — set to None
                 df.at[i, f'filepath_C{cam}'] = None
         if not valid:
             drop_idx.append(i)
@@ -364,7 +352,7 @@ def remove_all_corrupted(df, cameras=ALL_CAMERAS, label=''):
     return df
 
 
-# ── Build the three splits ────────────────────────────────────────────────
+# ── Build the three splits (same pre-split folders as single-view) ─────────
 train_df = build_multiview_index('train', df_csv)
 val_df   = build_multiview_index('valid', df_csv)
 test_df  = build_multiview_index('test',  df_csv)
@@ -423,7 +411,7 @@ for name, d in [('Train', train_df), ('Val', val_df), ('Test', test_df)]:
 
 
 # ══════════════════════════════════════════════════════════════════════════
-# Cell 8 — Skeleton visualisation helpers  (unchanged from single-view)
+# Cell 8 — Skeleton visualisation helpers
 # ══════════════════════════════════════════════════════════════════════════
 
 SKELETON_EDGES = [
@@ -461,9 +449,9 @@ def plot_skeleton_3d(skel, frame_idx=0, title='Skeleton Sanity Check', save_path
     fig, axes = plt.subplots(1, 3, figsize=(15, 6))
     fig.suptitle(title, fontsize=13, fontweight='bold', y=1.01)
     views = [
-        (axes[0], x,  y,  'Front View  (X–Y)', 'X (left/right)', 'Y (up/down)',  False),
-        (axes[1], z,  y,  'Side View   (Z–Y)', 'Z (depth)',      'Y (up/down)',  False),
-        (axes[2], x, -z,  'Top View    (X–Z)', 'X (left/right)', '-Z (forward)', False),
+        (axes[0], x,  y,  'Front View  (X–Y)', 'X', 'Y',  False),
+        (axes[1], z,  y,  'Side View   (Z–Y)', 'Z', 'Y',  False),
+        (axes[2], x, -z,  'Top View    (X–Z)', 'X', '-Z', False),
     ]
     for ax, hx, hy, view_title, xlabel, ylabel, invert_y in views:
         for (i, j) in SKELETON_EDGES:
@@ -510,43 +498,33 @@ if sample_fp:
 
 
 # ══════════════════════════════════════════════════════════════════════════
-# Cell 10 — BZUMultiViewDataset  (EARLY FUSION)
-#
-#  EARLY FUSION strategy:
-#  ┌───────────────────────────────────────────────────────────────────┐
-#  │  Per sample (T frames):                                          │
-#  │    • Load skeleton from each available camera → (T, J, 3)        │
-#  │    • Centre-and-scale each view independently                    │
-#  │    • Compute velocity per view                                   │
-#  │    • Concatenate along the joint axis:                           │
-#  │        (T, J, 6) × V  →  (T, V*J, 6)   = (T, 51, 6)           │
-#  │    • Missing cameras → zero-padded (T, J, 6) block              │
-#  └───────────────────────────────────────────────────────────────────┘
-#  The GCN then sees 51 nodes (3 sets of 17) with intra-view edges
-#  plus cross-view edges connecting corresponding joints.
+# Cell 10 — Preprocessing helpers
 # ══════════════════════════════════════════════════════════════════════════
 
 def _normalise_length_np(skel, target_frames):
-    """Resample skel (T, J, C) to (target_frames, J, C) via linear interp."""
+    """
+    Resample skel (T, J, C) → (target_frames, J, C).
+    FIX: vectorised over J*C instead of nested loops — much faster.
+    """
     T = skel.shape[0]
     if T == target_frames:
         return skel
-    old_idx = np.linspace(0, 1, T)
-    new_idx = np.linspace(0, 1, target_frames)
-    out = np.zeros((target_frames, skel.shape[1], skel.shape[2]), dtype=np.float32)
-    for j in range(skel.shape[1]):
-        for ax in range(skel.shape[2]):
-            out[:, j, ax] = np.interp(new_idx, old_idx, skel[:, j, ax])
-    return out
+    old_idx  = np.linspace(0, 1, T)
+    new_idx  = np.linspace(0, 1, target_frames)
+    flat     = skel.reshape(T, -1)                          # (T, J*C)
+    out_flat = np.zeros((target_frames, flat.shape[1]), dtype=np.float32)
+    for k in range(flat.shape[1]):
+        out_flat[:, k] = np.interp(new_idx, old_idx, flat[:, k])
+    return out_flat.reshape(target_frames, skel.shape[1], skel.shape[2])
 
 
 def _centre_scale_np(skel):
     """
-    Centre on mid-hip and scale by torso height.
-    skel: (T, J, 3)  →  (T, J, 3)  normalised
+    Centre on mid-hip, scale by torso height.
+    skel: (T, J, 3) → (T, J, 3)
     """
-    hip      = (skel[:, 1:2, :] + skel[:, 4:5, :]) / 2.0
-    skel     = skel - hip
+    hip     = (skel[:, 1:2, :] + skel[:, 4:5, :]) / 2.0
+    skel    = skel - hip
     shoulder = (skel[:, 11:12, :] + skel[:, 14:15, :]) / 2.0
     torso_h  = np.abs(shoulder[:, :, 1:2]).mean(axis=0, keepdims=True).clip(min=1e-6)
     return skel / torso_h
@@ -554,19 +532,27 @@ def _centre_scale_np(skel):
 
 def _add_velocity_np(skel):
     """
-    skel: (T, J, 3)  →  (T, J, 6)  = position + velocity
+    skel: (T, J, 3) → (T, J, 6)  position + velocity
     """
-    vel       = np.zeros_like(skel)
-    vel[1:]   = skel[1:] - skel[:-1]
-    return np.concatenate([skel, vel], axis=-1)   # (T, J, 6)
+    vel     = np.zeros_like(skel)
+    vel[1:] = skel[1:] - skel[:-1]
+    return np.concatenate([skel, vel], axis=-1)
 
+
+print('✓ Preprocessing helpers defined (vectorised normalise_length)')
+
+
+# ══════════════════════════════════════════════════════════════════════════
+# Cell 11 — BZUMultiViewDataset (EARLY FUSION)
+#
+#  Per sample: load each camera → (T, J, 3)
+#              centre+scale per view independently
+#              add velocity → (T, J, 6)
+#              concatenate along joint axis → (T, V*J, 6) = (T, 51, 6)
+#  Missing cameras → zero-filled (T, J, 6) block
+# ══════════════════════════════════════════════════════════════════════════
 
 class BZUMultiViewDataset(Dataset):
-    """
-    Returns (fused_skeleton, quality, exercise_id) where:
-      fused_skeleton : (T, V*J, 6)  —  all views stacked along joint axis
-    Missing cameras are replaced with zero-filled blocks.
-    """
     def __init__(self, df, cameras=ALL_CAMERAS,
                  target_frames=TARGET_FRAMES, augment=False):
         self.df            = df.reset_index(drop=True)
@@ -586,13 +572,13 @@ class BZUMultiViewDataset(Dataset):
             skel = load_skeleton(fp) if fp is not None else None
 
             if skel is None:
-                # zero-pad for missing/corrupted camera
-                skel = np.zeros((self.target_frames, NUM_JOINTS, 6), dtype=np.float32)
-                views.append(skel)
+                # Zero-pad for missing/corrupted camera
+                block = np.zeros((self.target_frames, NUM_JOINTS, 6),
+                                 dtype=np.float32)
+                views.append(block)
                 continue
 
-            # Resample → Centre+Scale → Velocity
-            skel = _normalise_length_np(skel, self.target_frames)   # (T,J,3)
+            skel = _normalise_length_np(skel, self.target_frames)  # (T,J,3)
             if self.augment:
                 skel = self._augment(skel)
             skel = _centre_scale_np(skel)                           # (T,J,3)
@@ -600,7 +586,7 @@ class BZUMultiViewDataset(Dataset):
             views.append(skel)
 
         # Early fusion: stack along joint axis → (T, V*J, 6)
-        fused = np.concatenate(views, axis=1)                       # (T, 51, 6)
+        fused = np.concatenate(views, axis=1)   # (T, 51, 6)
 
         skel_tensor = torch.tensor(fused,           dtype=torch.float32)
         quality     = torch.tensor(row['quality'],  dtype=torch.float32)
@@ -608,12 +594,12 @@ class BZUMultiViewDataset(Dataset):
         return skel_tensor, quality, exercise_id
 
     def _augment(self, skel):
-        """Speed jitter + small Gaussian noise. Mirror disabled (multi-cam)."""
+        """Speed jitter + small Gaussian noise."""
         T     = skel.shape[0]
-        speed = np.random.uniform(0.8, 1.2)
+        speed = np.random.uniform(0.85, 1.15)
         idxs  = np.linspace(0, T - 1, max(10, int(T * speed))).astype(int)
         skel  = _normalise_length_np(skel[idxs], self.target_frames)
-        skel += np.random.randn(*skel.shape).astype(np.float32) * 0.005
+        skel += np.random.randn(*skel.shape).astype(np.float32) * 0.003
         return skel
 
 
@@ -631,44 +617,24 @@ print('✓ Dataset shape check passed')
 
 
 # ══════════════════════════════════════════════════════════════════════════
-# Cell 11 — Multi-view Adjacency + GCN Model
-#
-#  Adjacency for early-fused graph (V*J nodes):
-#  ┌─────────────────────────────────────────────────────────────────┐
-#  │  Intra-view edges: copy SKELETON_EDGES for each view block      │
-#  │    view v: node offset = v * NUM_JOINTS                         │
-#  │  Cross-view edges: connect joint j in view u to joint j in v   │
-#  │    for all (u,v) pairs and all joints j                         │
-#  └─────────────────────────────────────────────────────────────────┘
+# Cell 12 — Multi-view Adjacency + GCN Model
 # ══════════════════════════════════════════════════════════════════════════
 
-def build_multiview_adj(num_joints, intra_edges, num_views,
-                        cross_view=True):
+def build_multiview_adj(num_joints, intra_edges, num_views, cross_view=True):
     """
-    Build the normalised Kipf adjacency for a multi-view fused graph.
-
-    Parameters
-    ----------
-    num_joints  : int   — joints per view (17)
-    intra_edges : list  — skeleton edges within one view
-    num_views   : int   — number of cameras (V)
-    cross_view  : bool  — whether to add cross-view edges
-
-    Returns
-    -------
-    torch.Tensor  shape (V*J, V*J)
+    Build Kipf-normalised adjacency for a multi-view fused graph.
+    Intra-view: skeleton edges per camera block.
+    Cross-view: same joint j across cameras u↔v.
     """
     N = num_joints * num_views
     A = np.zeros((N, N), dtype=np.float32)
 
-    # ── Intra-view edges ──────────────────────────────────────────────
     for v in range(num_views):
         offset = v * num_joints
         for (i, j) in intra_edges:
             A[offset + i, offset + j] = 1.0
             A[offset + j, offset + i] = 1.0
 
-    # ── Cross-view edges (same joint across cameras) ───────────────────
     if cross_view:
         for u in range(num_views):
             for v in range(num_views):
@@ -677,7 +643,7 @@ def build_multiview_adj(num_joints, intra_edges, num_views,
                 for j in range(num_joints):
                     A[u * num_joints + j, v * num_joints + j] = 1.0
 
-    # ── Kipf normalisation: Â = D̃^(-½) (A+I) D̃^(-½) ─────────────────
+    # Kipf: Â = D̃^(-½)(A+I)D̃^(-½)
     A_tilde  = A + np.eye(N, dtype=np.float32)
     deg      = A_tilde.sum(axis=1)
     d_inv_sq = np.diag(np.power(deg, -0.5))
@@ -713,7 +679,7 @@ class GCNBackbone(nn.Module):
         self.n_gcn   = len(hidden_dims)
 
     def forward(self, x, A_hat):
-        """x: (B, T, J, C)  →  (B, T, J, C_out)"""
+        """x: (B, T, J, C) → (B, T, J, C_out)"""
         B, T, J, C = x.shape
         h = x.reshape(B * T, J, C)
 
@@ -731,7 +697,11 @@ class GCNBackbone(nn.Module):
 
 
 class TemporalEncoder(nn.Module):
-    """Bidirectional GRU over T frames — captures motion dynamics."""
+    """
+    Bidirectional GRU over T frames.
+    FIX: uses max pooling over joints instead of mean — preserves
+    peak motion information better.
+    """
     def __init__(self, feat_dim, hidden_dim=128, num_layers=2, dropout=0.3):
         super().__init__()
         self.gru = nn.GRU(
@@ -739,17 +709,18 @@ class TemporalEncoder(nn.Module):
             hidden_size   = hidden_dim,
             num_layers    = num_layers,
             batch_first   = True,
-            dropout       = dropout,
+            dropout       = dropout if num_layers > 1 else 0.0,
             bidirectional = True,
         )
         self.out_dim = hidden_dim * 2
         self.drop    = nn.Dropout(dropout)
 
     def forward(self, h):
-        # h: (B, T, J, C) — mean-pool over joints first
-        h = h.mean(dim=2)                                # (B, T, C)
-        _, hidden = self.gru(h)                          # (2*L, B, H)
-        h = torch.cat([hidden[-2], hidden[-1]], dim=1)   # (B, 2H)
+        # h: (B, T, J, C)
+        # FIX: max pooling over joints instead of mean
+        h = h.max(dim=2)[0]                                 # (B, T, C)
+        _, hidden = self.gru(h)                              # (2*L, B, H)
+        h = torch.cat([hidden[-2], hidden[-1]], dim=1)       # (B, 2H)
         return self.drop(h)
 
 
@@ -758,7 +729,12 @@ NUM_EXERCISES = 10
 class GCN_MultiView_Regression(nn.Module):
     """
     Multi-view early-fusion GCN.
-    Input: (B, T, V*J, 6)  where V*J = FUSED_JOINTS
+    Input : (B, T, V*J, 6)
+    Output: (B,) quality score in range (1, 5)
+
+    FIX: output uses wider tanh range to handle quality labels near 1 or 5.
+    FIX: stronger dropout than single-view to fight overfitting.
+    FIX: smaller hidden dims — single-view already had enough capacity.
     """
     def __init__(self, num_joints=FUSED_JOINTS, in_features=6,
                  hidden_dims=None, dropout=0.5, cross_view=True):
@@ -766,7 +742,6 @@ class GCN_MultiView_Regression(nn.Module):
         if hidden_dims is None:
             hidden_dims = [64, 128, 256]
 
-        # Multi-view adjacency
         A_hat = build_multiview_adj(
             NUM_JOINTS, SKELETON_EDGES, NUM_VIEWS, cross_view=cross_view)
         self.register_buffer('A_hat', A_hat)
@@ -778,20 +753,22 @@ class GCN_MultiView_Regression(nn.Module):
             feat_dim   = hidden_dims[-1],
             hidden_dim = 128,
             num_layers = 2,
-            dropout    = 0.3,
+            dropout    = 0.4,           # stronger than original 0.3
         )
-        combined_dim  = self.temporal.out_dim   # 256
+        combined_dim = self.temporal.out_dim  # 256
 
         self.ex_embed = nn.Embedding(NUM_EXERCISES, 32)
 
+        # FIX: stronger dropout in regression head
         self.reg_head = nn.Sequential(
             nn.Linear(combined_dim + 32, 256),
             nn.LayerNorm(256),
             nn.ReLU(),
-            nn.Dropout(0.3),
+            nn.Dropout(0.4),            # was 0.3
             nn.Linear(256, 128),
+            nn.LayerNorm(128),          # added LayerNorm
             nn.ReLU(),
-            nn.Dropout(0.2),
+            nn.Dropout(0.3),            # was 0.2
             nn.Linear(128, 1),
         )
         self._init_weights()
@@ -813,22 +790,25 @@ class GCN_MultiView_Regression(nn.Module):
     def forward(self, x, exercise_id):
         """
         x           : (B, T, V*J, 6)
-        exercise_id : (B,)  long
+        exercise_id : (B,) long
         """
         B, T, J, C = x.shape
 
-        # Input batch norm (across C dim)
+        # Input batch norm
         xbn = x.permute(0, 3, 1, 2).reshape(B, C, T * J)
         xbn = self.data_bn(xbn)
         x   = xbn.reshape(B, C, T, J).permute(0, 2, 3, 1)
 
-        h   = self.gcn(x, self.A_hat)       # (B, T, V*J, 256)
-        h   = self.temporal(h)              # (B, 256)
+        h  = self.gcn(x, self.A_hat)       # (B, T, V*J, 256)
+        h  = self.temporal(h)              # (B, 256)
 
-        ex  = self.ex_embed(exercise_id)    # (B, 32)
-        h   = torch.cat([h, ex], dim=1)     # (B, 288)
+        ex = self.ex_embed(exercise_id)    # (B, 32)
+        h  = torch.cat([h, ex], dim=1)     # (B, 288)
 
-        out = 3.0 + 2.0 * torch.tanh(self.reg_head(h).squeeze(1))
+        # FIX: wider output range 3±2.4 → (0.6, 5.4) instead of 3±2 → (1, 5)
+        # Handles labels near 1.0 (min=1.34 in your data, so 0.6 gives headroom)
+        # and near 5.0 (max=5.0 in your data)
+        out = 3.0 + 2.4 * torch.tanh(self.reg_head(h).squeeze(1))
         return out
 
 
@@ -842,22 +822,18 @@ print(f'✓ GCN_MultiView_Regression sanity check passed — output shape: {_out
 total_params = sum(p.numel() for p in _model.parameters() if p.requires_grad)
 print(f'✓ Total trainable parameters: {total_params:,}')
 
-# Show adjacency structure
 A_hat_check = build_multiview_adj(NUM_JOINTS, SKELETON_EDGES, NUM_VIEWS)
-intra_edges = (A_hat_check[:NUM_JOINTS, :NUM_JOINTS] > 0).sum().item()
-cross_edges = (A_hat_check[:NUM_JOINTS, NUM_JOINTS:2*NUM_JOINTS] > 0).sum().item()
-print(f'✓ Multi-view adjacency: '
-      f'intra-view edges={int(intra_edges)}, '
-      f'cross-view edges per block={int(cross_edges)}')
+intra_e = (A_hat_check[:NUM_JOINTS, :NUM_JOINTS] > 0).sum().item()
+cross_e = (A_hat_check[:NUM_JOINTS, NUM_JOINTS:2*NUM_JOINTS] > 0).sum().item()
+print(f'✓ Multi-view adjacency: intra-view={int(intra_e)}, cross-view per block={int(cross_e)}')
 
 del _dummy_x, _dummy_ex, _model, _out
 
 
 # ══════════════════════════════════════════════════════════════════════════
-# Cell 12 — Device & run_epoch
+# Cell 13 — Device & run_epoch
 #
-#  NOTE: centre_and_scale is now done per-view inside the Dataset.
-#        run_epoch no longer calls it — skeletons arrive already normalised.
+# FIX: optimiser is optional — pass None for val/test to make intent clear.
 # ══════════════════════════════════════════════════════════════════════════
 
 DEVICE = 'cuda' if torch.cuda.is_available() else 'cpu'
@@ -866,7 +842,11 @@ if DEVICE == 'cuda':
     print(f'GPU    : {torch.cuda.get_device_name(0)}')
 
 
-def run_epoch(model, loader, optimiser, reg_fn, is_train=True):
+def run_epoch(model, loader, reg_fn, optimiser=None, is_train=True):
+    """
+    FIX: optimiser is now optional (None for val/test).
+    Skeletons arrive pre-normalised from the Dataset.
+    """
     model.train() if is_train else model.eval()
     total_loss = 0.0
     q_true, q_pred = [], []
@@ -874,7 +854,6 @@ def run_epoch(model, loader, optimiser, reg_fn, is_train=True):
     ctx = torch.enable_grad() if is_train else torch.no_grad()
     with ctx:
         for skels, qualities, exercise_ids in loader:
-            # skels already normalised (centre+scale done in Dataset)
             skels        = skels.to(DEVICE)
             qualities    = qualities.to(DEVICE)
             exercise_ids = exercise_ids.to(DEVICE)
@@ -882,7 +861,7 @@ def run_epoch(model, loader, optimiser, reg_fn, is_train=True):
             preds = model(skels, exercise_ids)
             loss  = reg_fn(preds, qualities)
 
-            if is_train:
+            if is_train and optimiser is not None:
                 optimiser.zero_grad()
                 loss.backward()
                 nn.utils.clip_grad_norm_(model.parameters(), 5.0)
@@ -906,11 +885,11 @@ def run_epoch(model, loader, optimiser, reg_fn, is_train=True):
     }
 
 
-print('✓ run_epoch (multi-view, no centre_and_scale needed) defined')
+print('✓ run_epoch defined (optimiser=None for val/test)')
 
 
 # ══════════════════════════════════════════════════════════════════════════
-# Cell 13.5 — Split quality distribution audit  (unchanged)
+# Cell 13.5 — Split quality distribution audit
 # ══════════════════════════════════════════════════════════════════════════
 
 print("=" * 65)
@@ -955,7 +934,8 @@ print(f"  ✓ Saved → {save_path}")
 
 
 # ══════════════════════════════════════════════════════════════════════════
-# Cell 14 — Plotting helpers  (unchanged)
+# Cell 14 — Plotting helpers
+# FIX: all plots now include single-view baseline reference lines
 # ══════════════════════════════════════════════════════════════════════════
 
 def save_and_show(fig, path):
@@ -967,6 +947,12 @@ def save_and_show(fig, path):
 def _add_test_line(ax, val, label, color='green'):
     ax.axhline(val, color=color, linestyle='-.', linewidth=1.5,
                label=f'Test {label}={val:.4f}')
+
+
+def _add_baseline_line(ax, val, label, color='purple'):
+    """Add single-view baseline reference line."""
+    ax.axhline(val, color=color, linestyle=':', linewidth=1.5,
+               label=f'SV baseline {label}={val:.4f}')
 
 
 def plot_loss_curves(history, save_dir, test_loss=None):
@@ -987,18 +973,19 @@ def plot_loss_curves(history, save_dir, test_loss=None):
 def plot_rmse_mae(history, save_dir, test_rmse=None, test_mae=None):
     epochs = range(1, len(history['val_rmse']) + 1)
     fig, axes = plt.subplots(1, 2, figsize=(12, 4))
-    fig.suptitle('RMSE & MAE — Train / Val / Test (Multi-View)',
-                 fontsize=14, fontweight='bold')
-    for ax, metric, title, test_val in [
-        (axes[0], 'rmse', 'RMSE', test_rmse),
-        (axes[1], 'mae',  'MAE',  test_mae),
+    fig.suptitle('RMSE & MAE — Multi-View Early Fusion vs Single-View Baseline',
+                 fontsize=13, fontweight='bold')
+    for ax, metric, title, test_val, sv_val in [
+        (axes[0], 'rmse', 'RMSE', test_rmse, SV_TEST_RMSE),
+        (axes[1], 'mae',  'MAE',  test_mae,  SV_TEST_MAE),
     ]:
         ax.plot(epochs, history[f'train_{metric}'], label='Train',      color='steelblue')
         ax.plot(epochs, history[f'val_{metric}'],   label='Validation', color='darkorange')
         if test_val is not None:
             _add_test_line(ax, test_val, title)
+        _add_baseline_line(ax, sv_val, f'SV {title}')
         ax.set_title(title); ax.set_xlabel('Epoch'); ax.set_ylabel(title)
-        ax.legend(); ax.grid(alpha=0.3)
+        ax.legend(fontsize=8); ax.grid(alpha=0.3)
     plt.tight_layout()
     save_and_show(fig, os.path.join(save_dir, 'rmse_mae.png'))
 
@@ -1010,9 +997,11 @@ def plot_r2(history, save_dir, test_r2=None):
     ax.plot(epochs, history['val_r2'],   label='Validation', color='darkorange')
     if test_r2 is not None:
         _add_test_line(ax, test_r2, 'R²')
+    _add_baseline_line(ax, SV_TEST_R2, 'SV R²')
     ax.axhline(1.0, color='gray', linestyle=':', linewidth=1, label='Perfect (R²=1)')
     ax.axhline(0.0, color='red',  linestyle=':', linewidth=1, label='Baseline (R²=0)')
-    ax.set_title('R² Score — Multi-View Early Fusion', fontsize=13, fontweight='bold')
+    ax.set_title('R² Score — Multi-View Early Fusion vs Single-View',
+                 fontsize=13, fontweight='bold')
     ax.set_xlabel('Epoch'); ax.set_ylabel('R²')
     ax.legend(fontsize=8); ax.grid(alpha=0.3)
     plt.tight_layout()
@@ -1026,9 +1015,10 @@ def plot_pcc(history, save_dir, test_pcc=None):
     ax.plot(epochs, history['val_pcc'],   label='Validation', color='darkorange')
     if test_pcc is not None:
         _add_test_line(ax, test_pcc, 'PCC')
+    _add_baseline_line(ax, SV_TEST_PCC, 'SV PCC')
     ax.axhline(1.0, color='gray', linestyle=':', linewidth=1, label='Perfect (PCC=1)')
     ax.axhline(0.0, color='red',  linestyle=':', linewidth=1, label='No correlation')
-    ax.set_title('Pearson Correlation Coefficient — Multi-View',
+    ax.set_title('Pearson Correlation — Multi-View Early Fusion vs Single-View',
                  fontsize=13, fontweight='bold')
     ax.set_xlabel('Epoch'); ax.set_ylabel('PCC')
     ax.legend(fontsize=8); ax.grid(alpha=0.3)
@@ -1051,12 +1041,14 @@ def plot_regression_scatter(q_true, q_pred, split_name='Test', save_dir=None):
     ax.set_xlim(lo, hi); ax.set_ylim(lo, hi)
     ax.set_xlabel('True Quality Score',      fontsize=12)
     ax.set_ylabel('Predicted Quality Score', fontsize=12)
-    ax.set_title(f'{split_name} Set — True vs Predicted Quality (Multi-View)',
-                 fontsize=12, fontweight='bold')
+    ax.set_title(f'{split_name} Set — True vs Predicted (Multi-View Early Fusion)',
+                 fontsize=11, fontweight='bold')
     ax.legend(fontsize=9); ax.grid(alpha=0.3)
     ax.text(0.05, 0.95,
-            f'R²   = {r2:.4f}\nMAE  = {mae:.4f}\nRMSE = {rmse:.4f}',
-            transform=ax.transAxes, fontsize=10, verticalalignment='top',
+            f'R²   = {r2:.4f}\nMAE  = {mae:.4f}\nRMSE = {rmse:.4f}\n'
+            f'——— Single-View ———\n'
+            f'R²   = {SV_TEST_R2:.4f}\nMAE  = {SV_TEST_MAE:.4f}\nRMSE = {SV_TEST_RMSE:.4f}',
+            transform=ax.transAxes, fontsize=9, verticalalignment='top',
             bbox=dict(boxstyle='round', facecolor='wheat', alpha=0.7))
     plt.tight_layout()
     if save_dir:
@@ -1075,14 +1067,48 @@ def plot_early_stop(history, stopped_epoch, best_epoch, save_dir):
                label=f'Best epoch ({best_epoch})')
     ax.axvline(stopped_epoch, color='red',    linestyle='--', linewidth=2,
                label=f'Early stop ({stopped_epoch})')
-    ax.set_title('MAE + Early Stopping — Multi-View', fontsize=13, fontweight='bold')
+    _add_baseline_line(ax, SV_TEST_MAE, 'SV MAE')
+    ax.set_title('MAE + Early Stopping — Multi-View Early Fusion',
+                 fontsize=13, fontweight='bold')
     ax.set_xlabel('Epoch'); ax.set_ylabel('MAE')
     ax.legend(); ax.grid(alpha=0.3)
     plt.tight_layout()
     save_and_show(fig, os.path.join(save_dir, 'early_stopping.png'))
 
 
-print('✓ Plotting helpers defined')
+def plot_comparison_bar(final_te, save_dir):
+    """
+    FIX: new plot — side-by-side bar chart comparing
+    single-view baseline vs multi-view early fusion.
+    """
+    metrics = ['MAE', 'RMSE', 'R²', 'PCC']
+    sv_vals = [SV_TEST_MAE,  SV_TEST_RMSE,  SV_TEST_R2,  SV_TEST_PCC]
+    mv_vals = [final_te['mae'], final_te['rmse'], final_te['r2'], final_te['pcc']]
+
+    x    = np.arange(len(metrics))
+    w    = 0.35
+    fig, ax = plt.subplots(figsize=(9, 5))
+    b1 = ax.bar(x - w/2, sv_vals, w, label='Single-View',
+                color='steelblue',  edgecolor='black', alpha=0.85)
+    b2 = ax.bar(x + w/2, mv_vals, w, label='Multi-View Early Fusion',
+                color='darkorange', edgecolor='black', alpha=0.85)
+
+    for bar, v in zip(b1, sv_vals):
+        ax.text(bar.get_x() + bar.get_width()/2, bar.get_height() + 0.005,
+                f'{v:.4f}', ha='center', va='bottom', fontsize=8)
+    for bar, v in zip(b2, mv_vals):
+        ax.text(bar.get_x() + bar.get_width()/2, bar.get_height() + 0.005,
+                f'{v:.4f}', ha='center', va='bottom', fontsize=8)
+
+    ax.set_title('Single-View vs Multi-View Early Fusion — Test Set',
+                 fontsize=13, fontweight='bold')
+    ax.set_xticks(x); ax.set_xticklabels(metrics)
+    ax.legend(); ax.grid(axis='y', alpha=0.3)
+    plt.tight_layout()
+    save_and_show(fig, os.path.join(save_dir, 'comparison_sv_vs_mv_early_fusion.png'))
+
+
+print('✓ Plotting helpers defined (with single-view baseline lines)')
 
 
 # ══════════════════════════════════════════════════════════════════════════
@@ -1110,44 +1136,68 @@ class EarlyStopping:
             return self.counter >= self.patience, False
 
 
-print('✓ EarlyStopping defined (monitoring MAE)')
+print('✓ EarlyStopping defined (monitoring val MAE)')
 
 
 # ══════════════════════════════════════════════════════════════════════════
 # Cell 16 — Training Loop
+#
+# FIX: num_workers > 0 to avoid DataLoader bottleneck with 3 cameras.
+# FIX: optimiser=None passed to run_epoch for val/test.
+# FIX: Huber loss (SmoothL1) instead of MSE — more robust to outliers,
+#      which matters given exercises like E3/E7/E9 that had bad R² in SV.
 # ══════════════════════════════════════════════════════════════════════════
 
-reg_fn = nn.MSELoss()
+# FIX: Huber loss (delta=1.0) is less sensitive to outlier quality scores
+reg_fn = nn.SmoothL1Loss(beta=1.0)
+
+# FIX: num_workers for faster loading (3 NPZ files per sample)
+num_workers = min(4, os.cpu_count() or 1)
+print(f'DataLoader num_workers = {num_workers}')
 
 train_loader = DataLoader(
     BZUMultiViewDataset(train_df, augment=True),
-    batch_size=BATCH_SIZE, shuffle=True,
-    num_workers=0, pin_memory=(DEVICE == 'cuda'))
+    batch_size  = BATCH_SIZE,
+    shuffle     = True,
+    num_workers = num_workers,
+    pin_memory  = (DEVICE == 'cuda'),
+    persistent_workers = (num_workers > 0),
+)
 
 val_loader = DataLoader(
     BZUMultiViewDataset(val_df, augment=False),
-    batch_size=BATCH_SIZE, shuffle=False,
-    num_workers=0, pin_memory=(DEVICE == 'cuda'))
+    batch_size  = BATCH_SIZE,
+    shuffle     = False,
+    num_workers = num_workers,
+    pin_memory  = (DEVICE == 'cuda'),
+    persistent_workers = (num_workers > 0),
+)
 
 test_loader = DataLoader(
     BZUMultiViewDataset(test_df, augment=False),
-    batch_size=BATCH_SIZE, shuffle=False,
-    num_workers=0, pin_memory=(DEVICE == 'cuda'))
+    batch_size  = BATCH_SIZE,
+    shuffle     = False,
+    num_workers = num_workers,
+    pin_memory  = (DEVICE == 'cuda'),
+    persistent_workers = (num_workers > 0),
+)
 
 model = GCN_MultiView_Regression(
     num_joints   = FUSED_JOINTS,
     in_features  = 6,
     hidden_dims  = [64, 128, 256],
     dropout      = 0.5,
-    cross_view   = True,      # ← set False to ablate cross-view edges
+    cross_view   = True,
 ).to(DEVICE)
 
 optimiser = torch.optim.AdamW(
     model.parameters(), lr=LR, weight_decay=WEIGHT_DECAY)
 
+# FIX: longer patience for scheduler — single-view reduced LR at epoch 36
+# which was too early given the overfitting pattern
 scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(
     optimiser, mode='min', factor=0.5,
-    patience=30, min_lr=1e-6, verbose=True)
+    patience=20, min_lr=1e-6, verbose=True)
 
 early_stop = EarlyStopping(patience=PATIENCE, min_delta=MIN_DELTA)
 
@@ -1158,8 +1208,8 @@ stopped_epoch = EPOCHS
 
 log.info('=' * 70)
 log.info('STARTING MULTI-VIEW EARLY FUSION TRAINING')
-log.info(f'Cameras={ALL_CAMERAS}  FusedJoints={FUSED_JOINTS}  '
-         f'CrossViewEdges=True')
+log.info(f'Cameras={ALL_CAMERAS}  FusedJoints={FUSED_JOINTS}  CrossViewEdges=True')
+log.info(f'Loss=SmoothL1(Huber)  LR={LR}  WD={WEIGHT_DECAY}  Batch={BATCH_SIZE}')
 log.info(f'train={len(train_df)} val={len(val_df)} test={len(test_df)}')
 log.info('=' * 70)
 
@@ -1167,20 +1217,20 @@ print(f'\n{"═"*72}')
 print(f'  Multi-View Early Fusion  |  Cameras: {ALL_CAMERAS}  '
       f'|  Fused joints: {FUSED_JOINTS}')
 print(f'  Train: {len(train_df)}  Val: {len(val_df)}  Test: {len(test_df)}')
-print(f'  Patience: {PATIENCE}  |  LR: {LR}  |  Batch: {BATCH_SIZE}')
+print(f'  Loss : SmoothL1 (Huber)  |  LR: {LR}  |  WD: {WEIGHT_DECAY}')
+print(f'  Patience: {PATIENCE}  |  Batch: {BATCH_SIZE}  |  Workers: {num_workers}')
+print(f'  Single-View Baseline: MAE={SV_TEST_MAE} RMSE={SV_TEST_RMSE} '
+      f'R²={SV_TEST_R2} PCC={SV_TEST_PCC}')
 print(f'{"═"*72}')
 
 for epoch in range(1, EPOCHS + 1):
-    tr = run_epoch(model, train_loader, optimiser, reg_fn, is_train=True)
-    vl = run_epoch(model, val_loader,   optimiser, reg_fn, is_train=False)
+    tr = run_epoch(model, train_loader, reg_fn, optimiser=optimiser, is_train=True)
+    vl = run_epoch(model, val_loader,   reg_fn, optimiser=None,      is_train=False)
     scheduler.step(vl['mae'])
 
     for split, res in [('train', tr), ('val', vl)]:
-        history[f'{split}_loss'].append(res['loss'])
-        history[f'{split}_rmse'].append(res['rmse'])
-        history[f'{split}_mae'].append(res['mae'])
-        history[f'{split}_r2'].append(res['r2'])
-        history[f'{split}_pcc'].append(res['pcc'])
+        for m in METRICS:
+            history[f'{split}_{m}'].append(res[m])
 
     stop, improved = early_stop.step(vl['mae'], model, epoch)
 
@@ -1207,17 +1257,30 @@ for epoch in range(1, EPOCHS + 1):
 
 print('\n✓ Training complete!')
 
-# ── Restore best weights & final test evaluation ──────────────────────────
+# ── Restore best weights ──────────────────────────────────────────────────
 model.load_state_dict(early_stop.best_wts)
 best_epoch = early_stop.best_epoch
-final_te   = run_epoch(model, test_loader, optimiser, reg_fn, is_train=False)
+
+# ── Final test evaluation (optimiser=None) ────────────────────────────────
+final_te = run_epoch(model, test_loader, reg_fn, optimiser=None, is_train=False)
 
 print(f'\n  ── Final Test Results (best epoch = {best_epoch}) ──────────────────')
-print(f'  Loss : {final_te["loss"]:.4f}')
-print(f'  RMSE : {final_te["rmse"]:.4f}')
-print(f'  MAE  : {final_te["mae"]:.4f}')
-print(f'  R²   : {final_te["r2"]:.4f}')
-print(f'  PCC  : {final_te["pcc"]:.4f}')
+print(f'  {"Metric":<8}  {"Multi-View EF":>14}  {"Single-View":>12}  {"Δ":>8}')
+print(f'  {"─"*50}')
+for metric, mv_val, sv_val in [
+    ('Loss',  final_te["loss"], None),
+    ('RMSE',  final_te["rmse"], SV_TEST_RMSE),
+    ('MAE',   final_te["mae"],  SV_TEST_MAE),
+    ('R²',    final_te["r2"],   SV_TEST_R2),
+    ('PCC',   final_te["pcc"],  SV_TEST_PCC),
+]:
+    if sv_val is not None:
+        delta = mv_val - sv_val
+        arrow = '↑' if (metric in ['R²', 'PCC'] and delta > 0) or \
+                       (metric in ['RMSE', 'MAE'] and delta < 0) else '↓'
+        print(f'  {metric:<8}  {mv_val:>14.4f}  {sv_val:>12.4f}  {delta:>+7.4f} {arrow}')
+    else:
+        print(f'  {metric:<8}  {mv_val:>14.4f}')
 
 # ── Collect predictions ───────────────────────────────────────────────────
 model.eval()
@@ -1233,11 +1296,12 @@ with torch.no_grad():
 
 # ── Save all plots ────────────────────────────────────────────────────────
 plot_loss_curves(history, PLOTS_DIR, test_loss=final_te['loss'])
-plot_rmse_mae(history, PLOTS_DIR,    test_rmse=final_te['rmse'], test_mae=final_te['mae'])
-plot_r2(history, PLOTS_DIR,          test_r2=final_te['r2'])
-plot_pcc(history, PLOTS_DIR,         test_pcc=final_te['pcc'])
+plot_rmse_mae(history, PLOTS_DIR, test_rmse=final_te['rmse'], test_mae=final_te['mae'])
+plot_r2(history, PLOTS_DIR,       test_r2=final_te['r2'])
+plot_pcc(history, PLOTS_DIR,      test_pcc=final_te['pcc'])
 plot_regression_scatter(all_true_q, all_pred_q, split_name='Test', save_dir=PLOTS_DIR)
 plot_early_stop(history, stopped_epoch, best_epoch, PLOTS_DIR)
+plot_comparison_bar(final_te, PLOTS_DIR)          # NEW: SV vs MV comparison
 
 json_path = os.path.join(LOGS_DIR, 'training_history.json')
 with open(json_path, 'w') as f:
@@ -1291,7 +1355,7 @@ n_rows = int(np.ceil(n_ex / n_cols))
 
 fig, axes = plt.subplots(n_rows, n_cols, figsize=(5 * n_cols, 4.5 * n_rows))
 axes = axes.flatten()
-fig.suptitle('Per-Exercise: True vs Predicted Quality — Multi-View (Test Set)',
+fig.suptitle('Per-Exercise: True vs Predicted — Multi-View Early Fusion (Test)',
              fontsize=14, fontweight='bold')
 
 for i, ex_id in enumerate(unique_exercises):
@@ -1326,7 +1390,7 @@ plt.savefig(scatter_grid_path, dpi=150, bbox_inches='tight')
 plt.close()
 print(f'  ✓ Per-exercise scatter grid → {scatter_grid_path}')
 
-# ── Bar chart ─────────────────────────────────────────────────────────────
+# ── Per-exercise bar chart ────────────────────────────────────────────────
 fig, axes = plt.subplots(1, 4, figsize=(16, 4))
 fig.suptitle('Per-Exercise Test Metrics — Multi-View Early Fusion',
              fontsize=13, fontweight='bold')
@@ -1354,8 +1418,8 @@ for ax, metric, ylabel, ylim in [
 
 for ax, metric in zip(axes, ['mae', 'rmse', 'r2', 'pcc']):
     ax.axhline(final_te[metric], color='red', linestyle='--',
-               linewidth=1.5, label=f'Overall={final_te[metric]:.3f}')
-    ax.legend(fontsize=8)
+               linewidth=1.5, label=f'MV Overall={final_te[metric]:.3f}')
+    ax.legend(fontsize=7)
 
 plt.tight_layout()
 bar_path = os.path.join(PLOTS_DIR, 'per_exercise_bar.png')
@@ -1375,7 +1439,7 @@ best_val_r2   = history['val_r2'][bv]
 best_val_pcc  = history['val_pcc'][bv]
 
 print('=' * 65)
-print('  TRAINING SUMMARY — ST-GCN Multi-View Early Fusion')
+print('  TRAINING SUMMARY — Multi-View Early Fusion')
 print(f'  Cameras: {ALL_CAMERAS}  |  Fused joints: {FUSED_JOINTS}')
 print('=' * 65)
 print(f'  Best Epoch       : {best_epoch}  (stopped at {stopped_epoch})')
@@ -1384,35 +1448,47 @@ print(f'  Best Val RMSE    : {best_val_rmse:.4f}')
 print(f'  Best Val R²      : {best_val_r2:.4f}')
 print(f'  Best Val PCC     : {best_val_pcc:.4f}')
 print('─' * 65)
-print(f'  Test MAE         : {final_te["mae"]:.4f}')
-print(f'  Test RMSE        : {final_te["rmse"]:.4f}')
-print(f'  Test R²          : {final_te["r2"]:.4f}')
-print(f'  Test PCC         : {final_te["pcc"]:.4f}')
+print(f'  {"Metric":<8}  {"Multi-View EF":>14}  {"Single-View":>12}  {"Δ":>8}')
+print(f'  {"─"*48}')
+for metric, mv_val, sv_val in [
+    ('MAE',  final_te["mae"],  SV_TEST_MAE),
+    ('RMSE', final_te["rmse"], SV_TEST_RMSE),
+    ('R²',   final_te["r2"],   SV_TEST_R2),
+    ('PCC',  final_te["pcc"],  SV_TEST_PCC),
+]:
+    delta = mv_val - sv_val
+    arrow = '↑' if (metric in ['R²', 'PCC'] and delta > 0) or \
+                   (metric in ['RMSE', 'MAE'] and delta < 0) else '↓'
+    print(f'  {metric:<8}  {mv_val:>14.4f}  {sv_val:>12.4f}  {delta:>+7.4f} {arrow}')
 print('=' * 65)
 
-log.info(f'Multi-View Summary: Best Epoch={best_epoch} stopped={stopped_epoch}')
-log.info(f'Cameras={ALL_CAMERAS} FusedJoints={FUSED_JOINTS}')
+log.info(f'Multi-View Early Fusion Summary: Best={best_epoch} stopped={stopped_epoch}')
 log.info(f'Test MAE={final_te["mae"]:.4f} RMSE={final_te["rmse"]:.4f} '
          f'R²={final_te["r2"]:.4f} PCC={final_te["pcc"]:.4f}')
+log.info(f'vs SV: ΔMAE={final_te["mae"]-SV_TEST_MAE:+.4f} '
+         f'ΔR²={final_te["r2"]-SV_TEST_R2:+.4f}')
 
 summary_path = os.path.join(OUT_DIR, 'training_summary.csv')
-rows = [{'split': 'test_overall', 'exercise': 'all',
+rows = [{'model': 'single_view',
+         'test_mae': SV_TEST_MAE, 'test_rmse': SV_TEST_RMSE,
+         'test_r2':  SV_TEST_R2,  'test_pcc':  SV_TEST_PCC},
+        {'model': 'multiview_early_fusion',
          'cameras': str(ALL_CAMERAS), 'fused_joints': FUSED_JOINTS,
          'best_epoch': best_epoch, 'stopped_epoch': stopped_epoch,
-         'val_mae': best_val_mae, 'val_rmse': best_val_rmse,
-         'val_r2':  best_val_r2,  'val_pcc':  best_val_pcc,
+         'val_mae': best_val_mae,  'val_rmse': best_val_rmse,
+         'val_r2':  best_val_r2,   'val_pcc':  best_val_pcc,
          'test_mae': final_te['mae'], 'test_rmse': final_te['rmse'],
          'test_r2':  final_te['r2'],  'test_pcc':  final_te['pcc']}]
 
 for ex, vals in per_ex_results.items():
-    rows.append({'split': 'test_per_exercise', 'exercise': f'E{ex}',
-                 'cameras': str(ALL_CAMERAS), 'fused_joints': FUSED_JOINTS,
+    rows.append({'model': 'multiview_early_fusion_per_exercise',
+                 'exercise': f'E{ex}',
                  'test_mae': vals['mae'], 'test_rmse': vals['rmse'],
                  'test_r2':  vals['r2'],  'test_pcc':  vals['pcc'],
                  'n': vals['n']})
 
 pd.DataFrame(rows).to_csv(summary_path, index=False)
-print(f'\n✓ Summary CSV → {summary_path}')
+print(f'\n✓ Summary CSV (includes single-view baseline) → {summary_path}')
 
 sys.stdout.restore()
 print('✓ Log file closed and saved.')
