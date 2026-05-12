@@ -823,10 +823,10 @@ class GCN_MultiView_Regression(nn.Module):
         # # and near 5.0 (max=5.0 in your data)
         # out = 3.0 + 2.4 * torch.tanh(self.reg_head(h).squeeze(1))
         # واضيفي هاي:
-        out = torch.stack([
-            self.heads[f'E{exercise_id[b].item()}'](h[b].unsqueeze(0)).squeeze(-1)
+        out = torch.cat([
+            self.heads[f'E{exercise_id[b].item()}'](h[b].unsqueeze(0))
             for b in range(h.size(0))
-        ])
+        ], dim=0).squeeze(-1)
         out = 3.0 + 2.4 * torch.tanh(out)
         return out
 
