@@ -613,12 +613,12 @@ print('✓ BZUMultiViewDataset defined (early fusion, cameras=%s)' % ALL_CAMERAS
 
 # Quick shape check
 _ds   = BZUMultiViewDataset(train_df)
-_s, _q, _e = _ds[0]
+_s, _q, _e, _m = _ds[0]          # ← unpack all 4 values
 print(f'  Sample shape: {_s.shape}  '
       f'(expected T={TARGET_FRAMES}, V*J={FUSED_JOINTS}, C=6)')
 assert _s.shape == (TARGET_FRAMES, FUSED_JOINTS, 6), \
     f"Shape mismatch! Got {_s.shape}"
-del _ds, _s, _q, _e
+del _ds, _s, _q, _e, _m          # ← also del _m
 print('✓ Dataset shape check passed')
 
 
@@ -852,12 +852,12 @@ class GCN_MultiView_Regression(nn.Module):
 
 
 # ── Sanity check ──────────────────────────────────────────────────────────
-_dummy_x  = torch.zeros(2, TARGET_FRAMES, FUSED_JOINTS, 6)
-_dummy_ex = torch.zeros(2, dtype=torch.long)
-_dummy_mask = torch.ones(2, NUM_VIEWS, dtype=torch.bool)  # ← NEW
-_out        = _model(_dummy_x, _dummy_ex, _dummy_mask)    # ← NEW
-_model    = GCN_MultiView_Regression()
-_out      = _model(_dummy_x, _dummy_ex)
+# AFTER (fixed)
+_dummy_x    = torch.zeros(2, TARGET_FRAMES, FUSED_JOINTS, 6)
+_dummy_ex   = torch.zeros(2, dtype=torch.long)
+_dummy_mask = torch.ones(2, NUM_VIEWS, dtype=torch.bool)
+_model      = GCN_MultiView_Regression()
+_out        = _model(_dummy_x, _dummy_ex, _dummy_mask)    # ← correct order
 assert _out.shape == (2,), f"Expected (2,), got {_out.shape}"
 print(f'✓ GCN_MultiView_Regression sanity check passed — output shape: {_out.shape}')
 total_params = sum(p.numel() for p in _model.parameters() if p.requires_grad)
