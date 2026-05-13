@@ -848,6 +848,7 @@ class GCN_MultiView_Regression(nn.Module):
             self.heads[f'E{exercise_id[b].item()}'](h[b].unsqueeze(0))
             for b in range(h.size(0))
         ], dim=0).squeeze(-1)
+        out = 3.0 + 2.4 * torch.tanh(self.reg_head(h).squeeze(1))
         return out
 
 
