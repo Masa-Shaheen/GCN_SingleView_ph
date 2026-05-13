@@ -19,7 +19,7 @@ TARGET_FRAMES = 100
 # ── Training config ────────────────────────────────────────────────────────
 # FIX 1: Increased regularisation vs single-view to fight overfitting
 EPOCHS        = 300
-LR            = 5e-5          # lower than single-view (was 1e-4)
+LR            = 1e-4        # lower than single-view (was 1e-4)
 BATCH_SIZE    = 32
 WEIGHT_DECAY  = 1e-3          # stronger than single-view (was 5e-4)
 OUT_DIR       = "/mvdlph/masa/GCN_MultiView_EarlyFusion_Results"
@@ -566,6 +566,7 @@ class BZUMultiViewDataset(Dataset):
     def __getitem__(self, idx):
         row   = self.df.iloc[idx]
         views = []
+        view_mask = []   # ← NEW
 
         for cam in self.cameras:
             fp   = row.get(f'filepath_C{cam}')
@@ -576,6 +577,7 @@ class BZUMultiViewDataset(Dataset):
                 block = np.zeros((self.target_frames, NUM_JOINTS, 6),
                                  dtype=np.float32)
                 views.append(block)
+                view_mask.append(False)   # ← NEW: camera missing
                 continue
 
             skel = _normalise_length_np(skel, self.target_frames)  # (T,J,3)
@@ -584,6 +586,7 @@ class BZUMultiViewDataset(Dataset):
             skel = _centre_scale_np(skel)                           # (T,J,3)
             skel = _add_velocity_np(skel)                           # (T,J,6)
             views.append(skel)
+            view_mask.append(True)        # ← NEW: camera available
 
         # Early fusion: stack along joint axis → (T, V*J, 6)
         fused = np.concatenate(views, axis=1)   # (T, 51, 6)
@@ -591,7 +594,8 @@ class BZUMultiViewDataset(Dataset):
         skel_tensor = torch.tensor(fused,           dtype=torch.float32)
         quality     = torch.tensor(row['quality'],  dtype=torch.float32)
         exercise_id = torch.tensor(row['exercise'], dtype=torch.long)
-        return skel_tensor, quality, exercise_id
+        mask_tensor = torch.tensor(view_mask,          dtype=torch.bool)  # ← NEW (V,)
+        return skel_tensor, quality, exercise_id, mask_tensor
 
     def _augment(self, skel):
         """Speed jitter + small Gaussian noise."""
@@ -600,6 +604,8 @@ class BZUMultiViewDataset(Dataset):
         idxs  = np.linspace(0, T - 1, max(10, int(T * speed))).astype(int)
         skel  = _normalise_length_np(skel[idxs], self.target_frames)
         skel += np.random.randn(*skel.shape).astype(np.float32) * 0.003
+        if np.random.rand() < 0.5:          # ← add this
+         skel[:, :, 0] *= -1.0           # ← and this (mirror left-right)
         return skel
 
 
@@ -747,6 +753,8 @@ class GCN_MultiView_Regression(nn.Module):
         self.register_buffer('A_hat', A_hat)
 
         self.data_bn  = nn.BatchNorm1d(in_features)
+        # Learnable token for missing cameras — shape (NUM_JOINTS, 6)
+        self.missing_view_token = nn.Parameter(torch.zeros(NUM_JOINTS, 6))  # ← NEW
         self.gcn      = GCNBackbone(in_features, hidden_dims, dropout=dropout)
 
         self.temporal = TemporalEncoder(
@@ -800,15 +808,28 @@ class GCN_MultiView_Regression(nn.Module):
                     if 'weight' in name: nn.init.orthogonal_(param)
                     elif 'bias'  in name: nn.init.zeros_(param)
 
-    def forward(self, x, exercise_id):
+    def forward(self, x, exercise_id,  view_mask):
         """
         x           : (B, T, V*J, 6)
         exercise_id : (B,) long
         """
         B, T, J, C = x.shape
 
-        # Input batch norm
-        xbn = x.permute(0, 3, 1, 2).reshape(B, C, T * J)
+         # ── Replace missing view blocks with learnable token ──────────────
+        filled_views = []
+        for v in range(NUM_VIEWS):
+            start     = v * NUM_JOINTS
+            end       = (v + 1) * NUM_JOINTS
+            view_data = x[:, :, start:end, :]          # (B, T, J, 6)
+            avail     = view_mask[:, v].float().view(B, 1, 1, 1)  # 1=available, 0=missing
+            token     = self.missing_view_token.view(1, 1, NUM_JOINTS, 6)
+            filled    = avail * view_data + (1.0 - avail) * token
+            filled_views.append(filled)
+        x = torch.cat(filled_views, dim=2)             # (B, T, V*J, 6)
+        # ──────────────────────────────────────────────────────────────────
+
+        # rest unchanged from here
+        xbn = x.permute(0, 3, 1, 2).reshape(B, C, T * x.shape[2])
         xbn = self.data_bn(xbn)
         x   = xbn.reshape(B, C, T, J).permute(0, 2, 3, 1)
 
@@ -833,6 +854,8 @@ class GCN_MultiView_Regression(nn.Module):
 # ── Sanity check ──────────────────────────────────────────────────────────
 _dummy_x  = torch.zeros(2, TARGET_FRAMES, FUSED_JOINTS, 6)
 _dummy_ex = torch.zeros(2, dtype=torch.long)
+_dummy_mask = torch.ones(2, NUM_VIEWS, dtype=torch.bool)  # ← NEW
+_out        = _model(_dummy_x, _dummy_ex, _dummy_mask)    # ← NEW
 _model    = GCN_MultiView_Regression()
 _out      = _model(_dummy_x, _dummy_ex)
 assert _out.shape == (2,), f"Expected (2,), got {_out.shape}"
@@ -871,12 +894,13 @@ def run_epoch(model, loader, reg_fn, optimiser=None, is_train=True):
 
     ctx = torch.enable_grad() if is_train else torch.no_grad()
     with ctx:
-        for skels, qualities, exercise_ids in loader:
+        for skels, qualities, exercise_ids, view_mask in loader:
             skels        = skels.to(DEVICE)
             qualities    = qualities.to(DEVICE)
             exercise_ids = exercise_ids.to(DEVICE)
-
-            preds = model(skels, exercise_ids)
+            view_mask    = view_mask.to(DEVICE) 
+            
+            preds = model(skels, exercise_ids, view_mask)          # ← pass mask
             loss  = reg_fn(preds, qualities)
 
             if is_train and optimiser is not None:
@@ -1304,10 +1328,12 @@ for metric, mv_val, sv_val in [
 model.eval()
 all_true_q, all_pred_q, all_exercise_ids = [], [], []
 with torch.no_grad():
-    for skels, qualities, exercise_ids in test_loader:
+    for skels, qualities, exercise_ids, view_mask in test_loader:
         skels        = skels.to(DEVICE)
         exercise_ids = exercise_ids.to(DEVICE)
-        preds        = model(skels, exercise_ids)
+        view_mask    = view_mask.to(DEVICE)                        # ← NEW
+        preds        = model(skels, exercise_ids, view_mask)       # ← pass mask
+
         all_true_q.extend(qualities.numpy())
         all_pred_q.extend(preds.cpu().numpy())
         all_exercise_ids.extend(exercise_ids.cpu().numpy())
