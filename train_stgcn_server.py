@@ -24,7 +24,7 @@ WEIGHT_DECAY  = 1e-3
 OUT_DIR       = "/mvdlph/masa/GCN_MultiView_EarlyFusion_Results"
 
 # ── Early Stopping ─────────────────────────────────────────────────────────
-PATIENCE      = 40
+PATIENCE      = 80
 MIN_DELTA     = 1e-4
 
 # ── Baselines ──────────────────────────────────────────────────────────────
