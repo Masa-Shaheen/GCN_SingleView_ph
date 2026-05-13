@@ -17,31 +17,23 @@ FUSED_JOINTS  = NUM_JOINTS * NUM_VIEWS   # 51
 TARGET_FRAMES = 100
 
 # ── Training config ────────────────────────────────────────────────────────
+# FIX 1: Increased regularisation vs single-view to fight overfitting
 EPOCHS        = 300
-LR            = 5e-5
+LR            = 5e-5          # lower than single-view (was 1e-4)
 BATCH_SIZE    = 32
-WEIGHT_DECAY  = 1e-3
+WEIGHT_DECAY  = 1e-3          # stronger than single-view (was 5e-4)
 OUT_DIR       = "/mvdlph/masa/GCN_MultiView_EarlyFusion_Results"
 
 # ── Early Stopping ─────────────────────────────────────────────────────────
-PATIENCE      = 80
+# FIX 2: Longer patience to avoid stopping at epoch 5 like single-view
+PATIENCE      = 80            # shorter than 80 but with better regularisation
 MIN_DELTA     = 1e-4
 
-# ── Baselines ──────────────────────────────────────────────────────────────
+# ── Single-view baseline (from your results) ───────────────────────────────
 SV_TEST_MAE  = 0.4076
 SV_TEST_RMSE = 0.5569
 SV_TEST_R2   = 0.4859
 SV_TEST_PCC  = 0.7443
-
-MV_EF_TEST_MAE  = 0.3933
-MV_EF_TEST_RMSE = 0.5496
-MV_EF_TEST_R2   = 0.4986
-MV_EF_TEST_PCC  = 0.7574
-
-MV_PEREX_TEST_MAE  = 0.3935
-MV_PEREX_TEST_RMSE = 0.5397
-MV_PEREX_TEST_R2   = 0.5165
-MV_PEREX_TEST_PCC  = 0.7629
 
 print('✓ Configuration loaded')
 print(f'  DATASET_DIR  : {DATASET_DIR}')
@@ -50,13 +42,11 @@ print(f'  ALL_CAMERAS  : {ALL_CAMERAS}  (NUM_VIEWS={NUM_VIEWS})')
 print(f'  FUSED_JOINTS : {FUSED_JOINTS}  ({NUM_VIEWS} × {NUM_JOINTS})')
 print(f'  EXISTS       : {os.path.exists(DATASET_DIR)}')
 print(f'  SPLIT EXISTS : {os.path.exists(SPLIT_DIR)}')
-print(f'  LR           : {LR}')
-print(f'  WEIGHT_DECAY : {WEIGHT_DECAY}')
+print(f'  LR           : {LR}  (reduced from single-view)')
+print(f'  WEIGHT_DECAY : {WEIGHT_DECAY}  (stronger regularisation)')
 print(f'  PATIENCE     : {PATIENCE} epochs')
-print(f'\n  Baselines:')
-print(f'    SV         : MAE={SV_TEST_MAE}  RMSE={SV_TEST_RMSE}  R²={SV_TEST_R2}  PCC={SV_TEST_PCC}')
-print(f'    MV Shared  : MAE={MV_EF_TEST_MAE}  RMSE={MV_EF_TEST_RMSE}  R²={MV_EF_TEST_R2}  PCC={MV_EF_TEST_PCC}')
-print(f'    MV Per-Ex  : MAE={MV_PEREX_TEST_MAE}  RMSE={MV_PEREX_TEST_RMSE}  R²={MV_PEREX_TEST_R2}  PCC={MV_PEREX_TEST_PCC}')
+print(f'\n  Single-View Baseline:')
+print(f'    MAE={SV_TEST_MAE}  RMSE={SV_TEST_RMSE}  R²={SV_TEST_R2}  PCC={SV_TEST_PCC}')
 
 
 # ══════════════════════════════════════════════════════════════════════════
@@ -201,13 +191,11 @@ logging.basicConfig(
         logging.StreamHandler(),
     ]
 )
-log = logging.getLogger("GCN-MultiView-EarlyFusion-ExNorm")
+log = logging.getLogger("GCN-MultiView-EarlyFusion")
 log.info("=" * 70)
-log.info(f"ST-GCN Multi-View | Per-Exercise Heads + Quality Normalisation")
-log.info(f"Cameras={ALL_CAMERAS} | FusedJoints={FUSED_JOINTS}")
+log.info(f"ST-GCN Multi-View Early Fusion | Cameras={ALL_CAMERAS} | FusedJoints={FUSED_JOINTS}")
 log.info(f"Epochs={EPOCHS} | Patience={PATIENCE} | Batch={BATCH_SIZE} | LR={LR}")
-log.info(f"SV Baseline    : MAE={SV_TEST_MAE} RMSE={SV_TEST_RMSE} R²={SV_TEST_R2} PCC={SV_TEST_PCC}")
-log.info(f"MV Per-Ex Head : MAE={MV_PEREX_TEST_MAE} RMSE={MV_PEREX_TEST_RMSE} R²={MV_PEREX_TEST_R2} PCC={MV_PEREX_TEST_PCC}")
+log.info(f"Single-View Baseline: MAE={SV_TEST_MAE} RMSE={SV_TEST_RMSE} R²={SV_TEST_R2} PCC={SV_TEST_PCC}")
 log.info("=" * 70)
 
 
@@ -261,6 +249,11 @@ print('✓ parse_filename and load_skeleton defined')
 # ══════════════════════════════════════════════════════════════════════════
 
 def build_multiview_index(split_name, df_csv, cameras=ALL_CAMERAS):
+    """
+    Reads pre-split folders (same folders used by single-view experiment).
+    Returns one row per (exercise, person, trial, segment) with one
+    filepath column per camera: filepath_C0, filepath_C1, filepath_C2.
+    """
     split_path = os.path.join(SPLIT_DIR, split_name)
     if not os.path.exists(split_path):
         raise FileNotFoundError(f"Split folder not found: {split_path}")
@@ -269,6 +262,7 @@ def build_multiview_index(split_name, df_csv, cameras=ALL_CAMERAS):
         os.path.join(split_path, '**/*.npz'), recursive=True))
     print(f'\n[{split_name.upper()}] NPZ files found : {len(all_files)}')
 
+    # key: (exercise, person, trial_id, segment) → {camera: fpath}
     lookup = {}
     for fpath in all_files:
         meta = parse_filename(fpath)
@@ -319,6 +313,7 @@ def build_multiview_index(split_name, df_csv, cameras=ALL_CAMERAS):
 
     df = pd.DataFrame(records)
 
+    # Fill NaN quality
     correct_mean   = df.loc[df['trial_num'] <= 2, 'quality'].mean()
     erroneous_mean = df.loc[df['trial_num'] >= 3, 'quality'].mean()
     if np.isnan(correct_mean):   correct_mean   = 4.0
@@ -336,6 +331,7 @@ def build_multiview_index(split_name, df_csv, cameras=ALL_CAMERAS):
 
 
 def remove_all_corrupted(df, cameras=ALL_CAMERAS, label=''):
+    """Drop rows where ALL cameras are missing or corrupted."""
     drop_idx = []
     for i, row in df.iterrows():
         valid = False
@@ -356,6 +352,7 @@ def remove_all_corrupted(df, cameras=ALL_CAMERAS, label=''):
     return df
 
 
+# ── Build the three splits (same pre-split folders as single-view) ─────────
 train_df = build_multiview_index('train', df_csv)
 val_df   = build_multiview_index('valid', df_csv)
 test_df  = build_multiview_index('test',  df_csv)
@@ -367,6 +364,7 @@ test_df  = remove_all_corrupted(test_df,  label='TEST')
 
 df_index = pd.concat([train_df, val_df, test_df], ignore_index=True)
 
+# ── Sanity: no trial_key leak across splits ────────────────────────────────
 tr_keys = set(train_df['trial_key'])
 vl_keys = set(val_df['trial_key'])
 te_keys = set(test_df['trial_key'])
@@ -425,6 +423,14 @@ SKELETON_EDGES = [
     (8, 14), (14, 15), (15, 16),
 ]
 
+JOINT_NAMES = [
+    'Hip', 'R-Hip', 'R-Knee', 'R-Ankle',
+    'L-Hip', 'L-Knee', 'L-Ankle',
+    'Spine', 'Thorax', 'Neck', 'Head',
+    'L-Shoulder', 'L-Elbow', 'L-Wrist',
+    'R-Shoulder', 'R-Elbow', 'R-Wrist',
+]
+
 JOINT_COLORS = {
     'head' : [9, 10],
     'arms' : [11, 12, 13, 14, 15, 16],
@@ -468,7 +474,7 @@ print('✓ Skeleton visualisation helpers defined')
 
 
 # ══════════════════════════════════════════════════════════════════════════
-# Cell 9 — Visualise a sample skeleton
+# Cell 9 — Visualise a sample skeleton (first available camera)
 # ══════════════════════════════════════════════════════════════════════════
 
 idx = 10
@@ -492,17 +498,20 @@ if sample_fp:
 
 
 # ══════════════════════════════════════════════════════════════════════════
-# Cell 10 — Preprocessing helpers + Exercise-specific quality normalisation
+# Cell 10 — Preprocessing helpers
 # ══════════════════════════════════════════════════════════════════════════
 
 def _normalise_length_np(skel, target_frames):
-    """Resample skel (T, J, C) → (target_frames, J, C). Vectorised."""
+    """
+    Resample skel (T, J, C) → (target_frames, J, C).
+    FIX: vectorised over J*C instead of nested loops — much faster.
+    """
     T = skel.shape[0]
     if T == target_frames:
         return skel
     old_idx  = np.linspace(0, 1, T)
     new_idx  = np.linspace(0, 1, target_frames)
-    flat     = skel.reshape(T, -1)
+    flat     = skel.reshape(T, -1)                          # (T, J*C)
     out_flat = np.zeros((target_frames, flat.shape[1]), dtype=np.float32)
     for k in range(flat.shape[1]):
         out_flat[:, k] = np.interp(new_idx, old_idx, flat[:, k])
@@ -510,66 +519,46 @@ def _normalise_length_np(skel, target_frames):
 
 
 def _centre_scale_np(skel):
-    """Centre on mid-hip, scale by torso height. skel: (T, J, 3) → (T, J, 3)"""
-    hip      = (skel[:, 1:2, :] + skel[:, 4:5, :]) / 2.0
-    skel     = skel - hip
+    """
+    Centre on mid-hip, scale by torso height.
+    skel: (T, J, 3) → (T, J, 3)
+    """
+    hip     = (skel[:, 1:2, :] + skel[:, 4:5, :]) / 2.0
+    skel    = skel - hip
     shoulder = (skel[:, 11:12, :] + skel[:, 14:15, :]) / 2.0
     torso_h  = np.abs(shoulder[:, :, 1:2]).mean(axis=0, keepdims=True).clip(min=1e-6)
     return skel / torso_h
 
 
 def _add_velocity_np(skel):
-    """skel: (T, J, 3) → (T, J, 6)  position + velocity"""
+    """
+    skel: (T, J, 3) → (T, J, 6)  position + velocity
+    """
     vel     = np.zeros_like(skel)
     vel[1:] = skel[1:] - skel[:-1]
     return np.concatenate([skel, vel], axis=-1)
 
 
-# ── Exercise-specific quality normalisation ────────────────────────────────
-# Computed from TRAIN split only — no leakage into val/test
-ex_stats = (
-    train_df.groupby('exercise')['quality']
-    .agg(['mean', 'std'])
-    .rename(columns={'mean': 'q_mean', 'std': 'q_std'})
-)
-ex_stats['q_std'] = ex_stats['q_std'].clip(lower=0.1)   # avoid div-by-zero
-
-print("\n" + "=" * 60)
-print("Exercise quality stats (computed from TRAIN split only):")
-print("=" * 60)
-print(ex_stats.round(3))
-print("\nThis normalisation ensures each exercise head learns on a")
-print("common z-score scale, fixing the inverted-PCC issue in E9.")
-
-# Save stats for denormalisation at inference time
-ex_stats_path = os.path.join(LOGS_DIR, 'exercise_quality_stats.csv')
-# LOGS_DIR may not exist yet at this point in the script if run cell-by-cell;
-# we save after training. Keep the DataFrame in memory for now.
-
-print('✓ Preprocessing helpers + ex_stats defined')
+print('✓ Preprocessing helpers defined (vectorised normalise_length)')
 
 
 # ══════════════════════════════════════════════════════════════════════════
-# Cell 11 — BZUMultiViewDataset  (EARLY FUSION + EX-NORM)
+# Cell 11 — BZUMultiViewDataset (EARLY FUSION)
 #
-#  Per sample:
-#    • Load each camera → (T, J, 3)
-#    • Centre+scale per view independently
-#    • Add velocity → (T, J, 6)
-#    • Concatenate along joint axis → (T, V*J, 6) = (T, 51, 6)
-#    • Z-score normalise quality label per exercise (using train stats)
+#  Per sample: load each camera → (T, J, 3)
+#              centre+scale per view independently
+#              add velocity → (T, J, 6)
+#              concatenate along joint axis → (T, V*J, 6) = (T, 51, 6)
 #  Missing cameras → zero-filled (T, J, 6) block
 # ══════════════════════════════════════════════════════════════════════════
 
 class BZUMultiViewDataset(Dataset):
     def __init__(self, df, cameras=ALL_CAMERAS,
-                 target_frames=TARGET_FRAMES, augment=False,
-                 ex_stats=None):
+                 target_frames=TARGET_FRAMES, augment=False):
         self.df            = df.reset_index(drop=True)
         self.cameras       = cameras
         self.target_frames = target_frames
         self.augment       = augment
-        self.ex_stats      = ex_stats   # pd.DataFrame with q_mean, q_std per exercise
 
     def __len__(self):
         return len(self.df)
@@ -583,35 +572,29 @@ class BZUMultiViewDataset(Dataset):
             skel = load_skeleton(fp) if fp is not None else None
 
             if skel is None:
+                # Zero-pad for missing/corrupted camera
                 block = np.zeros((self.target_frames, NUM_JOINTS, 6),
                                  dtype=np.float32)
                 views.append(block)
                 continue
 
-            skel = _normalise_length_np(skel, self.target_frames)
+            skel = _normalise_length_np(skel, self.target_frames)  # (T,J,3)
             if self.augment:
                 skel = self._augment(skel)
-            skel = _centre_scale_np(skel)
-            skel = _add_velocity_np(skel)
+            skel = _centre_scale_np(skel)                           # (T,J,3)
+            skel = _add_velocity_np(skel)                           # (T,J,6)
             views.append(skel)
 
-        # Early fusion: (T, V*J, 6)
-        fused = np.concatenate(views, axis=1)
+        # Early fusion: stack along joint axis → (T, V*J, 6)
+        fused = np.concatenate(views, axis=1)   # (T, 51, 6)
 
-        # ── Quality label: z-score per exercise ───────────────────────────
-        quality = float(row['quality'])
-        if self.ex_stats is not None:
-            ex_id   = int(row['exercise'])
-            q_mean  = float(self.ex_stats.loc[ex_id, 'q_mean'])
-            q_std   = float(self.ex_stats.loc[ex_id, 'q_std'])
-            quality = (quality - q_mean) / q_std
-
-        skel_tensor = torch.tensor(fused,    dtype=torch.float32)
-        qual_tensor = torch.tensor(quality,  dtype=torch.float32)
-        ex_tensor   = torch.tensor(int(row['exercise']), dtype=torch.long)
-        return skel_tensor, qual_tensor, ex_tensor
+        skel_tensor = torch.tensor(fused,           dtype=torch.float32)
+        quality     = torch.tensor(row['quality'],  dtype=torch.float32)
+        exercise_id = torch.tensor(row['exercise'], dtype=torch.long)
+        return skel_tensor, quality, exercise_id
 
     def _augment(self, skel):
+        """Speed jitter + small Gaussian noise."""
         T     = skel.shape[0]
         speed = np.random.uniform(0.85, 1.15)
         idxs  = np.linspace(0, T - 1, max(10, int(T * speed))).astype(int)
@@ -620,22 +603,29 @@ class BZUMultiViewDataset(Dataset):
         return skel
 
 
-print('✓ BZUMultiViewDataset defined (early fusion + exercise quality norm)')
+print('✓ BZUMultiViewDataset defined (early fusion, cameras=%s)' % ALL_CAMERAS)
 
-_ds   = BZUMultiViewDataset(train_df, ex_stats=ex_stats)
+# Quick shape check
+_ds   = BZUMultiViewDataset(train_df)
 _s, _q, _e = _ds[0]
-print(f'  Sample shape : {_s.shape}  (expected T={TARGET_FRAMES}, V*J={FUSED_JOINTS}, C=6)')
-print(f'  Quality (normalised) sample : {_q.item():.4f}  (should be z-score ≈ 0±2)')
-assert _s.shape == (TARGET_FRAMES, FUSED_JOINTS, 6), f"Shape mismatch! Got {_s.shape}"
+print(f'  Sample shape: {_s.shape}  '
+      f'(expected T={TARGET_FRAMES}, V*J={FUSED_JOINTS}, C=6)')
+assert _s.shape == (TARGET_FRAMES, FUSED_JOINTS, 6), \
+    f"Shape mismatch! Got {_s.shape}"
 del _ds, _s, _q, _e
 print('✓ Dataset shape check passed')
 
 
 # ══════════════════════════════════════════════════════════════════════════
-# Cell 12 — Multi-view Adjacency + GCN Model  (per-exercise heads)
+# Cell 12 — Multi-view Adjacency + GCN Model
 # ══════════════════════════════════════════════════════════════════════════
 
 def build_multiview_adj(num_joints, intra_edges, num_views, cross_view=True):
+    """
+    Build Kipf-normalised adjacency for a multi-view fused graph.
+    Intra-view: skeleton edges per camera block.
+    Cross-view: same joint j across cameras u↔v.
+    """
     N = num_joints * num_views
     A = np.zeros((N, N), dtype=np.float32)
 
@@ -653,6 +643,7 @@ def build_multiview_adj(num_joints, intra_edges, num_views, cross_view=True):
                 for j in range(num_joints):
                     A[u * num_joints + j, v * num_joints + j] = 1.0
 
+    # Kipf: Â = D̃^(-½)(A+I)D̃^(-½)
     A_tilde  = A + np.eye(N, dtype=np.float32)
     deg      = A_tilde.sum(axis=1)
     d_inv_sq = np.diag(np.power(deg, -0.5))
@@ -669,6 +660,7 @@ class GraphConvolution(nn.Module):
             nn.init.zeros_(self.W.bias)
 
     def forward(self, H, A_hat):
+        """H: (N, J, Cin) → (N, J, Cout)"""
         support = self.W(H)
         A_exp   = A_hat.unsqueeze(0).expand(H.size(0), -1, -1)
         return torch.bmm(A_exp, support)
@@ -687,8 +679,10 @@ class GCNBackbone(nn.Module):
         self.n_gcn   = len(hidden_dims)
 
     def forward(self, x, A_hat):
+        """x: (B, T, J, C) → (B, T, J, C_out)"""
         B, T, J, C = x.shape
         h = x.reshape(B * T, J, C)
+
         gcn_idx = 0
         for i in range(0, len(self.layers), 2):
             h = self.layers[i](h, A_hat)
@@ -698,11 +692,16 @@ class GCNBackbone(nn.Module):
             if gcn_idx < self.n_gcn:
                 h = F.relu(h)
                 h = self.dropout(h)
+
         return h.reshape(B, T, J, -1)
 
 
 class TemporalEncoder(nn.Module):
-    """Bidirectional GRU — max pooling over joints."""
+    """
+    Bidirectional GRU over T frames.
+    FIX: uses max pooling over joints instead of mean — preserves
+    peak motion information better.
+    """
     def __init__(self, feat_dim, hidden_dim=128, num_layers=2, dropout=0.3):
         super().__init__()
         self.gru = nn.GRU(
@@ -717,8 +716,10 @@ class TemporalEncoder(nn.Module):
         self.drop    = nn.Dropout(dropout)
 
     def forward(self, h):
+        # h: (B, T, J, C)
+        # FIX: max pooling over joints instead of mean
         h = h.max(dim=2)[0]                                 # (B, T, C)
-        _, hidden = self.gru(h)
+        _, hidden = self.gru(h)                              # (2*L, B, H)
         h = torch.cat([hidden[-2], hidden[-1]], dim=1)       # (B, 2H)
         return self.drop(h)
 
@@ -727,9 +728,13 @@ NUM_EXERCISES = 10
 
 class GCN_MultiView_Regression(nn.Module):
     """
-    Multi-view early-fusion GCN with per-exercise regression heads.
-    Quality labels are z-score normalised per exercise in the Dataset,
-    so each head outputs a z-score — no tanh squashing needed.
+    Multi-view early-fusion GCN.
+    Input : (B, T, V*J, 6)
+    Output: (B,) quality score in range (1, 5)
+
+    FIX: output uses wider tanh range to handle quality labels near 1 or 5.
+    FIX: stronger dropout than single-view to fight overfitting.
+    FIX: smaller hidden dims — single-view already had enough capacity.
     """
     def __init__(self, num_joints=FUSED_JOINTS, in_features=6,
                  hidden_dims=None, dropout=0.5, cross_view=True):
@@ -748,11 +753,24 @@ class GCN_MultiView_Regression(nn.Module):
             feat_dim   = hidden_dims[-1],
             hidden_dim = 128,
             num_layers = 2,
-            dropout    = 0.4,
+            dropout    = 0.4,           # stronger than original 0.3
         )
         combined_dim = self.temporal.out_dim  # 256
 
-        # Per-exercise regression heads — raw z-score output (no tanh)
+
+        # # FIX: stronger dropout in regression head
+        # self.reg_head = nn.Sequential(
+        #     nn.Linear(combined_dim + 32, 256),
+        #     nn.LayerNorm(256),
+        #     nn.ReLU(),
+        #     nn.Dropout(0.4),            # was 0.3
+        #     nn.Linear(256, 128),
+        #     nn.LayerNorm(128),          # added LayerNorm
+        #     nn.ReLU(),
+        #     nn.Dropout(0.3),            # was 0.2
+        #     nn.Linear(128, 1),
+        # )
+
         self.heads = nn.ModuleDict({
             f'E{i}': nn.Sequential(
                 nn.Linear(combined_dim, 128),
@@ -786,23 +804,29 @@ class GCN_MultiView_Regression(nn.Module):
         """
         x           : (B, T, V*J, 6)
         exercise_id : (B,) long
-        Returns     : (B,) z-score predictions (denormalise outside model)
         """
         B, T, J, C = x.shape
 
+        # Input batch norm
         xbn = x.permute(0, 3, 1, 2).reshape(B, C, T * J)
         xbn = self.data_bn(xbn)
         x   = xbn.reshape(B, C, T, J).permute(0, 2, 3, 1)
 
-        h  = self.gcn(x, self.A_hat)    # (B, T, V*J, 256)
-        h  = self.temporal(h)           # (B, 256)
+        h  = self.gcn(x, self.A_hat)       # (B, T, V*J, 256)
+        h  = self.temporal(h)              # (B, 256)
 
-        # Route each sample through its exercise-specific head
+        # ex = self.ex_embed(exercise_id)    # (B, 32)
+        # h  = torch.cat([h, ex], dim=1)     # (B, 288)
+
+        # # FIX: wider output range 3±2.4 → (0.6, 5.4) instead of 3±2 → (1, 5)
+        # # Handles labels near 1.0 (min=1.34 in your data, so 0.6 gives headroom)
+        # # and near 5.0 (max=5.0 in your data)
+        # out = 3.0 + 2.4 * torch.tanh(self.reg_head(h).squeeze(1))
+        # واضيفي هاي:
         out = torch.cat([
             self.heads[f'E{exercise_id[b].item()}'](h[b].unsqueeze(0))
             for b in range(h.size(0))
-        ], dim=0).squeeze(-1)           # (B,)  — raw z-score
-
+        ], dim=0).squeeze(-1)
         return out
 
 
@@ -827,9 +851,7 @@ del _dummy_x, _dummy_ex, _model, _out
 # ══════════════════════════════════════════════════════════════════════════
 # Cell 13 — Device & run_epoch
 #
-#  IMPORTANT: model outputs z-scores. Metrics are computed on the
-#  DENORMALISED predictions (original quality scale 1-5) so that
-#  MAE/RMSE/R² are comparable to previous runs.
+# FIX: optimiser is optional — pass None for val/test to make intent clear.
 # ══════════════════════════════════════════════════════════════════════════
 
 DEVICE = 'cuda' if torch.cuda.is_available() else 'cpu'
@@ -838,31 +860,14 @@ if DEVICE == 'cuda':
     print(f'GPU    : {torch.cuda.get_device_name(0)}')
 
 
-def denorm_predictions(q_pred_norm, q_true_norm, exercise_ids_np, ex_stats):
-    """
-    Convert z-score arrays back to original quality scale (1-5).
-    Returns (q_pred_orig, q_true_orig) as numpy arrays.
-    """
-    q_pred_orig = q_pred_norm.copy()
-    q_true_orig = q_true_norm.copy()
-    for ex_id in np.unique(exercise_ids_np):
-        mask   = exercise_ids_np == ex_id
-        q_mean = float(ex_stats.loc[ex_id, 'q_mean'])
-        q_std  = float(ex_stats.loc[ex_id, 'q_std'])
-        q_pred_orig[mask] = q_pred_norm[mask] * q_std + q_mean
-        q_true_orig[mask] = q_true_norm[mask] * q_std + q_mean
-    return q_pred_orig, q_true_orig
-
-
 def run_epoch(model, loader, reg_fn, optimiser=None, is_train=True):
     """
-    Trains/evaluates one epoch.
-    Loss is computed in z-score space (normalised).
-    Metrics (MAE, RMSE, R², PCC) are reported in original quality space.
+    FIX: optimiser is now optional (None for val/test).
+    Skeletons arrive pre-normalised from the Dataset.
     """
     model.train() if is_train else model.eval()
     total_loss = 0.0
-    q_true_norm, q_pred_norm, ex_ids = [], [], []
+    q_true, q_pred = [], []
 
     ctx = torch.enable_grad() if is_train else torch.no_grad()
     with ctx:
@@ -872,7 +877,7 @@ def run_epoch(model, loader, reg_fn, optimiser=None, is_train=True):
             exercise_ids = exercise_ids.to(DEVICE)
 
             preds = model(skels, exercise_ids)
-            loss  = reg_fn(preds, qualities)    # z-score loss
+            loss  = reg_fn(preds, qualities)
 
             if is_train and optimiser is not None:
                 optimiser.zero_grad()
@@ -880,35 +885,25 @@ def run_epoch(model, loader, reg_fn, optimiser=None, is_train=True):
                 nn.utils.clip_grad_norm_(model.parameters(), 5.0)
                 optimiser.step()
 
-            total_loss    += loss.item()
-            q_true_norm.extend(qualities.cpu().numpy())
-            q_pred_norm.extend(preds.detach().cpu().numpy())
-            ex_ids.extend(exercise_ids.cpu().numpy())
+            total_loss += loss.item()
+            q_true.extend(qualities.cpu().numpy())
+            q_pred.extend(preds.detach().cpu().numpy())
 
-    n               = max(1, len(loader))
-    qt_norm         = np.array(q_true_norm)
-    qp_norm         = np.array(q_pred_norm)
-    ex_ids_np       = np.array(ex_ids)
-
-    # Denormalise for interpretable metrics
-    qp_orig, qt_orig = denorm_predictions(qp_norm, qt_norm, ex_ids_np, ex_stats)
-
-    pcc = float(pearsonr(qt_orig, qp_orig)[0]) if len(qt_orig) > 1 else 0.0
+    n  = max(1, len(loader))
+    qt = np.array(q_true)
+    qp = np.array(q_pred)
+    pcc = float(pearsonr(qt, qp)[0]) if len(qt) > 1 else 0.0
 
     return {
         'loss': total_loss / n,
-        'rmse': float(np.sqrt(np.mean((qt_orig - qp_orig) ** 2))),
-        'mae' : float(np.mean(np.abs(qt_orig - qp_orig))),
-        'r2'  : float(r2_score(qt_orig, qp_orig)) if len(qt_orig) > 1 else 0.0,
+        'rmse': float(np.sqrt(np.mean((qt - qp) ** 2))),
+        'mae' : float(np.mean(np.abs(qt - qp))),
+        'r2'  : float(r2_score(qt, qp)) if len(qt) > 1 else 0.0,
         'pcc' : pcc,
-        # keep normalised arrays for collection in training loop
-        '_qt_norm' : qt_norm,
-        '_qp_norm' : qp_norm,
-        '_ex_ids'  : ex_ids_np,
     }
 
 
-print('✓ run_epoch defined (z-score loss, denormalised metrics)')
+print('✓ run_epoch defined (optimiser=None for val/test)')
 
 
 # ══════════════════════════════════════════════════════════════════════════
@@ -958,6 +953,7 @@ print(f"  ✓ Saved → {save_path}")
 
 # ══════════════════════════════════════════════════════════════════════════
 # Cell 14 — Plotting helpers
+# FIX: all plots now include single-view baseline reference lines
 # ══════════════════════════════════════════════════════════════════════════
 
 def save_and_show(fig, path):
@@ -966,8 +962,15 @@ def save_and_show(fig, path):
     print(f'  ✓ Saved → {path}')
 
 
-def _add_ref_line(ax, val, label, color, style='--'):
-    ax.axhline(val, color=color, linestyle=style, linewidth=1.5, label=label)
+def _add_test_line(ax, val, label, color='green'):
+    ax.axhline(val, color=color, linestyle='-.', linewidth=1.5,
+               label=f'Test {label}={val:.4f}')
+
+
+def _add_baseline_line(ax, val, label, color='purple'):
+    """Add single-view baseline reference line."""
+    ax.axhline(val, color=color, linestyle=':', linewidth=1.5,
+               label=f'SV baseline {label}={val:.4f}')
 
 
 def plot_loss_curves(history, save_dir, test_loss=None):
@@ -976,10 +979,10 @@ def plot_loss_curves(history, save_dir, test_loss=None):
     ax.plot(epochs, history['train_loss'], label='Train',      color='steelblue')
     ax.plot(epochs, history['val_loss'],   label='Validation', color='darkorange')
     if test_loss is not None:
-        _add_ref_line(ax, test_loss, f'Test Loss={test_loss:.4f}', 'green', '-.')
-    ax.set_title('Loss (SmoothL1, z-score space) — MV Per-Ex Heads + ExNorm',
-                 fontsize=12, fontweight='bold')
-    ax.set_xlabel('Epoch'); ax.set_ylabel('Loss (normalised)')
+        _add_test_line(ax, test_loss, 'Loss')
+    ax.set_title('Regression Loss (MSE) — Multi-View Early Fusion',
+                 fontsize=13, fontweight='bold')
+    ax.set_xlabel('Epoch'); ax.set_ylabel('Loss')
     ax.legend(); ax.grid(alpha=0.3)
     plt.tight_layout()
     save_and_show(fig, os.path.join(save_dir, 'loss_curve.png'))
@@ -987,62 +990,56 @@ def plot_loss_curves(history, save_dir, test_loss=None):
 
 def plot_rmse_mae(history, save_dir, test_rmse=None, test_mae=None):
     epochs = range(1, len(history['val_rmse']) + 1)
-    fig, axes = plt.subplots(1, 2, figsize=(14, 4))
-    fig.suptitle('RMSE & MAE (original scale) — model comparison',
+    fig, axes = plt.subplots(1, 2, figsize=(12, 4))
+    fig.suptitle('RMSE & MAE — Multi-View Early Fusion vs Single-View Baseline',
                  fontsize=13, fontweight='bold')
-    for ax, metric, title, test_val, sv_val, mv_val, mvex_val in [
-        (axes[0], 'rmse', 'RMSE', test_rmse,
-         SV_TEST_RMSE, MV_EF_TEST_RMSE, MV_PEREX_TEST_RMSE),
-        (axes[1], 'mae',  'MAE',  test_mae,
-         SV_TEST_MAE,  MV_EF_TEST_MAE,  MV_PEREX_TEST_MAE),
+    for ax, metric, title, test_val, sv_val in [
+        (axes[0], 'rmse', 'RMSE', test_rmse, SV_TEST_RMSE),
+        (axes[1], 'mae',  'MAE',  test_mae,  SV_TEST_MAE),
     ]:
         ax.plot(epochs, history[f'train_{metric}'], label='Train',      color='steelblue')
         ax.plot(epochs, history[f'val_{metric}'],   label='Validation', color='darkorange')
         if test_val is not None:
-            _add_ref_line(ax, test_val, f'Test {title}={test_val:.4f}', 'green', '-.')
-        _add_ref_line(ax, sv_val,   f'SV={sv_val:.4f}',           'purple', ':')
-        _add_ref_line(ax, mv_val,   f'MV Shared={mv_val:.4f}',    'brown',  ':')
-        _add_ref_line(ax, mvex_val, f'MV Per-Ex={mvex_val:.4f}',  'gray',   ':')
+            _add_test_line(ax, test_val, title)
+        _add_baseline_line(ax, sv_val, f'SV {title}')
         ax.set_title(title); ax.set_xlabel('Epoch'); ax.set_ylabel(title)
-        ax.legend(fontsize=7); ax.grid(alpha=0.3)
+        ax.legend(fontsize=8); ax.grid(alpha=0.3)
     plt.tight_layout()
     save_and_show(fig, os.path.join(save_dir, 'rmse_mae.png'))
 
 
 def plot_r2(history, save_dir, test_r2=None):
     epochs = range(1, len(history['val_r2']) + 1)
-    fig, ax = plt.subplots(figsize=(9, 4))
+    fig, ax = plt.subplots(figsize=(8, 4))
     ax.plot(epochs, history['train_r2'], label='Train',      color='steelblue')
     ax.plot(epochs, history['val_r2'],   label='Validation', color='darkorange')
     if test_r2 is not None:
-        _add_ref_line(ax, test_r2, f'Test R²={test_r2:.4f}', 'green', '-.')
-    _add_ref_line(ax, SV_TEST_R2,      f'SV R²={SV_TEST_R2}',           'purple', ':')
-    _add_ref_line(ax, MV_EF_TEST_R2,   f'MV Shared R²={MV_EF_TEST_R2}', 'brown',  ':')
-    _add_ref_line(ax, MV_PEREX_TEST_R2,f'MV Per-Ex R²={MV_PEREX_TEST_R2}','gray', ':')
-    ax.axhline(1.0, color='black', linestyle=':', linewidth=1, label='Perfect (R²=1)')
-    ax.axhline(0.0, color='red',   linestyle=':', linewidth=1, label='Baseline (R²=0)')
-    ax.set_title('R² Score — all models', fontsize=13, fontweight='bold')
+        _add_test_line(ax, test_r2, 'R²')
+    _add_baseline_line(ax, SV_TEST_R2, 'SV R²')
+    ax.axhline(1.0, color='gray', linestyle=':', linewidth=1, label='Perfect (R²=1)')
+    ax.axhline(0.0, color='red',  linestyle=':', linewidth=1, label='Baseline (R²=0)')
+    ax.set_title('R² Score — Multi-View Early Fusion vs Single-View',
+                 fontsize=13, fontweight='bold')
     ax.set_xlabel('Epoch'); ax.set_ylabel('R²')
-    ax.legend(fontsize=7); ax.grid(alpha=0.3)
+    ax.legend(fontsize=8); ax.grid(alpha=0.3)
     plt.tight_layout()
     save_and_show(fig, os.path.join(save_dir, 'r2_curve.png'))
 
 
 def plot_pcc(history, save_dir, test_pcc=None):
     epochs = range(1, len(history['val_pcc']) + 1)
-    fig, ax = plt.subplots(figsize=(9, 4))
+    fig, ax = plt.subplots(figsize=(8, 4))
     ax.plot(epochs, history['train_pcc'], label='Train',      color='steelblue')
     ax.plot(epochs, history['val_pcc'],   label='Validation', color='darkorange')
     if test_pcc is not None:
-        _add_ref_line(ax, test_pcc, f'Test PCC={test_pcc:.4f}', 'green', '-.')
-    _add_ref_line(ax, SV_TEST_PCC,      f'SV={SV_TEST_PCC}',           'purple', ':')
-    _add_ref_line(ax, MV_EF_TEST_PCC,   f'MV Shared={MV_EF_TEST_PCC}', 'brown',  ':')
-    _add_ref_line(ax, MV_PEREX_TEST_PCC,f'MV Per-Ex={MV_PEREX_TEST_PCC}','gray', ':')
-    ax.axhline(1.0, color='black', linestyle=':', linewidth=1, label='Perfect')
-    ax.axhline(0.0, color='red',   linestyle=':', linewidth=1, label='No correlation')
-    ax.set_title('Pearson Correlation — all models', fontsize=13, fontweight='bold')
+        _add_test_line(ax, test_pcc, 'PCC')
+    _add_baseline_line(ax, SV_TEST_PCC, 'SV PCC')
+    ax.axhline(1.0, color='gray', linestyle=':', linewidth=1, label='Perfect (PCC=1)')
+    ax.axhline(0.0, color='red',  linestyle=':', linewidth=1, label='No correlation')
+    ax.set_title('Pearson Correlation — Multi-View Early Fusion vs Single-View',
+                 fontsize=13, fontweight='bold')
     ax.set_xlabel('Epoch'); ax.set_ylabel('PCC')
-    ax.legend(fontsize=7); ax.grid(alpha=0.3)
+    ax.legend(fontsize=8); ax.grid(alpha=0.3)
     plt.tight_layout()
     save_and_show(fig, os.path.join(save_dir, 'pcc_curve.png'))
 
@@ -1058,21 +1055,18 @@ def plot_regression_scatter(q_true, q_pred, split_name='Test', save_dir=None):
                color='steelblue', s=60)
     lo = min(qt.min(), qp.min()) - 0.2
     hi = max(qt.max(), qp.max()) + 0.2
-    ax.plot([lo, hi], [lo, hi], 'r--', linewidth=1.5, label='Perfect')
+    ax.plot([lo, hi], [lo, hi], 'r--', linewidth=1.5, label='Perfect prediction')
     ax.set_xlim(lo, hi); ax.set_ylim(lo, hi)
     ax.set_xlabel('True Quality Score',      fontsize=12)
     ax.set_ylabel('Predicted Quality Score', fontsize=12)
-    ax.set_title(f'{split_name} — MV Per-Ex Heads + ExNorm',
+    ax.set_title(f'{split_name} Set — True vs Predicted (Multi-View Early Fusion)',
                  fontsize=11, fontweight='bold')
     ax.legend(fontsize=9); ax.grid(alpha=0.3)
     ax.text(0.05, 0.95,
-            f'This run:\n'
-            f'  R²   = {r2:.4f}\n  MAE  = {mae:.4f}\n  RMSE = {rmse:.4f}\n'
-            f'─────────────\n'
-            f'SV   : R²={SV_TEST_R2:.3f}  MAE={SV_TEST_MAE:.3f}\n'
-            f'MV S : R²={MV_EF_TEST_R2:.3f}  MAE={MV_EF_TEST_MAE:.3f}\n'
-            f'MV E : R²={MV_PEREX_TEST_R2:.3f}  MAE={MV_PEREX_TEST_MAE:.3f}',
-            transform=ax.transAxes, fontsize=8, verticalalignment='top',
+            f'R²   = {r2:.4f}\nMAE  = {mae:.4f}\nRMSE = {rmse:.4f}\n'
+            f'——— Single-View ———\n'
+            f'R²   = {SV_TEST_R2:.4f}\nMAE  = {SV_TEST_MAE:.4f}\nRMSE = {SV_TEST_RMSE:.4f}',
+            transform=ax.transAxes, fontsize=9, verticalalignment='top',
             bbox=dict(boxstyle='round', facecolor='wheat', alpha=0.7))
     plt.tight_layout()
     if save_dir:
@@ -1091,47 +1085,48 @@ def plot_early_stop(history, stopped_epoch, best_epoch, save_dir):
                label=f'Best epoch ({best_epoch})')
     ax.axvline(stopped_epoch, color='red',    linestyle='--', linewidth=2,
                label=f'Early stop ({stopped_epoch})')
-    _add_ref_line(ax, SV_TEST_MAE,      f'SV={SV_TEST_MAE}',           'purple', ':')
-    _add_ref_line(ax, MV_PEREX_TEST_MAE,f'MV Per-Ex={MV_PEREX_TEST_MAE}','gray', ':')
-    ax.set_title('MAE + Early Stopping — MV Per-Ex Heads + ExNorm',
+    _add_baseline_line(ax, SV_TEST_MAE, 'SV MAE')
+    ax.set_title('MAE + Early Stopping — Multi-View Early Fusion',
                  fontsize=13, fontweight='bold')
-    ax.set_xlabel('Epoch'); ax.set_ylabel('MAE (original scale)')
-    ax.legend(fontsize=8); ax.grid(alpha=0.3)
+    ax.set_xlabel('Epoch'); ax.set_ylabel('MAE')
+    ax.legend(); ax.grid(alpha=0.3)
     plt.tight_layout()
     save_and_show(fig, os.path.join(save_dir, 'early_stopping.png'))
 
 
 def plot_comparison_bar(final_te, save_dir):
-    """4-model comparison bar chart."""
-    metrics  = ['MAE', 'RMSE', 'R²', 'PCC']
-    sv_vals  = [SV_TEST_MAE,      SV_TEST_RMSE,      SV_TEST_R2,      SV_TEST_PCC]
-    mve_vals = [MV_EF_TEST_MAE,   MV_EF_TEST_RMSE,   MV_EF_TEST_R2,   MV_EF_TEST_PCC]
-    mvp_vals = [MV_PEREX_TEST_MAE,MV_PEREX_TEST_RMSE,MV_PEREX_TEST_R2,MV_PEREX_TEST_PCC]
-    cur_vals = [final_te['mae'],   final_te['rmse'],   final_te['r2'],   final_te['pcc']]
+    """
+    FIX: new plot — side-by-side bar chart comparing
+    single-view baseline vs multi-view early fusion.
+    """
+    metrics = ['MAE', 'RMSE', 'R²', 'PCC']
+    sv_vals = [SV_TEST_MAE,  SV_TEST_RMSE,  SV_TEST_R2,  SV_TEST_PCC]
+    mv_vals = [final_te['mae'], final_te['rmse'], final_te['r2'], final_te['pcc']]
 
-    x = np.arange(len(metrics))
-    w = 0.2
-    fig, ax = plt.subplots(figsize=(11, 5))
+    x    = np.arange(len(metrics))
+    w    = 0.35
+    fig, ax = plt.subplots(figsize=(9, 5))
+    b1 = ax.bar(x - w/2, sv_vals, w, label='Single-View',
+                color='steelblue',  edgecolor='black', alpha=0.85)
+    b2 = ax.bar(x + w/2, mv_vals, w, label='Multi-View Early Fusion',
+                color='darkorange', edgecolor='black', alpha=0.85)
 
-    b1 = ax.bar(x - 1.5*w, sv_vals,  w, label='Single-View',              color='steelblue',  edgecolor='black', alpha=0.85)
-    b2 = ax.bar(x - 0.5*w, mve_vals, w, label='MV Shared Head',           color='darkorange', edgecolor='black', alpha=0.85)
-    b3 = ax.bar(x + 0.5*w, mvp_vals, w, label='MV Per-Ex Heads',          color='seagreen',   edgecolor='black', alpha=0.85)
-    b4 = ax.bar(x + 1.5*w, cur_vals, w, label='MV Per-Ex + ExNorm (this)', color='crimson',    edgecolor='black', alpha=0.85)
+    for bar, v in zip(b1, sv_vals):
+        ax.text(bar.get_x() + bar.get_width()/2, bar.get_height() + 0.005,
+                f'{v:.4f}', ha='center', va='bottom', fontsize=8)
+    for bar, v in zip(b2, mv_vals):
+        ax.text(bar.get_x() + bar.get_width()/2, bar.get_height() + 0.005,
+                f'{v:.4f}', ha='center', va='bottom', fontsize=8)
 
-    for bars, vals in [(b1, sv_vals), (b2, mve_vals), (b3, mvp_vals), (b4, cur_vals)]:
-        for bar, v in zip(bars, vals):
-            ax.text(bar.get_x() + bar.get_width()/2,
-                    bar.get_height() + 0.005,
-                    f'{v:.3f}', ha='center', va='bottom', fontsize=7)
-
-    ax.set_title('Model Comparison — Test Set', fontsize=13, fontweight='bold')
+    ax.set_title('Single-View vs Multi-View Early Fusion — Test Set',
+                 fontsize=13, fontweight='bold')
     ax.set_xticks(x); ax.set_xticklabels(metrics)
-    ax.legend(fontsize=8); ax.grid(axis='y', alpha=0.3)
+    ax.legend(); ax.grid(axis='y', alpha=0.3)
     plt.tight_layout()
-    save_and_show(fig, os.path.join(save_dir, 'comparison_all_models.png'))
+    save_and_show(fig, os.path.join(save_dir, 'comparison_sv_vs_mv_early_fusion.png'))
 
 
-print('✓ Plotting helpers defined (4-model comparison)')
+print('✓ Plotting helpers defined (with single-view baseline lines)')
 
 
 # ══════════════════════════════════════════════════════════════════════════
@@ -1159,48 +1154,65 @@ class EarlyStopping:
             return self.counter >= self.patience, False
 
 
-print('✓ EarlyStopping defined (monitoring val MAE — original scale)')
+print('✓ EarlyStopping defined (monitoring val MAE)')
 
 
 # ══════════════════════════════════════════════════════════════════════════
 # Cell 16 — Training Loop
+#
+# FIX: num_workers > 0 to avoid DataLoader bottleneck with 3 cameras.
+# FIX: optimiser=None passed to run_epoch for val/test.
+# FIX: Huber loss (SmoothL1) instead of MSE — more robust to outliers,
+#      which matters given exercises like E3/E7/E9 that had bad R² in SV.
 # ══════════════════════════════════════════════════════════════════════════
 
-reg_fn = nn.SmoothL1Loss(beta=1.0)   # Huber loss in z-score space
+# FIX: Huber loss (delta=1.0) is less sensitive to outlier quality scores
+reg_fn = nn.SmoothL1Loss(beta=1.0)
 
+# FIX: num_workers for faster loading (3 NPZ files per sample)
 num_workers = min(4, os.cpu_count() or 1)
 print(f'DataLoader num_workers = {num_workers}')
 
 train_loader = DataLoader(
-    BZUMultiViewDataset(train_df, augment=True,  ex_stats=ex_stats),
-    batch_size=BATCH_SIZE, shuffle=True,
-    num_workers=num_workers, pin_memory=(DEVICE == 'cuda'),
-    persistent_workers=(num_workers > 0),
+    BZUMultiViewDataset(train_df, augment=True),
+    batch_size  = BATCH_SIZE,
+    shuffle     = True,
+    num_workers = num_workers,
+    pin_memory  = (DEVICE == 'cuda'),
+    persistent_workers = (num_workers > 0),
 )
+
 val_loader = DataLoader(
-    BZUMultiViewDataset(val_df,   augment=False, ex_stats=ex_stats),
-    batch_size=BATCH_SIZE, shuffle=False,
-    num_workers=num_workers, pin_memory=(DEVICE == 'cuda'),
-    persistent_workers=(num_workers > 0),
+    BZUMultiViewDataset(val_df, augment=False),
+    batch_size  = BATCH_SIZE,
+    shuffle     = False,
+    num_workers = num_workers,
+    pin_memory  = (DEVICE == 'cuda'),
+    persistent_workers = (num_workers > 0),
 )
+
 test_loader = DataLoader(
-    BZUMultiViewDataset(test_df,  augment=False, ex_stats=ex_stats),
-    batch_size=BATCH_SIZE, shuffle=False,
-    num_workers=num_workers, pin_memory=(DEVICE == 'cuda'),
-    persistent_workers=(num_workers > 0),
+    BZUMultiViewDataset(test_df, augment=False),
+    batch_size  = BATCH_SIZE,
+    shuffle     = False,
+    num_workers = num_workers,
+    pin_memory  = (DEVICE == 'cuda'),
+    persistent_workers = (num_workers > 0),
 )
 
 model = GCN_MultiView_Regression(
-    num_joints  = FUSED_JOINTS,
-    in_features = 6,
-    hidden_dims = [64, 128, 256],
-    dropout     = 0.5,
-    cross_view  = True,
+    num_joints   = FUSED_JOINTS,
+    in_features  = 6,
+    hidden_dims  = [64, 128, 256],
+    dropout      = 0.5,
+    cross_view   = True,
 ).to(DEVICE)
 
 optimiser = torch.optim.AdamW(
     model.parameters(), lr=LR, weight_decay=WEIGHT_DECAY)
 
+# FIX: longer patience for scheduler — single-view reduced LR at epoch 36
+# which was too early given the overfitting pattern
 scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(
     optimiser, mode='min', factor=0.5,
     patience=20, min_lr=1e-6, verbose=True)
@@ -1213,19 +1225,21 @@ history = {f'{s}_{m}': [] for s in SPLITS for m in METRICS}
 stopped_epoch = EPOCHS
 
 log.info('=' * 70)
-log.info('STARTING TRAINING — MV Per-Ex Heads + Exercise Quality Normalisation')
-log.info(f'Cameras={ALL_CAMERAS}  FusedJoints={FUSED_JOINTS}  CrossViewEdges=True')
-log.info(f'Loss=SmoothL1(z-score)  LR={LR}  WD={WEIGHT_DECAY}  Batch={BATCH_SIZE}')
+log.info('STARTING MULTI-VIEW EARLY FUSION TRAINING')
+log.info(f'Cameras={ALL_CAMERAS}  FusedJoints={FUSED_JOINTS}  CrossViewEdges=True  Heads=per-exercise')
+log.info(f'Loss=SmoothL1(Huber)  LR={LR}  WD={WEIGHT_DECAY}  Batch={BATCH_SIZE}')
 log.info(f'train={len(train_df)} val={len(val_df)} test={len(test_df)}')
 log.info('=' * 70)
 
-print(f'\n{"═"*76}')
-print(f'  MV Per-Ex Heads + Exercise Quality Normalisation')
-print(f'  Cameras: {ALL_CAMERAS}  |  Fused joints: {FUSED_JOINTS}')
+print(f'\n{"═"*72}')
+print(f'  Multi-View Early Fusion  |  Cameras: {ALL_CAMERAS}  '
+      f'|  Fused joints: {FUSED_JOINTS}')
 print(f'  Train: {len(train_df)}  Val: {len(val_df)}  Test: {len(test_df)}')
-print(f'  Loss : SmoothL1 (z-score space)  |  LR: {LR}  |  WD: {WEIGHT_DECAY}')
+print(f'  Loss : SmoothL1 (Huber)  |  LR: {LR}  |  WD: {WEIGHT_DECAY}')
 print(f'  Patience: {PATIENCE}  |  Batch: {BATCH_SIZE}  |  Workers: {num_workers}')
-print(f'{"═"*76}')
+print(f'  Single-View Baseline: MAE={SV_TEST_MAE} RMSE={SV_TEST_RMSE} '
+      f'R²={SV_TEST_R2} PCC={SV_TEST_PCC}')
+print(f'{"═"*72}')
 
 for epoch in range(1, EPOCHS + 1):
     tr = run_epoch(model, train_loader, reg_fn, optimiser=optimiser, is_train=True)
@@ -1265,57 +1279,47 @@ print('\n✓ Training complete!')
 model.load_state_dict(early_stop.best_wts)
 best_epoch = early_stop.best_epoch
 
-# ── Final test evaluation ─────────────────────────────────────────────────
+# ── Final test evaluation (optimiser=None) ────────────────────────────────
 final_te = run_epoch(model, test_loader, reg_fn, optimiser=None, is_train=False)
 
 print(f'\n  ── Final Test Results (best epoch = {best_epoch}) ──────────────────')
-print(f'  {"Metric":<8}  {"This Run":>12}  {"MV Per-Ex":>12}  {"MV Shared":>11}  {"SV":>8}')
-print(f'  {"─"*58}')
-for metric, cur_val, prev_vals in [
-    ('MAE',  final_te["mae"],  (MV_PEREX_TEST_MAE,  MV_EF_TEST_MAE,  SV_TEST_MAE)),
-    ('RMSE', final_te["rmse"], (MV_PEREX_TEST_RMSE, MV_EF_TEST_RMSE, SV_TEST_RMSE)),
-    ('R²',   final_te["r2"],   (MV_PEREX_TEST_R2,   MV_EF_TEST_R2,   SV_TEST_R2)),
-    ('PCC',  final_te["pcc"],  (MV_PEREX_TEST_PCC,  MV_EF_TEST_PCC,  SV_TEST_PCC)),
+print(f'  {"Metric":<8}  {"Multi-View EF":>14}  {"Single-View":>12}  {"Δ":>8}')
+print(f'  {"─"*50}')
+for metric, mv_val, sv_val in [
+    ('Loss',  final_te["loss"], None),
+    ('RMSE',  final_te["rmse"], SV_TEST_RMSE),
+    ('MAE',   final_te["mae"],  SV_TEST_MAE),
+    ('R²',    final_te["r2"],   SV_TEST_R2),
+    ('PCC',   final_te["pcc"],  SV_TEST_PCC),
 ]:
-    p1, p2, p3 = prev_vals
-    delta = cur_val - p1
-    arrow = '↑' if (metric in ['R²', 'PCC'] and delta > 0) or \
-                   (metric in ['RMSE', 'MAE'] and delta < 0) else '↓'
-    print(f'  {metric:<8}  {cur_val:>12.4f}  {p1:>12.4f}  {p2:>11.4f}  {p3:>8.4f}  Δ={delta:+.4f}{arrow}')
+    if sv_val is not None:
+        delta = mv_val - sv_val
+        arrow = '↑' if (metric in ['R²', 'PCC'] and delta > 0) or \
+                       (metric in ['RMSE', 'MAE'] and delta < 0) else '↓'
+        print(f'  {metric:<8}  {mv_val:>14.4f}  {sv_val:>12.4f}  {delta:>+7.4f} {arrow}')
+    else:
+        print(f'  {metric:<8}  {mv_val:>14.4f}')
 
-# ── Collect denormalised predictions for plots ────────────────────────────
+# ── Collect predictions ───────────────────────────────────────────────────
 model.eval()
-all_pred_norm, all_true_norm, all_exercise_ids = [], [], []
+all_true_q, all_pred_q, all_exercise_ids = [], [], []
 with torch.no_grad():
     for skels, qualities, exercise_ids in test_loader:
         skels        = skels.to(DEVICE)
         exercise_ids = exercise_ids.to(DEVICE)
         preds        = model(skels, exercise_ids)
-        all_pred_norm.extend(preds.cpu().numpy())
-        all_true_norm.extend(qualities.numpy())
+        all_true_q.extend(qualities.numpy())
+        all_pred_q.extend(preds.cpu().numpy())
         all_exercise_ids.extend(exercise_ids.cpu().numpy())
-
-all_pred_norm_arr = np.array(all_pred_norm)
-all_true_norm_arr = np.array(all_true_norm)
-all_ex_arr        = np.array(all_exercise_ids)
-
-# Denormalise
-all_pred_q_arr, all_true_q_arr = denorm_predictions(
-    all_pred_norm_arr, all_true_norm_arr, all_ex_arr, ex_stats)
-
-# ── Save ex_stats ─────────────────────────────────────────────────────────
-ex_stats.to_csv(os.path.join(LOGS_DIR, 'exercise_quality_stats.csv'))
-print(f'  ✓ ex_stats → {os.path.join(LOGS_DIR, "exercise_quality_stats.csv")}')
 
 # ── Save all plots ────────────────────────────────────────────────────────
 plot_loss_curves(history, PLOTS_DIR, test_loss=final_te['loss'])
 plot_rmse_mae(history, PLOTS_DIR, test_rmse=final_te['rmse'], test_mae=final_te['mae'])
 plot_r2(history, PLOTS_DIR,       test_r2=final_te['r2'])
 plot_pcc(history, PLOTS_DIR,      test_pcc=final_te['pcc'])
-plot_regression_scatter(all_true_q_arr, all_pred_q_arr,
-                        split_name='Test', save_dir=PLOTS_DIR)
+plot_regression_scatter(all_true_q, all_pred_q, split_name='Test', save_dir=PLOTS_DIR)
 plot_early_stop(history, stopped_epoch, best_epoch, PLOTS_DIR)
-plot_comparison_bar(final_te, PLOTS_DIR)
+plot_comparison_bar(final_te, PLOTS_DIR)          # NEW: SV vs MV comparison
 
 json_path = os.path.join(LOGS_DIR, 'training_history.json')
 with open(json_path, 'w') as f:
@@ -1327,12 +1331,16 @@ print(f'  ✓ History → {json_path}')
 # Cell 16.5 — Per-exercise test metrics
 # ══════════════════════════════════════════════════════════════════════════
 
+all_true_q_arr  = np.array(all_true_q)
+all_pred_q_arr  = np.array(all_pred_q)
+all_ex_arr      = np.array(all_exercise_ids)
+
 unique_exercises = sorted(np.unique(all_ex_arr))
 per_ex_results   = {}
 
-print('=' * 76)
+print('=' * 72)
 print(f'  {"Exercise":<12} {"n":>5} {"MAE":>8} {"RMSE":>8} {"R²":>8} {"PCC":>8}')
-print('─' * 76)
+print('─' * 72)
 
 for ex_id in unique_exercises:
     mask = all_ex_arr == ex_id
@@ -1346,11 +1354,11 @@ for ex_id in unique_exercises:
     per_ex_results[ex_id] = dict(n=n, mae=mae, rmse=rmse, r2=r2, pcc=pcc)
     print(f'  E{ex_id:<11} {n:>5} {mae:>8.4f} {rmse:>8.4f} {r2:>8.4f} {pcc:>8.4f}')
 
-print('─' * 76)
+print('─' * 72)
 print(f'  {"Overall":<12} {len(all_true_q_arr):>5} '
       f'{final_te["mae"]:>8.4f} {final_te["rmse"]:>8.4f} '
       f'{final_te["r2"]:>8.4f} {final_te["pcc"]:>8.4f}')
-print('=' * 76)
+print('=' * 72)
 
 per_ex_df  = pd.DataFrame([{'exercise': f'E{ex}', **vals}
                             for ex, vals in per_ex_results.items()])
@@ -1365,8 +1373,8 @@ n_rows = int(np.ceil(n_ex / n_cols))
 
 fig, axes = plt.subplots(n_rows, n_cols, figsize=(5 * n_cols, 4.5 * n_rows))
 axes = axes.flatten()
-fig.suptitle('Per-Exercise: True vs Predicted — MV Per-Ex Heads + ExNorm (Test)',
-             fontsize=13, fontweight='bold')
+fig.suptitle('Per-Exercise: True vs Predicted — Multi-View Early Fusion (Test)',
+             fontsize=14, fontweight='bold')
 
 for i, ex_id in enumerate(unique_exercises):
     ax   = axes[i]
@@ -1402,7 +1410,7 @@ print(f'  ✓ Per-exercise scatter grid → {scatter_grid_path}')
 
 # ── Per-exercise bar chart ────────────────────────────────────────────────
 fig, axes = plt.subplots(1, 4, figsize=(16, 4))
-fig.suptitle('Per-Exercise Test Metrics — MV Per-Ex Heads + ExNorm',
+fig.suptitle('Per-Exercise Test Metrics — Multi-View Early Fusion',
              fontsize=13, fontweight='bold')
 ex_labels = [f'E{ex}' for ex in unique_exercises]
 colors    = plt.cm.tab10(np.linspace(0, 1, len(unique_exercises)))
@@ -1428,7 +1436,7 @@ for ax, metric, ylabel, ylim in [
 
 for ax, metric in zip(axes, ['mae', 'rmse', 'r2', 'pcc']):
     ax.axhline(final_te[metric], color='red', linestyle='--',
-               linewidth=1.5, label=f'Overall={final_te[metric]:.3f}')
+               linewidth=1.5, label=f'MV Overall={final_te[metric]:.3f}')
     ax.legend(fontsize=7)
 
 plt.tight_layout()
@@ -1448,66 +1456,57 @@ best_val_rmse = history['val_rmse'][bv]
 best_val_r2   = history['val_r2'][bv]
 best_val_pcc  = history['val_pcc'][bv]
 
-print('=' * 70)
-print('  TRAINING SUMMARY — MV Per-Ex Heads + Exercise Quality Normalisation')
+print('=' * 65)
+print('  TRAINING SUMMARY — Multi-View Early Fusion')
 print(f'  Cameras: {ALL_CAMERAS}  |  Fused joints: {FUSED_JOINTS}')
-print('=' * 70)
-print(f'  Best Epoch   : {best_epoch}  (stopped at {stopped_epoch})')
-print(f'  Best Val MAE : {best_val_mae:.4f}')
-print(f'  Best Val RMSE: {best_val_rmse:.4f}')
-print(f'  Best Val R²  : {best_val_r2:.4f}')
-print(f'  Best Val PCC : {best_val_pcc:.4f}')
-print('─' * 70)
-print(f'  {"Metric":<8}  {"This Run":>12}  {"MV Per-Ex":>12}  {"MV Shared":>11}  {"SV":>8}')
-print(f'  {"─"*60}')
-for metric, cur_val, prev_vals in [
-    ('MAE',  final_te["mae"],  (MV_PEREX_TEST_MAE,  MV_EF_TEST_MAE,  SV_TEST_MAE)),
-    ('RMSE', final_te["rmse"], (MV_PEREX_TEST_RMSE, MV_EF_TEST_RMSE, SV_TEST_RMSE)),
-    ('R²',   final_te["r2"],   (MV_PEREX_TEST_R2,   MV_EF_TEST_R2,   SV_TEST_R2)),
-    ('PCC',  final_te["pcc"],  (MV_PEREX_TEST_PCC,  MV_EF_TEST_PCC,  SV_TEST_PCC)),
+print('=' * 65)
+print(f'  Best Epoch       : {best_epoch}  (stopped at {stopped_epoch})')
+print(f'  Best Val MAE     : {best_val_mae:.4f}')
+print(f'  Best Val RMSE    : {best_val_rmse:.4f}')
+print(f'  Best Val R²      : {best_val_r2:.4f}')
+print(f'  Best Val PCC     : {best_val_pcc:.4f}')
+print('─' * 65)
+print(f'  {"Metric":<8}  {"Multi-View EF":>14}  {"Single-View":>12}  {"Δ":>8}')
+print(f'  {"─"*48}')
+for metric, mv_val, sv_val in [
+    ('MAE',  final_te["mae"],  SV_TEST_MAE),
+    ('RMSE', final_te["rmse"], SV_TEST_RMSE),
+    ('R²',   final_te["r2"],   SV_TEST_R2),
+    ('PCC',  final_te["pcc"],  SV_TEST_PCC),
 ]:
-    p1, p2, p3 = prev_vals
-    delta = cur_val - p1
+    delta = mv_val - sv_val
     arrow = '↑' if (metric in ['R²', 'PCC'] and delta > 0) or \
                    (metric in ['RMSE', 'MAE'] and delta < 0) else '↓'
-    print(f'  {metric:<8}  {cur_val:>12.4f}  {p1:>12.4f}  {p2:>11.4f}  {p3:>8.4f}  '
-          f'Δvs_prev={delta:+.4f}{arrow}')
-print('=' * 70)
+    print(f'  {metric:<8}  {mv_val:>14.4f}  {sv_val:>12.4f}  {delta:>+7.4f} {arrow}')
+print('=' * 65)
 
-log.info(f'Summary: Best={best_epoch} stopped={stopped_epoch}')
+log.info(f'Multi-View Early Fusion Summary: Best={best_epoch} stopped={stopped_epoch}')
 log.info(f'Test MAE={final_te["mae"]:.4f} RMSE={final_te["rmse"]:.4f} '
          f'R²={final_te["r2"]:.4f} PCC={final_te["pcc"]:.4f}')
-log.info(f'vs MV Per-Ex: ΔMAE={final_te["mae"]-MV_PEREX_TEST_MAE:+.4f} '
-         f'ΔR²={final_te["r2"]-MV_PEREX_TEST_R2:+.4f}')
+log.info(f'vs SV: ΔMAE={final_te["mae"]-SV_TEST_MAE:+.4f} '
+         f'ΔR²={final_te["r2"]-SV_TEST_R2:+.4f}')
 
 summary_path = os.path.join(OUT_DIR, 'training_summary.csv')
-rows = [
-    {'model': 'single_view',
-     'test_mae': SV_TEST_MAE,      'test_rmse': SV_TEST_RMSE,
-     'test_r2':  SV_TEST_R2,       'test_pcc':  SV_TEST_PCC},
-    {'model': 'mv_shared_head',
-     'test_mae': MV_EF_TEST_MAE,   'test_rmse': MV_EF_TEST_RMSE,
-     'test_r2':  MV_EF_TEST_R2,    'test_pcc':  MV_EF_TEST_PCC},
-    {'model': 'mv_per_ex_heads',
-     'test_mae': MV_PEREX_TEST_MAE,'test_rmse': MV_PEREX_TEST_RMSE,
-     'test_r2':  MV_PEREX_TEST_R2, 'test_pcc':  MV_PEREX_TEST_PCC},
-    {'model': 'mv_per_ex_heads_exnorm',
-     'cameras': str(ALL_CAMERAS), 'fused_joints': FUSED_JOINTS,
-     'best_epoch': best_epoch, 'stopped_epoch': stopped_epoch,
-     'val_mae': best_val_mae,  'val_rmse': best_val_rmse,
-     'val_r2':  best_val_r2,   'val_pcc':  best_val_pcc,
-     'test_mae': final_te['mae'], 'test_rmse': final_te['rmse'],
-     'test_r2':  final_te['r2'],  'test_pcc':  final_te['pcc']},
-]
+rows = [{'model': 'single_view',
+         'test_mae': SV_TEST_MAE, 'test_rmse': SV_TEST_RMSE,
+         'test_r2':  SV_TEST_R2,  'test_pcc':  SV_TEST_PCC},
+        {'model': 'multiview_early_fusion_per_ex_heads',
+         'cameras': str(ALL_CAMERAS), 'fused_joints': FUSED_JOINTS,
+         'best_epoch': best_epoch, 'stopped_epoch': stopped_epoch,
+         'val_mae': best_val_mae,  'val_rmse': best_val_rmse,
+         'val_r2':  best_val_r2,   'val_pcc':  best_val_pcc,
+         'test_mae': final_te['mae'], 'test_rmse': final_te['rmse'],
+         'test_r2':  final_te['r2'],  'test_pcc':  final_te['pcc']}]
+
 for ex, vals in per_ex_results.items():
-    rows.append({'model': 'mv_per_ex_heads_exnorm_per_exercise',
+    rows.append({'model': 'multiview_early_fusion_per_exercise',
                  'exercise': f'E{ex}',
                  'test_mae': vals['mae'], 'test_rmse': vals['rmse'],
                  'test_r2':  vals['r2'],  'test_pcc':  vals['pcc'],
                  'n': vals['n']})
 
 pd.DataFrame(rows).to_csv(summary_path, index=False)
-print(f'\n✓ Summary CSV → {summary_path}')
+print(f'\n✓ Summary CSV (includes single-view baseline) → {summary_path}')
 
 sys.stdout.restore()
 print('✓ Log file closed and saved.')
