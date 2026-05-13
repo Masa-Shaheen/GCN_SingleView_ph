@@ -808,27 +808,21 @@ class GCN_MultiView_Regression(nn.Module):
                     if 'weight' in name: nn.init.orthogonal_(param)
                     elif 'bias'  in name: nn.init.zeros_(param)
 
-    def forward(self, x, exercise_id,  view_mask):
-        """
-        x           : (B, T, V*J, 6)
-        exercise_id : (B,) long
-        """
+    def forward(self, x, exercise_id, view_mask):
         B, T, J, C = x.shape
 
-         # ── Replace missing view blocks with learnable token ──────────────
+        # ── Replace missing view blocks with learnable token ──────────────
         filled_views = []
         for v in range(NUM_VIEWS):
             start     = v * NUM_JOINTS
             end       = (v + 1) * NUM_JOINTS
-            view_data = x[:, :, start:end, :]          # (B, T, J, 6)
-            avail     = view_mask[:, v].float().view(B, 1, 1, 1)  # 1=available, 0=missing
+            view_data = x[:, :, start:end, :]
+            avail     = view_mask[:, v].float().view(B, 1, 1, 1)
             token     = self.missing_view_token.view(1, 1, NUM_JOINTS, 6)
             filled    = avail * view_data + (1.0 - avail) * token
             filled_views.append(filled)
-        x = torch.cat(filled_views, dim=2)             # (B, T, V*J, 6)
-        # ──────────────────────────────────────────────────────────────────
+        x = torch.cat(filled_views, dim=2)
 
-        # rest unchanged from here
         xbn = x.permute(0, 3, 1, 2).reshape(B, C, T * x.shape[2])
         xbn = self.data_bn(xbn)
         x   = xbn.reshape(B, C, T, J).permute(0, 2, 3, 1)
@@ -836,19 +830,12 @@ class GCN_MultiView_Regression(nn.Module):
         h  = self.gcn(x, self.A_hat)       # (B, T, V*J, 256)
         h  = self.temporal(h)              # (B, 256)
 
-        # ex = self.ex_embed(exercise_id)    # (B, 32)
-        # h  = torch.cat([h, ex], dim=1)     # (B, 288)
-
-        # # FIX: wider output range 3±2.4 → (0.6, 5.4) instead of 3±2 → (1, 5)
-        # # Handles labels near 1.0 (min=1.34 in your data, so 0.6 gives headroom)
-        # # and near 5.0 (max=5.0 in your data)
-        # out = 3.0 + 2.4 * torch.tanh(self.reg_head(h).squeeze(1))
-        # واضيفي هاي:
+        # Per-exercise heads — ONE output path only
         out = torch.cat([
             self.heads[f'E{exercise_id[b].item()}'](h[b].unsqueeze(0))
             for b in range(h.size(0))
         ], dim=0).squeeze(-1)
-        out = 3.0 + 2.4 * torch.tanh(self.reg_head(h).squeeze(1))
+        out = 3.0 + 2.4 * torch.tanh(out)   # scale to (0.6, 5.4)
         return out
 
 

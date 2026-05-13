@@ -13,7 +13,7 @@ nohup: ignoring input
   Single-View Baseline:
     MAE=0.4076  RMSE=0.5569  R²=0.4859  PCC=0.7443
 ✓ Libraries imported
-✓ Run directory: /mvdlph/masa/GCN_MultiView_EarlyFusion_Results/run_2026_05_13_12_26_50
+✓ Run directory: /mvdlph/masa/GCN_MultiView_EarlyFusion_Results/run_2026_05_13_12_32_51
 Total NPZ files found : 15375
 First file: E0_P12_T0_C0_seg0_MMPose_human3d_motionbert_3D.npz
 Keys      : ['keypoints_3d', 'fps', 'video_shape', 'video_name']
@@ -556,17 +556,11 @@ Shape   : (531, 7)
 527       E9    P15    T3     C1            4  4.4250  1.3566
 528       E9    P15    T4     C1            4  3.6500  1.7029
 529       E9    P15    T5     C1            4  2.7750  1.7466
-530       E9    P15    T6     C1            4  3.3750  1.90392026-05-13 12:26:51,078 | INFO | ======================================================================
-2026-05-13 12:26:51,079 | INFO | ST-GCN Multi-View Early Fusion | Cameras=[0, 1, 2] | FusedJoints=51
-2026-05-13 12:26:51,079 | INFO | Epochs=300 | Patience=80 | Batch=32 | LR=0.0001
-2026-05-13 12:26:51,079 | INFO | Single-View Baseline: MAE=0.4076 RMSE=0.5569 R²=0.4859 PCC=0.7443
-2026-05-13 12:26:51,079 | INFO | ======================================================================
-2026-05-13 12:27:05,891 | INFO | ======================================================================
-2026-05-13 12:27:05,892 | INFO | STARTING MULTI-VIEW EARLY FUSION TRAINING
-2026-05-13 12:27:05,892 | INFO | Cameras=[0, 1, 2]  FusedJoints=51  CrossViewEdges=True  Heads=per-exercise
-2026-05-13 12:27:05,892 | INFO | Loss=SmoothL1(Huber)  LR=0.0001  WD=0.001  Batch=32
-2026-05-13 12:27:05,893 | INFO | train=3286 val=992 test=1046
-2026-05-13 12:27:05,893 | INFO | ======================================================================
+530       E9    P15    T6     C1            4  3.3750  1.90392026-05-13 12:32:51,889 | INFO | ======================================================================
+2026-05-13 12:32:51,889 | INFO | ST-GCN Multi-View Early Fusion | Cameras=[0, 1, 2] | FusedJoints=51
+2026-05-13 12:32:51,890 | INFO | Epochs=300 | Patience=80 | Batch=32 | LR=0.0001
+2026-05-13 12:32:51,890 | INFO | Single-View Baseline: MAE=0.4076 RMSE=0.5569 R²=0.4859 PCC=0.7443
+2026-05-13 12:32:51,890 | INFO | ======================================================================
 
 ============================================================
 Quality stats per person:
@@ -609,7 +603,7 @@ P6: 10 exercises | missing=None
 P7: 10 exercises | missing=None
 P8: 10 exercises | missing=None
 P9: 10 exercises | missing=None
-✓ stdout → also writing to /mvdlph/masa/GCN_MultiView_EarlyFusion_Results/run_2026_05_13_12_26_50/logs/training_20260513_122651.log
+✓ stdout → also writing to /mvdlph/masa/GCN_MultiView_EarlyFusion_Results/run_2026_05_13_12_32_51/logs/training_20260513_123251.log
 ✓ parse_filename and load_skeleton defined
 
 [TRAIN] NPZ files found : 9477
@@ -688,58 +682,18 @@ trial_id    T1
 segment      0
 Name: 10, dtype: object
 Skeleton shape : (81, 17, 3)
-  ✓ Skeleton plot saved → /mvdlph/masa/GCN_MultiView_EarlyFusion_Results/run_2026_05_13_12_26_50/plots/sample_skeleton_3views.png
+  ✓ Skeleton plot saved → /mvdlph/masa/GCN_MultiView_EarlyFusion_Results/run_2026_05_13_12_32_51/plots/sample_skeleton_3views.png
 ✓ Preprocessing helpers defined (vectorised normalise_length)
 ✓ BZUMultiViewDataset defined (early fusion, cameras=[0, 1, 2])
   Sample shape: torch.Size([100, 51, 6])  (expected T=100, V*J=51, C=6)
 ✓ Dataset shape check passed
-✓ GCN_MultiView_Regression sanity check passed — output shape: torch.Size([2])
-✓ Total trainable parameters: 1,050,428
-✓ Multi-view adjacency: intra-view=49, cross-view per block=17
-Device : cuda
-GPU    : Tesla V100-PCIE-32GB
-✓ run_epoch defined (optimiser=None for val/test)
-=================================================================
-Quality score distribution audit
-=================================================================
-  ✓ Saved → /mvdlph/masa/GCN_MultiView_EarlyFusion_Results/run_2026_05_13_12_26_50/plots/split_quality_distributions.png
-✓ Plotting helpers defined (with single-view baseline lines)
-✓ EarlyStopping defined (monitoring val MAE)
-DataLoader num_workers = 4
-
-════════════════════════════════════════════════════════════════════════
-  Multi-View Early Fusion  |  Cameras: [0, 1, 2]  |  Fused joints: 51
-  Train: 3286  Val: 992  Test: 1046
-  Loss : SmoothL1 (Huber)  |  LR: 0.0001  |  WD: 0.001
-  Patience: 80  |  Batch: 32  |  Workers: 4
-  Single-View Baseline: MAE=0.4076 RMSE=0.5569 R²=0.4859 PCC=0.7443
-════════════════════════════════════════════════════════════════════════
-2026-05-13 12:27:14,035 | INFO |   Ep   1/300 | Tr loss=1.4805 mae=1.929 r2=-7.583 pcc=0.023 | Vl loss=0.4701 mae=0.803 r2=-1.180 pcc=0.154 | ES 0/80 ★
-2026-05-13 12:27:21,004 | INFO |   Ep   2/300 | Tr loss=0.7823 mae=1.199 r2=-2.346 pcc=0.110 | Vl loss=0.3422 mae=0.676 r2=-0.491 pcc=0.173 | ES 0/80 ★
-2026-05-13 12:27:28,038 | INFO |   Ep   3/300 | Tr loss=0.7258 mae=1.136 r2=-2.096 pcc=0.079 | Vl loss=0.2658 mae=0.549 r2=-0.118 pcc=0.282 | ES 0/80 ★
-2026-05-13 12:27:35,019 | INFO |   Ep   4/300 | Tr loss=0.7003 mae=1.111 r2=-1.893 pcc=0.077 | Vl loss=0.2167 mae=0.514 r2=0.132 pcc=0.444 | ES 0/80 ★
-2026-05-13 12:27:42,080 | INFO |   Ep   5/300 | Tr loss=0.6533 mae=1.058 r2=-1.627 pcc=0.122 | Vl loss=0.1878 mae=0.511 r2=0.274 pcc=0.529 | ES 0/80 ★
-2026-05-13 12:27:48,976 | INFO |   Ep   6/300 | Tr loss=0.6447 mae=1.048 r2=-1.592 pcc=0.100 | Vl loss=0.1514 mae=0.464 r2=0.423 pcc=0.652 | ES 0/80 ★
-2026-05-13 12:27:55,891 | INFO |   Ep   7/300 | Tr loss=0.5919 mae=0.993 r2=-1.317 pcc=0.154 | Vl loss=0.1226 mae=0.398 r2=0.529 pcc=0.732 | ES 0/80 ★
-2026-05-13 12:28:02,831 | INFO |   Ep   8/300 | Tr loss=0.5439 mae=0.935 r2=-1.110 pcc=0.224 | Vl loss=0.1147 mae=0.382 r2=0.558 pcc=0.760 | ES 0/80 ★
-2026-05-13 12:28:09,688 | INFO |   Ep   9/300 | Tr loss=0.5406 mae=0.936 r2=-1.065 pcc=0.271 | Vl loss=0.1138 mae=0.372 r2=0.553 pcc=0.788 | ES 0/80 ★
-2026-05-13 12:28:16,707 | INFO |   Ep  10/300 | Tr loss=0.5074 mae=0.892 r2=-0.897 pcc=0.350 | Vl loss=0.1188 mae=0.364 r2=0.531 pcc=0.819 | ES 0/80 ★
-2026-05-13 12:28:23,651 | INFO |   Ep  11/300 | Tr loss=0.4917 mae=0.874 r2=-0.827 pcc=0.353 | Vl loss=0.1216 mae=0.359 r2=0.524 pcc=0.818 | ES 0/80 ★
-2026-05-13 12:28:30,720 | INFO |   Ep  12/300 | Tr loss=0.5094 mae=0.895 r2=-0.893 pcc=0.326 | Vl loss=0.1311 mae=0.389 r2=0.488 pcc=0.819 | ES 1/80
-2026-05-13 12:28:37,731 | INFO |   Ep  13/300 | Tr loss=0.4745 mae=0.860 r2=-0.744 pcc=0.384 | Vl loss=0.1440 mae=0.408 r2=0.435 pcc=0.813 | ES 2/80
-2026-05-13 12:28:44,680 | INFO |   Ep  14/300 | Tr loss=0.4603 mae=0.838 r2=-0.698 pcc=0.374 | Vl loss=0.1296 mae=0.372 r2=0.492 pcc=0.840 | ES 3/80
-2026-05-13 12:28:51,675 | INFO |   Ep  15/300 | Tr loss=0.4530 mae=0.832 r2=-0.653 pcc=0.401 | Vl loss=0.1568 mae=0.427 r2=0.382 pcc=0.827 | ES 4/80
-2026-05-13 12:28:58,562 | INFO |   Ep  16/300 | Tr loss=0.4589 mae=0.839 r2=-0.684 pcc=0.387 | Vl loss=0.1354 mae=0.392 r2=0.469 pcc=0.833 | ES 5/80
-2026-05-13 12:29:05,438 | INFO |   Ep  17/300 | Tr loss=0.4336 mae=0.806 r2=-0.565 pcc=0.413 | Vl loss=0.1479 mae=0.404 r2=0.414 pcc=0.843 | ES 6/80
-2026-05-13 12:29:12,376 | INFO |   Ep  18/300 | Tr loss=0.4481 mae=0.826 r2=-0.627 pcc=0.393 | Vl loss=0.1643 mae=0.437 r2=0.344 pcc=0.837 | ES 7/80
-2026-05-13 12:29:19,371 | INFO |   Ep  19/300 | Tr loss=0.4269 mae=0.804 r2=-0.526 pcc=0.406 | Vl loss=0.1364 mae=0.391 r2=0.455 pcc=0.848 | ES 8/80
-2026-05-13 12:29:26,366 | INFO |   Ep  20/300 | Tr loss=0.4179 mae=0.793 r2=-0.504 pcc=0.411 | Vl loss=0.1728 mae=0.461 r2=0.306 pcc=0.846 | ES 9/80
-2026-05-13 12:29:33,351 | INFO |   Ep  21/300 | Tr loss=0.4225 mae=0.797 r2=-0.507 pcc=0.423 | Vl loss=0.1504 mae=0.433 r2=0.406 pcc=0.839 | ES 10/80
-2026-05-13 12:29:40,253 | INFO |   Ep  22/300 | Tr loss=0.4262 mae=0.802 r2=-0.523 pcc=0.403 | Vl loss=0.1532 mae=0.424 r2=0.383 pcc=0.853 | ES 11/80
-2026-05-13 12:29:47,153 | INFO |   Ep  23/300 | Tr loss=0.4088 mae=0.781 r2=-0.458 pcc=0.428 | Vl loss=0.1738 mae=0.480 r2=0.305 pcc=0.841 | ES 12/80
-2026-05-13 12:29:54,148 | INFO |   Ep  24/300 | Tr loss=0.4116 mae=0.786 r2=-0.456 pcc=0.425 | Vl loss=0.1651 mae=0.446 r2=0.342 pcc=0.841 | ES 13/80
-2026-05-13 12:30:01,093 | INFO |   Ep  25/300 | Tr loss=0.4212 mae=0.797 r2=-0.495 pcc=0.405 | Vl loss=0.1824 mae=0.481 r2=0.265 pcc=0.856 | ES 14/80
-2026-05-13 12:30:08,067 | INFO |   Ep  26/300 | Tr loss=0.4081 mae=0.779 r2=-0.454 pcc=0.447 | Vl loss=0.1668 mae=0.447 r2=0.333 pcc=0.854 | ES 15/80
-2026-05-13 12:30:14,961 | INFO |   Ep  27/300 | Tr loss=0.3885 mae=0.750 r2=-0.365 pcc=0.452 | Vl loss=0.1773 mae=0.471 r2=0.282 pcc=0.853 | ES 16/80
-2026-05-13 12:30:21,785 | INFO |   Ep  28/300 | Tr loss=0.3969 mae=0.766 r2=-0.404 pcc=0.439 | Vl loss=0.1792 mae=0.482 r2=0.284 pcc=0.852 | ES 17/80
-2026-05-13 12:30:28,752 | INFO |   Ep  29/300 | Tr loss=0.3747 mae=0.741 r2=-0.315 pcc=0.461 | Vl loss=0.1766 mae=0.477 r2=0.293 pcc=0.857 | ES 18/80
+Traceback (most recent call last):
+  File "train_stgcn_server.py", line 861, in <module>
+    _out        = _model(_dummy_x, _dummy_ex, _dummy_mask)    # ← correct order
+  File "/usr/local/lib/python3.8/dist-packages/torch/nn/modules/module.py", line 1194, in _call_impl
+    return forward_call(*input, **kwargs)
+  File "train_stgcn_server.py", line 851, in forward
+    out = 3.0 + 2.4 * torch.tanh(self.reg_head(h).squeeze(1))
+  File "/usr/local/lib/python3.8/dist-packages/torch/nn/modules/module.py", line 1269, in __getattr__
+    raise AttributeError("'{}' object has no attribute '{}'".format(
+AttributeError: 'GCN_MultiView_Regression' object has no attribute 'reg_head'
