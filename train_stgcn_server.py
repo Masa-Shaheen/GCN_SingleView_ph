@@ -1503,7 +1503,19 @@ for name, df_ in [('Train', train_df), ('Val', val_df), ('Test', test_df)]:
           f"min={q.min():.2f} max={q.max():.2f} | "
           f"correct={trials_correct} erroneous={trials_erroneous}")
 
+# ── Save history as NPZ ───────────────────────────────────────────────────
+npz_history_path = os.path.join(LOGS_DIR, 'training_history.npz')
+np.savez(npz_history_path, **{k: np.array(v) for k, v in history.items()})
+print(f'  ✓ History NPZ → {npz_history_path}')
 
+# ── Save test predictions as NPZ ──────────────────────────────────────────
+npz_preds_path = os.path.join(LOGS_DIR, 'test_predictions.npz')
+np.savez(npz_preds_path,
+         q_true       = np.array(all_true_q),
+         q_pred       = np.array(all_pred_q),
+         exercise_ids = np.array(all_exercise_ids),
+)
+print(f'  ✓ Test predictions NPZ → {npz_preds_path}')
 # ══════════════════════════════════════════════════════════════════════════
 # Cell 16.5 — Per-exercise test metrics
 # ══════════════════════════════════════════════════════════════════════════
@@ -1642,6 +1654,19 @@ bar_path = os.path.join(PLOTS_DIR, 'per_exercise_bar.png')
 plt.savefig(bar_path, dpi=150, bbox_inches='tight')
 plt.close()
 print(f'  ✓ Per-exercise bar chart → {bar_path}')
+
+
+# ── Save per-exercise metrics as NPZ ──────────────────────────────────────
+npz_per_ex_path = os.path.join(LOGS_DIR, 'per_exercise_metrics.npz')
+np.savez(npz_per_ex_path,
+         exercise_ids = np.array(unique_exercises),
+         n            = np.array([per_ex_results[e]['n']    for e in unique_exercises]),
+         mae          = np.array([per_ex_results[e]['mae']  for e in unique_exercises]),
+         rmse         = np.array([per_ex_results[e]['rmse'] for e in unique_exercises]),
+         r2           = np.array([per_ex_results[e]['r2']   for e in unique_exercises]),
+         pcc          = np.array([per_ex_results[e]['pcc']  for e in unique_exercises]),
+)
+print(f'  ✓ Per-exercise metrics NPZ → {npz_per_ex_path}')
 # ══════════════════════════════════════════════════════════════════════════
 # Cell 17 — Final Summary
 # ══════════════════════════════════════════════════════════════════════════
@@ -1703,3 +1728,4 @@ print(f'\n✓ Summary CSV (overall + per-exercise) → {summary_path}')
 
 sys.stdout.restore()
 print('✓ Log file closed and saved.')
+
