@@ -18,9 +18,9 @@ WEIGHT_DECAY  = 1e-4
 OUT_DIR       = "/mvdlph/masa/GCN_SingleView_Regression_Results"
  
 # ── Early Stopping ────────────────────────────────────────────────────────
-PATIENCE      = 80
+PATIENCE      = 100
 MIN_DELTA     = 1e-4
-WARMUP_EPOCHS = 10
+WARMUP_EPOCHS = 20
  
 print('✓ Configuration loaded')
 print(f'  DATASET_DIR : {DATASET_DIR}')
@@ -1357,7 +1357,7 @@ def lr_lambda(epoch):
 
 scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(
     optimiser, mode='min', factor=0.5,
-    patience=30, min_lr=1e-6, verbose=True
+    patience=50, min_lr=1e-6, verbose=True
 )
 early_stop = EarlyStopping(patience=PATIENCE, min_delta=MIN_DELTA)
 
