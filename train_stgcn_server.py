@@ -650,7 +650,25 @@ print('✓ BZUDataset defined (regression only)')
 
 
 # ══════════════════════════════════════════════════════════════════════════
-# Cell 11 — GCN Model (Kipf & Welling, ICLR 2017) — Regression
+# Cell 11 — TRUE ST-GCN Model (Yan et al., AAAI 2018) — Regression
+#
+# Architecture:
+#   Input (B, T, J, C)
+#       ↓
+#   Data BatchNorm
+#       ↓
+#   ST-GCN Blocks × 9  ← each block does BOTH spatial + temporal
+#       ↓
+#   Global Average Pooling
+#       ↓
+#   Exercise Embedding
+#       ↓
+#   Regression Head → Quality Score (1–5)
+#
+# Key difference from old code:
+#   OLD: GCN (spatial only) → GRU (temporal separately)
+#   NEW: ST-GCN block handles BOTH spatial + temporal together
+#        via Spatial Graph Conv + Temporal Conv in one block
 # ══════════════════════════════════════════════════════════════════════════
 
 def build_adj_kipf(num_joints, edges):
@@ -658,165 +676,169 @@ def build_adj_kipf(num_joints, edges):
     Kipf's normalized adjacency:  Â = D̃^(-½) Ã D̃^(-½)
     where  Ã = A + I  (self-loops added)
     """
-    # Ã = A + I  (add self-loops)
     A = np.zeros((num_joints, num_joints), dtype=np.float32)
     for i, j in edges:
         A[i, j] = 1.0
         A[j, i] = 1.0
-    A_tilde = A + np.eye(num_joints, dtype=np.float32)          # Ã
-
-    # D̃^(-½)
-    deg      = A_tilde.sum(axis=1)                              # degree vector
-    d_inv_sq = np.diag(np.power(deg, -0.5))                    # D̃^(-½)
-
-    # Â = D̃^(-½) Ã D̃^(-½)
-    A_hat = d_inv_sq @ A_tilde @ d_inv_sq
-    return torch.tensor(A_hat, dtype=torch.float32)             # shape (J, J)
+    A_tilde  = A + np.eye(num_joints, dtype=np.float32)
+    deg      = A_tilde.sum(axis=1)
+    d_inv_sq = np.diag(np.power(deg, -0.5))
+    A_hat    = d_inv_sq @ A_tilde @ d_inv_sq
+    return torch.tensor(A_hat, dtype=torch.float32)
 
 
-# ── Single Graph Convolution Layer (exact Kipf formulation) ───────────────
+# ── Spatial Graph Convolution (Kipf) ──────────────────────────────────────
 class GraphConvolution(nn.Module):
     """
-    Implements one GCN layer:
-        H_out = σ( Â · H_in · W )
-
-    Input  : (B*T, J, C_in)
-    Output : (B*T, J, C_out)
+    H_out = Â · H_in · W
+    Input/Output: (N, J, C)
     """
     def __init__(self, in_features, out_features, bias=True):
         super().__init__()
-        self.W    = nn.Linear(in_features, out_features, bias=bias)
-        self._init_weights()
-
-    def _init_weights(self):
+        self.W = nn.Linear(in_features, out_features, bias=bias)
         nn.init.xavier_uniform_(self.W.weight)
         if self.W.bias is not None:
             nn.init.zeros_(self.W.bias)
 
     def forward(self, H, A_hat):
-        """
-        H     : (N, J, C_in)   — N = B*T
-        A_hat : (J, J)         — fixed normalized adjacency
-        Returns (N, J, C_out)
-        """
-        # Step 1: linear projection  →  H · W        shape (N, J, C_out)
-        support = self.W(H)
-
-        # Step 2: graph propagation  →  Â · (H · W)  shape (N, J, C_out)
-        # A_hat: (J,J), support: (N,J,C_out)  →  bmm needs (N,J,J)×(N,J,C_out)
-        A_exp = A_hat.unsqueeze(0).expand(H.size(0), -1, -1)   # (N, J, J)
-        out   = torch.bmm(A_exp, support)                       # (N, J, C_out)
-        return out
+        support = self.W(H)                                    # (N, J, C_out)
+        A_exp   = A_hat.unsqueeze(0).expand(H.size(0), -1, -1)# (N, J, J)
+        return torch.bmm(A_exp, support)                       # (N, J, C_out)
 
 
-# ── Stacked GCN backbone (multiple layers with residuals) ─────────────────
-class GCNBackbone(nn.Module):
+# ══════════════════════════════════════════════════════════════════════════
+# ST-GCN Block — the heart of the true ST-GCN
+#
+#  Step 1: Spatial Graph Conv  →  understand body structure per frame
+#  Step 2: Temporal Conv (1D)  →  understand movement across frames
+#
+#  Both steps happen inside ONE block — this is what makes it "ST-GCN"
+#  instead of "GCN + GRU"
+# ══════════════════════════════════════════════════════════════════════════
+class STGCNBlock(nn.Module):
     """
-    Applies L graph conv layers per frame independently,
-    exactly as in Kipf's paper:
-        H^(0) = X  (node features)
-        H^(l+1) = ReLU( Â · H^(l) · W^(l) )   for l = 0 … L-2
-        H^(L)   = Â · H^(L-1) · W^(L-1)        (last layer — no activation)
+    One ST-GCN block combining:
+      - Spatial GCN:    operates on joints within each frame
+      - Temporal Conv:  1D conv along the time axis for each joint
+
+    Input/Output shape: (B, C, T, J)
     """
-    def __init__(self, in_features, hidden_dims, dropout=0.5):
-        """
-        hidden_dims : list of output dims per layer, e.g. [64, 128, 256]
-        The final entry is the embedding dimension.
-        """
+    def __init__(self, in_channels, out_channels,
+                 temporal_kernel=9, stride=1, dropout=0.5, residual=True):
         super().__init__()
-        dims   = [in_features] + hidden_dims
-        layers = []
-        for i in range(len(hidden_dims)):
-            layers.append(GraphConvolution(dims[i], dims[i + 1]))
-            layers.append(nn.BatchNorm1d(dims[i + 1]))    # BN over feature dim
-        self.layers  = nn.ModuleList(layers)
-        self.dropout = nn.Dropout(dropout)
-        self.n_gcn   = len(hidden_dims)
+
+        pad = (temporal_kernel - 1) // 2
+
+        # ── 1. Spatial GCN ────────────────────────────────────────────────
+        self.spatial_gcn = GraphConvolution(in_channels, out_channels)
+        self.bn_spatial  = nn.BatchNorm1d(out_channels)
+
+        # ── 2. Temporal Convolution ───────────────────────────────────────
+        #    Conv2d with kernel (temporal_kernel, 1):
+        #    - kernel height = temporal_kernel  → looks across T frames
+        #    - kernel width  = 1               → each joint independently
+        self.temporal_conv = nn.Sequential(
+            nn.ReLU(),
+            nn.Conv2d(
+                out_channels, out_channels,
+                kernel_size=(temporal_kernel, 1),
+                stride=(stride, 1),
+                padding=(pad, 0),
+            ),
+            nn.BatchNorm2d(out_channels),
+            nn.Dropout(dropout),
+        )
+
+        # ── 3. Residual connection ─────────────────────────────────────────
+        if not residual:
+            self.residual = lambda x: 0
+        elif in_channels == out_channels and stride == 1:
+            self.residual = nn.Identity()
+        else:
+            self.residual = nn.Sequential(
+                nn.Conv2d(in_channels, out_channels,
+                          kernel_size=1, stride=(stride, 1)),
+                nn.BatchNorm2d(out_channels),
+            )
+
+        self.relu = nn.ReLU()
 
     def forward(self, x, A_hat):
         """
-        x     : (B, T, J, C)
+        x     : (B, C, T, J)
         A_hat : (J, J)
-        Returns (B, T, J, C_out) — same spatial shape, richer features
+        returns (B, C_out, T', J)
         """
-        B, T, J, C = x.shape
-        h = x.reshape(B * T, J, C)              # flatten batch×time → (N, J, C)
+        B, C, T, J = x.shape
+        res = self.residual(x)                          # save for skip
 
-        gcn_idx = 0
-        for i in range(0, len(self.layers), 2):  # step by 2: (GCN, BN) pairs
-            gcn_layer = self.layers[i]
-            bn_layer  = self.layers[i + 1]
+        # ── Spatial GCN: process all frames at once ────────────────────
+        h = x.permute(0, 2, 3, 1).reshape(B * T, J, C) # (B*T, J, C)
+        h = self.spatial_gcn(h, A_hat)                  # (B*T, J, C_out)
 
-            h = gcn_layer(h, A_hat)              # (N, J, C_out)
+        # BatchNorm over feature dim
+        BT, J2, Co = h.shape
+        h = self.bn_spatial(h.reshape(BT * J2, Co)).reshape(BT, J2, Co)
 
-            # BatchNorm1d expects (N, C) or (N, C, L) — reshape accordingly
-            N, J2, Co = h.shape
-            h = bn_layer(h.reshape(N * J2, Co)).reshape(N, J2, Co)
+        # Reshape back to (B, C_out, T, J) for temporal conv
+        h = h.reshape(B, T, J, Co).permute(0, 3, 1, 2)  # (B, C_out, T, J)
 
-            # ReLU + Dropout on all but the last layer
-            gcn_idx += 1
-            if gcn_idx < self.n_gcn:
-                h = F.relu(h)
-                h = self.dropout(h)
+        # ── Temporal Conv: look across frames ─────────────────────────
+        h = self.temporal_conv(h)                        # (B, C_out, T', J)
 
-        return h.reshape(B, T, J, -1)            # (B, T, J, C_out)
+        # ── Residual + Activation ──────────────────────────────────────
+        return self.relu(h + res)
 
 
-
-# ── ADD THIS before class GCN_Regression ─────────────────────────────────
-class TemporalEncoder(nn.Module):
-    """GRU over T frames after GCN — captures motion dynamics."""
-    def __init__(self, feat_dim, hidden_dim=128, num_layers=2, dropout=0.3):
-        super().__init__()
-        self.gru = nn.GRU(
-            input_size    = feat_dim,
-            hidden_size   = hidden_dim,
-            num_layers    = num_layers,
-            batch_first   = True,
-            dropout       = dropout,
-            bidirectional = True,
-        )
-        self.out_dim = hidden_dim * 2   # bidirectional
-        self.drop    = nn.Dropout(dropout)
-
-    def forward(self, h):
-        # h: (B, T, J, C) → mean over joints → (B, T, C)
-        h = h.mean(dim=2)
-        _, hidden = self.gru(h)                          # hidden: (2*layers, B, hidden)
-        h = torch.cat([hidden[-2], hidden[-1]], dim=1)   # (B, hidden*2)
-        return self.drop(h)
-    
-
-    
-# ── Full Regression Model ──────────────────────────────────────────────────
+# ══════════════════════════════════════════════════════════════════════════
+# Full True ST-GCN Regression Model
+# 9 ST-GCN blocks (mirrors original Yan et al. paper)
+# ══════════════════════════════════════════════════════════════════════════
 NUM_EXERCISES = 10
 
-class GCN_Regression(nn.Module):
-    def __init__(self, in_features=6, hidden_dims=None, dropout=0.5):
+class STGCN_Regression(nn.Module):
+    """
+    True Spatial-Temporal GCN for physiotherapy quality regression.
+
+    Replaces old model which used:  GCN (spatial) + GRU (temporal separately)
+    This model uses:                ST-GCN blocks (spatial + temporal together)
+    """
+    def __init__(self, in_features=6, dropout=0.5):
         super().__init__()
-        if hidden_dims is None:
-            hidden_dims = [64, 128, 256]
 
         A_hat = build_adj_kipf(NUM_JOINTS, SKELETON_EDGES)
         self.register_buffer('A_hat', A_hat)
 
-        self.data_bn  = nn.BatchNorm1d(in_features)
-        self.gcn      = GCNBackbone(in_features, hidden_dims, dropout=dropout)
+        # Input BN — normalize over (B, C*J, T)
+        self.data_bn = nn.BatchNorm1d(in_features * NUM_JOINTS)
 
-        # ── CHANGED: GRU replaces mean pooling ───────────────────────────
-        self.temporal = TemporalEncoder(
-            feat_dim   = hidden_dims[-1],   # 256
-            hidden_dim = 128,
-            num_layers = 2,
-            dropout    = 0.3,
-        )
-        combined_dim  = self.temporal.out_dim   # 256
+        # ── 9 ST-GCN blocks (same depth as original paper) ────────────────
+        #    Stride=2 at blocks 4 and 7 halves the temporal resolution
+        #    (downsamples time: 100 → 50 → 25 frames)
+        self.blocks = nn.ModuleList([
+            # Block 1-3: 64 channels
+            STGCNBlock(in_features, 64,  residual=False, dropout=dropout),
+            STGCNBlock(64,  64,                          dropout=dropout),
+            STGCNBlock(64,  64,                          dropout=dropout),
+            # Block 4-6: 128 channels, downsample T
+            STGCNBlock(64,  128, stride=2,               dropout=dropout),
+            STGCNBlock(128, 128,                         dropout=dropout),
+            STGCNBlock(128, 128,                         dropout=dropout),
+            # Block 7-9: 256 channels, downsample T again
+            STGCNBlock(128, 256, stride=2,               dropout=dropout),
+            STGCNBlock(256, 256,                         dropout=dropout),
+            STGCNBlock(256, 256,                         dropout=dropout),
+        ])
 
+        # Global Average Pooling over (T', J) → single vector per sample
+        self.gap = nn.AdaptiveAvgPool2d(1)
+
+        # Exercise-aware embedding
         self.ex_embed = nn.Embedding(NUM_EXERCISES, 32)
 
-        # ── CHANGED: deeper head with LayerNorm ───────────────────────────
+        # Regression head
         self.reg_head = nn.Sequential(
-            nn.Linear(combined_dim + 32, 128),
+            nn.Linear(256 + 32, 128),
             nn.LayerNorm(128),
             nn.ReLU(),
             nn.Dropout(0.3),
@@ -825,6 +847,7 @@ class GCN_Regression(nn.Module):
             nn.Dropout(0.2),
             nn.Linear(64, 1),
         )
+
         self._init_weights()
 
     def _init_weights(self):
@@ -833,47 +856,59 @@ class GCN_Regression(nn.Module):
                 nn.init.xavier_uniform_(m.weight)
                 if m.bias is not None:
                     nn.init.zeros_(m.bias)
-            elif isinstance(m, (nn.BatchNorm1d, nn.LayerNorm)):
+            elif isinstance(m, (nn.BatchNorm1d, nn.BatchNorm2d, nn.LayerNorm)):
                 nn.init.ones_(m.weight)
                 nn.init.zeros_(m.bias)
-            elif isinstance(m, nn.GRU):
-                for name, param in m.named_parameters():
-                    if 'weight' in name: nn.init.orthogonal_(param)
-                    elif 'bias'  in name: nn.init.zeros_(param)
+            elif isinstance(m, nn.Conv2d):
+                nn.init.kaiming_normal_(m.weight, mode='fan_out')
+                if m.bias is not None:
+                    nn.init.zeros_(m.bias)
 
     def forward(self, x, exercise_id):
+        """
+        x           : (B, T, J, C)
+        exercise_id : (B,)
+        returns     : (B,)  quality scores
+        """
         B, T, J, C = x.shape
 
-        # Input BN
-        xbn = x.permute(0, 3, 1, 2).reshape(B, C, T * J)
-        xbn = self.data_bn(xbn)
-        x   = xbn.reshape(B, C, T, J).permute(0, 2, 3, 1)
+        # ── Data BN ────────────────────────────────────────────────────────
+        # Reshape: (B, T, J, C) → (B, C, J, T) → (B, C*J, T)
+        x = x.permute(0, 3, 2, 1).reshape(B, C * J, T)
+        x = self.data_bn(x)
+        # Back to (B, C, T, J)
+        x = x.reshape(B, C, J, T).permute(0, 1, 3, 2)
 
-        # Kipf GCN: H^(l+1) = ReLU( Â · H^(l) · W^(l) )
-        h = self.gcn(x, self.A_hat)          # (B, T, J, 256)
+        # ── ST-GCN Blocks ─────────────────────────────────────────────────
+        for block in self.blocks:
+            x = block(x, self.A_hat)          # (B, C', T', J)
 
-        # ── CHANGED: GRU over time instead of mean pooling ───────────────
-        h = self.temporal(h)                 # (B, 256)
+        # ── Global Average Pool: (B, 256, T', J) → (B, 256) ───────────────
+        x = self.gap(x).squeeze(-1).squeeze(-1)
 
-        ex  = self.ex_embed(exercise_id)     # (B, 32)
-        h   = torch.cat([h, ex], dim=1)      # (B, 288)
+        # ── Exercise embedding ─────────────────────────────────────────────
+        ex = self.ex_embed(exercise_id)        # (B, 32)
+        h  = torch.cat([x, ex], dim=1)         # (B, 288)
 
+        # ── Regression: output clamped to [1, 5] via tanh ──────────────────
         out = 3.0 + 2.0 * torch.tanh(self.reg_head(h).squeeze(1))
         return out
 
-# ── Quick sanity check ────────────────────────────────────────────────────
+
+# ── Sanity check ──────────────────────────────────────────────────────────
 _dummy_x  = torch.zeros(2, TARGET_FRAMES, NUM_JOINTS, 6)
 _dummy_ex = torch.zeros(2, dtype=torch.long)
-_model    = GCN_Regression()
+_model    = STGCN_Regression()
 _out      = _model(_dummy_x, _dummy_ex)
 assert _out.shape == (2,), f"Expected (2,), got {_out.shape}"
-print(f'✓ Kipf GCN sanity check passed — output shape: {_out.shape}')
+print(f'✓ True ST-GCN sanity check passed — output shape: {_out.shape}')
 
 total_params = sum(p.numel() for p in _model.parameters() if p.requires_grad)
 print(f'✓ Total trainable parameters: {total_params:,}')
 del _dummy_x, _dummy_ex, _model, _out
 
-print('✓ GCN_Regression (Kipf & Welling) defined')
+print('✓ STGCN_Regression (True ST-GCN, Yan et al. 2018) defined')
+
 
 
 # ══════════════════════════════════════════════════════════════════════════
@@ -1225,12 +1260,7 @@ test_loader  = DataLoader(make_ds(test_df, False),
                           batch_size=BATCH_SIZE, shuffle=False,
                           num_workers=0, pin_memory=(DEVICE == 'cuda'))
 
-model = GCN_Regression(
-    in_features  = 6,
-    hidden_dims  = [64, 128, 256],   # 3-layer GCN (mirrors Kipf's 2016 paper depth)
-    dropout      = 0.5               # Kipf used 0.5 dropout
-).to(DEVICE)
-
+model = STGCN_Regression(in_features=6, K=3, dropout=0.5).to(DEVICE)
 
 optimiser = torch.optim.AdamW(
     model.parameters(),
