@@ -5,10 +5,10 @@ import os
 DATASET_DIR   = "/mvdlph/Dataset_CVDLPT_Videos_Segments_P0P15_MMPose_human3d_motionbert_H36M_3D_1_2026"
 SPLIT_DIR     = os.path.join(DATASET_DIR, "by_person")   # ← NEW: pre-split root
 CSV_PATH      = "/mvdlph/label_events_20260129_155122_stats_short.csv"
-CAMERA_ID     = None
+CAMERA_ID     = 0
 NPZ_KEY       = "keypoints_3d"
 NUM_JOINTS    = 17
-TARGET_FRAMES = 100
+TARGET_FRAMES = 120
 TRAIN_RATIO   = 0.70   # kept for reference, no longer used for splitting
 VAL_RATIO     = 0.15
 EPOCHS        = 300
@@ -21,6 +21,9 @@ OUT_DIR       = "/mvdlph/masa/GCN_SingleView_Regression_Results"
 PATIENCE      = 100
 MIN_DELTA     = 1e-4
 WARMUP_EPOCHS = 20
+
+# ── Reproducibility ───────────────────────────────────────────────────────
+SEED = 42
  
 print('✓ Configuration loaded')
 print(f'  DATASET_DIR : {DATASET_DIR}')
@@ -70,7 +73,20 @@ print("✓ Output folders ready:")
 for d in [PLOTS_DIR, LOGS_DIR]:
     print("  ", d)
 
+# ── Reproducibility ───────────────────────────────────────────────────────
+import random
 
+def set_seed(seed: int):
+    random.seed(seed)
+    np.random.seed(seed)
+    torch.manual_seed(seed)
+    if torch.cuda.is_available():
+        torch.cuda.manual_seed_all(seed)
+    torch.backends.cudnn.deterministic = True
+    torch.backends.cudnn.benchmark     = False   # slight speed cost, full repro
+
+set_seed(SEED)
+print(f'✓ Global seed fixed to {SEED}')
 # ══════════════════════════════════════════════════════════════════════════
 # Cell 3 — Explore dataset folder & one NPZ file
 # ══════════════════════════════════════════════════════════════════════════
@@ -330,9 +346,41 @@ def build_index_from_split(split_name, df_csv, camera_id=None):
     print(f'  Unique trials    : {df["trial_key"].nunique()}')
     print(f'  Quality mean±std : {df["quality"].mean():.3f} ± {df["quality"].std():.3f}')
     print(f'  Exercise dist    :\n{df["exercise"].value_counts().sort_index().to_string()}')
+
+
+    print(f'  Samples (after camera filter) : {len(df)}')
+    return df 
  
+def filter_complete_camera_groups(df, label=''):
+    """
+    Keep only trial+segment groups that have all 3 cameras present.
+    Used even in single-view mode to ensure data quality consistency.
+    """
+    REQUIRED_CAMERAS = {0, 1, 2}
+    coverage   = df.groupby('trial_key')['camera'].apply(set)
+    complete   = coverage[coverage.apply(lambda s: REQUIRED_CAMERAS.issubset(s))].index
+    incomplete = coverage[~coverage.apply(lambda s: REQUIRED_CAMERAS.issubset(s))]
+
+    n_before = len(df)
+    df = df[df['trial_key'].isin(complete)].reset_index(drop=True)
+    n_skipped_files  = n_before - len(df)
+    n_skipped_groups = len(incomplete)
+
+    if n_skipped_groups:
+        print(f'  [{label}] ⚠️  Skipped {n_skipped_files} files '
+              f'from {n_skipped_groups} groups with incomplete camera coverage')
+        if n_skipped_groups <= 10:
+            for key in incomplete.index:
+                print(f'       – {key}  cameras={sorted(incomplete[key])}')
+    else:
+        print(f'  [{label}] ✓ All groups have complete 3-camera coverage')
+
+    # Now filter to your chosen camera only
+    if CAMERA_ID is not None:
+        df = df[df['camera'] == CAMERA_ID].reset_index(drop=True)
+        print(f'  [{label}] Filtered to camera C{CAMERA_ID}: {len(df)} samples')
+
     return df
- 
  
 def remove_corrupted(df, label=''):
     """Drop rows whose NPZ file cannot be loaded."""
@@ -348,9 +396,14 @@ def remove_corrupted(df, label=''):
  
  
 # ── Build the three splits ────────────────────────────────────────────────
-train_df = build_index_from_split('train', df_csv, CAMERA_ID)
-val_df   = build_index_from_split('valid', df_csv, CAMERA_ID)
-test_df  = build_index_from_split('test',  df_csv, CAMERA_ID)
+train_df = build_index_from_split('train', df_csv, camera_id=None)  # load all cameras first
+val_df   = build_index_from_split('valid', df_csv, camera_id=None)
+test_df  = build_index_from_split('test',  df_csv, camera_id=None)
+
+# Filter: keep only groups with all 3 cameras, then optionally keep one camera
+train_df = filter_complete_camera_groups(train_df, 'TRAIN')
+val_df   = filter_complete_camera_groups(val_df,   'VALID')
+test_df  = filter_complete_camera_groups(test_df,  'TEST')
  
 # ── Remove corrupted files ────────────────────────────────────────────────
 print('\nChecking for corrupted files...')
