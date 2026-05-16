@@ -606,6 +606,56 @@ else:
 
 
 # ══════════════════════════════════════════════════════════════════════════
+# Cell 9.6 — Camera Redundancy Check
+# ══════════════════════════════════════════════════════════════════════════
+from scipy.stats import pearsonr
+
+print("=" * 60)
+print("Camera-to-camera correlation check")
+print("=" * 60)
+
+# Check multiple samples, not just one
+sample_rows = df_index.sample(min(20, len(df_index)), random_state=42)
+
+results = {'C0-C1': [], 'C0-C2': [], 'C1-C2': []}
+
+for _, row in sample_rows.iterrows():
+    c0 = load_skeleton(row['filepath_C0'])
+    c1 = load_skeleton(row['filepath_C1'])
+    c2 = load_skeleton(row['filepath_C2'])
+    if c0 is None or c1 is None or c2 is None:
+        continue
+
+    # trim to same length before comparing
+    min_T = min(c0.shape[0], c1.shape[0], c2.shape[0])
+    c0, c1, c2 = c0[:min_T], c1[:min_T], c2[:min_T]
+
+    for pair, (a, b) in [('C0-C1', (c0, c1)),
+                          ('C0-C2', (c0, c2)),
+                          ('C1-C2', (c1, c2))]:
+        r, _  = pearsonr(a.flatten(), b.flatten())
+        diff  = np.abs(a - b)
+        results[pair].append({
+            'pcc':            r,
+            'mean_abs_diff':  diff.mean(),
+            'max_diff':       diff.max(),
+        })
+
+print(f"\n{'Pair':<10} {'PCC mean':>10} {'PCC std':>10} "
+      f"{'MAD mean':>10} {'Max diff':>10}")
+print("-" * 55)
+for pair, vals in results.items():
+    pcc_vals  = [v['pcc']           for v in vals]
+    mad_vals  = [v['mean_abs_diff'] for v in vals]
+    maxd_vals = [v['max_diff']      for v in vals]
+    print(f"{pair:<10} {np.mean(pcc_vals):>10.4f} {np.std(pcc_vals):>10.4f} "
+          f"{np.mean(mad_vals):>10.4f} {np.max(maxd_vals):>10.4f}")
+
+print("\nInterpretation:")
+print("  PCC > 0.99 + MAD < 0.01 → cameras nearly IDENTICAL (canonical 3D frame)")
+print("  PCC < 0.95 + MAD > 0.05 → cameras carry DIFFERENT viewpoint information")
+
+# ══════════════════════════════════════════════════════════════════════════
 # Cell 10 — BZUDataset_EarlyFusion
 #
 # Per-view pipeline:  (T,17,3) → normalise length → + velocity → (T,17,6)
