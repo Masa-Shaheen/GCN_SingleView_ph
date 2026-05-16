@@ -655,6 +655,83 @@ print("\nInterpretation:")
 print("  PCC > 0.99 + MAD < 0.01 → cameras nearly IDENTICAL (canonical 3D frame)")
 print("  PCC < 0.95 + MAD > 0.05 → cameras carry DIFFERENT viewpoint information")
 
+# ══════════════════════════════════════════════════════
+# DIAGNOSTIC — Are cameras truly independent?
+# ══════════════════════════════════════════════════════
+import numpy as np
+from scipy.stats import pearsonr
+
+print("Checking camera independence on 50 random samples...")
+print("=" * 65)
+
+sample_rows = df_index.sample(min(50, len(df_index)), random_state=0)
+
+pcc_01, pcc_02, pcc_12 = [], [], []
+mad_01, mad_02, mad_12 = [], [], []
+max_01, max_02, max_12 = [], [], []
+identical_02 = 0
+
+for _, row in sample_rows.iterrows():
+    c0 = load_skeleton(row['filepath_C0'])
+    c1 = load_skeleton(row['filepath_C1'])
+    c2 = load_skeleton(row['filepath_C2'])
+    if c0 is None or c1 is None or c2 is None:
+        continue
+
+    min_T = min(c0.shape[0], c1.shape[0], c2.shape[0])
+    c0, c1, c2 = c0[:min_T], c1[:min_T], c2[:min_T]
+
+    for pcc_list, mad_list, max_list, a, b in [
+        (pcc_01, mad_01, max_01, c0, c1),
+        (pcc_02, mad_02, max_02, c0, c2),
+        (pcc_12, pcc_12, max_12, c1, c2),   # reuse pcc_12 for mad
+    ]:
+        r, _  = pearsonr(a.flatten(), b.flatten())
+        diff  = np.abs(a - b)
+        pcc_list.append(r)
+        mad_list.append(diff.mean())
+        max_list.append(diff.max())
+
+    # Check if C0 and C2 are byte-identical
+    if np.array_equal(c0[:min_T], c2[:min_T]):
+        identical_02 += 1
+
+print(f"\nC0 vs C2 — byte-identical files: {identical_02}/{len(sample_rows)}")
+print(f"\nPair   PCC_mean  PCC_std   MAD_mean   MAX_diff")
+print(f"C0-C1  {np.mean(pcc_01):.6f}  {np.std(pcc_01):.6f}  "
+      f"{np.mean(mad_01):.6f}  {np.max(max_01):.6f}")
+print(f"C0-C2  {np.mean(pcc_02):.6f}  {np.std(pcc_02):.6f}  "
+      f"{np.mean(mad_02):.6f}  {np.max(max_02):.6f}")
+
+print("\n--- Joint-level breakdown (C0 vs C2, first sample) ---")
+row = sample_rows.iloc[0]
+c0  = load_skeleton(row['filepath_C0'])
+c2  = load_skeleton(row['filepath_C2'])
+min_T = min(c0.shape[0], c2.shape[0])
+c0, c2 = c0[:min_T], c2[:min_T]
+
+print(f"{'Joint':<5} {'Name':<14} {'Max |C0-C2|':>12} {'Mean |C0-C2|':>14}")
+print("-" * 50)
+for j in range(17):
+    diff = np.abs(c0[:, j, :] - c2[:, j, :])
+    print(f"{j:<5} {JOINT_NAMES[j]:<14} {diff.max():>12.6f} {diff.mean():>14.6f}")
+
+print("\n--- Axis-level check: do cameras see different orientations? ---")
+for cam, label in [(c0, 'C0'), (c2, 'C2')]:
+    hip_z  = cam[:, 0, 2].mean()    # Hip Z  (height)
+    head_z = cam[:, 10, 2].mean()   # Head Z (height)
+    print(f"  {label}: Hip_Z={hip_z:.4f}  Head_Z={head_z:.4f}  "
+          f"X_range=[{cam[:,:,0].min():.3f}, {cam[:,:,0].max():.3f}]  "
+          f"Y_range=[{cam[:,:,1].min():.3f}, {cam[:,:,1].max():.3f}]")
+
+print("\nConclusion:")
+if np.mean(pcc_02) > 0.999 and np.mean(mad_02) < 0.001:
+    print("  ✗ C0 and C2 are IDENTICAL — MotionBERT canonical output, not independent views")
+    print("  ✗ Early fusion with these cameras provides NO additional information")
+    print("  → Recommendation: use single-view only, or find raw 2D pose inputs")
+else:
+    print("  ✓ Cameras carry genuinely different information")
+    print("  → Multi-view fusion is justified")
 # ══════════════════════════════════════════════════════════════════════════
 # Cell 10 — BZUDataset_EarlyFusion
 #
