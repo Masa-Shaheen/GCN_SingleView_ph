@@ -417,7 +417,16 @@ def remove_corrupted(df, label=''):
     print(f'  [{label}] Clean samples : {len(df)}')
     return df
 
-
+def augment_with_mirrors(df):
+    """
+    لكل سطر بالـ DataFrame، خلق نسخة مرآة منه.
+    النتيجة: الداتا تتضاعف — الأصلية + المعكوسة.
+    """
+    mirrored = df.copy()
+    mirrored['mirrored'] = True
+    df = df.copy()
+    df['mirrored'] = False
+    return pd.concat([df, mirrored], ignore_index=True)
 # ── Build the three splits ────────────────────────────────────────────────
 train_df, val_df, test_df = build_index_from_persons(df_csv, camera_id=None)
 
