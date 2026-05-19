@@ -440,6 +440,17 @@ print(f'{"═"*68}')
 print('\n✓ Pre-split index ready  →  train / val / test DataFrames built')
  
 
+def augment_with_mirrors(df):
+    """
+    لكل سطر بالـ DataFrame، خلق نسخة مرآة منه.
+    النتيجة: الداتا تتضاعف — الأصلية + المعكوسة.
+    """
+    mirrored = df.copy()
+    mirrored['mirrored'] = True   # علامة إنها نسخة معكوسة
+    df = df.copy()
+    df['mirrored'] = False
+
+    return pd.concat([df, mirrored], ignore_index=True)
 # ══════════════════════════════════════════════════════════════════════════
 # Cell 7.5 — Camera Distribution Check
 # ══════════════════════════════════════════════════════════════════════════
@@ -682,24 +693,27 @@ class BZUDataset(Dataset):
         return len(self.df)
 
     def __getitem__(self, idx):
-        row     = self.df.iloc[idx]
-        skel    = load_skeleton(row['filepath'])
+        row  = self.df.iloc[idx]
+        skel = load_skeleton(row['filepath'])
         if skel is None:
             skel = np.zeros((TARGET_FRAMES, 17, 3), dtype=np.float32)
-        skel        = self._normalise_length(skel)
+
+        skel = self._normalise_length(skel)
+
+        # ── NEW: لو النسخة معكوسة، اعكسها ──
+        if row.get('mirrored', False):
+            skel = mirror_skeleton(skel)
+
         if self.augment:
-            skel    = self._augment(skel)
+            skel = self._augment(skel)  # بدون ميررورينغ جوا هون
 
-        # ── Velocity (T-1, J, 3) → pad to (T, J, 3) ──
-        velocity    = np.zeros_like(skel)
-        velocity[1:] = skel[1:] - skel[:-1]   # finite difference
+        velocity     = np.zeros_like(skel)
+        velocity[1:] = skel[1:] - skel[:-1]
 
-        # ── Stack: (T, J, 6) = position + velocity ──
         skel_vel    = np.concatenate([skel, velocity], axis=-1)
-
-        skel_tensor = torch.tensor(skel_vel,          dtype=torch.float32)
-        quality     = torch.tensor(row['quality'],     dtype=torch.float32)
-        exercise_id = torch.tensor(row['exercise'],    dtype=torch.long)
+        skel_tensor = torch.tensor(skel_vel,        dtype=torch.float32)
+        quality     = torch.tensor(row['quality'],  dtype=torch.float32)
+        exercise_id = torch.tensor(row['exercise'], dtype=torch.long)
         return skel_tensor, quality, exercise_id
 
     def _normalise_length(self, skel):
@@ -715,13 +729,35 @@ class BZUDataset(Dataset):
         return out
 
     def _augment(self, skel):
-        T     = skel.shape[0]
-        speed = np.random.uniform(0.8, 1.2)
-        idxs  = np.linspace(0, T - 1, max(10, int(T * speed))).astype(int)
-        skel  = self._normalise_length(skel[idxs])
-        skel += np.random.randn(*skel.shape).astype(np.float32) * 0.005
-        # if np.random.rand() < 0.5:
-        #     skel[:, :, 0] *= -1.0
+        T = skel.shape[0]
+
+        # 1. Random temporal speed warp (0.75 – 1.25×)
+        speed  = np.random.uniform(0.75, 1.25)
+        n_new  = max(10, int(T * speed))
+        idxs   = np.linspace(0, T - 1, n_new).astype(int)
+        skel   = self._normalise_length(skel[idxs])          # → TARGET_FRAMES
+
+        # 2. Small Gaussian joint jitter
+        skel  += np.random.randn(*skel.shape).astype(np.float32) * 0.005
+
+        # 3. Random global rotation around Y-axis (±15°)
+        angle  = np.random.uniform(-15, 15) * np.pi / 180.0
+        c, s   = np.cos(angle), np.sin(angle)
+        R      = np.array([[c, 0, s],
+                        [0, 1, 0],
+                        [-s,0, c]], dtype=np.float32)
+        skel   = skel @ R.T                                  # (T, J, 3)
+
+        # 4. Random uniform limb-length scale (0.9 – 1.1)
+        scale  = np.random.uniform(0.9, 1.1)
+        skel  *= scale
+
+        # 5. Random temporal crop + re-stretch (keeps 80–100 % of frames)
+        crop_ratio = np.random.uniform(0.80, 1.0)
+        start = np.random.randint(0, max(1, int(T * (1 - crop_ratio))))
+        end   = start + int(T * crop_ratio)
+        skel  = self._normalise_length(skel[start:end])
+
         return skel
 
 
@@ -1409,15 +1445,52 @@ reg_fn = nn.SmoothL1Loss(beta=1.0)
 def make_ds(df, aug):
     return BZUDataset(df, augment=aug)
 
-train_loader = DataLoader(make_ds(train_df, True),
-                          batch_size=BATCH_SIZE, shuffle=True,
-                          num_workers=0, pin_memory=(DEVICE == 'cuda'))
-val_loader   = DataLoader(make_ds(val_df, False),
-                          batch_size=BATCH_SIZE, shuffle=False,
-                          num_workers=0, pin_memory=(DEVICE == 'cuda'))
-test_loader  = DataLoader(make_ds(test_df, False),
-                          batch_size=BATCH_SIZE, shuffle=False,
-                          num_workers=0, pin_memory=(DEVICE == 'cuda'))
+# ── Weighted sampler: emphasise low-quality samples ───────────────────────
+def make_weighted_sampler(df):
+    """
+    Weight each sample inversely proportional to its quality score bucket.
+    Lower quality  →  higher probability of being drawn.
+    Sampling WITH replacement so the loader length stays = len(df).
+    """
+    q = df['quality'].values.astype(np.float32)
+
+    # Invert quality: score 1 → weight 5,  score 5 → weight 1
+    raw_weights = (q.max() + 1.0) - q          # shape (N,)
+
+    # Also up-weight erroneous trials (trial_num >= 3) by ×2
+    erroneous_mask = (df['trial_num'].values >= 3).astype(np.float32)
+    raw_weights   *= (1.0 + erroneous_mask)     # ×2 for erroneous, ×1 otherwise
+
+    weights_tensor = torch.DoubleTensor(raw_weights)
+    sampler = torch.utils.data.WeightedRandomSampler(
+        weights     = weights_tensor,
+        num_samples = len(df),          # same epoch length
+        replacement = True,             # WITH replacement
+    )
+    return sampler
+
+
+train_sampler = make_weighted_sampler(train_df)
+
+# ضاعف داتا التدريب بالميررورينغ
+train_df_augmented = augment_with_mirrors(train_df)
+print(f'Train before mirroring: {len(train_df)}')
+print(f'Train after  mirroring: {len(train_df_augmented)}')
+
+# val و test يفضلوا كما هم — بدون تغيير
+train_loader = DataLoader(
+    make_ds(train_df_augmented, aug=True),
+    batch_size  = BATCH_SIZE,
+    sampler     = train_sampler,        # ← replaces shuffle=True
+    num_workers = 0,
+    pin_memory  = (DEVICE == 'cuda'),
+)
+
+# val / test loaders unchanged
+val_loader  = DataLoader(make_ds(val_df,  False), batch_size=BATCH_SIZE,
+                         shuffle=False, num_workers=0, pin_memory=(DEVICE=='cuda'))
+test_loader = DataLoader(make_ds(test_df, False), batch_size=BATCH_SIZE,
+                         shuffle=False, num_workers=0, pin_memory=(DEVICE=='cuda'))
 
 model = STGCN_Regression(in_features=6, K=3, dropout=0.5).to(DEVICE)
 
