@@ -681,6 +681,21 @@ for cam in [0, 1, 2]:
 # ══════════════════════════════════════════════════════════════════════════
 # Cell 10 — BZUDataset (regression only)
 # ══════════════════════════════════════════════════════════════════════════
+MIRROR_PAIRS = [
+    (1, 4),   # R-Hip   ↔ L-Hip
+    (2, 5),   # R-Knee  ↔ L-Knee
+    (3, 6),   # R-Ankle ↔ L-Ankle
+    (11, 14), # L-Shoulder ↔ R-Shoulder
+    (12, 15), # L-Elbow    ↔ R-Elbow
+    (13, 16), # L-Wrist    ↔ R-Wrist
+]
+
+def mirror_skeleton(skel):
+    skel = skel.copy()
+    skel[:, :, 0] *= -1          # اعكس محور X (يمين يصير شمال)
+    for i, j in MIRROR_PAIRS:   # بدّل الجوينتس اليمين مع الشمال
+        skel[:, [i, j], :] = skel[:, [j, i], :]
+    return skel
 
 class BZUDataset(Dataset):
     """Returns (skeleton, quality_score) — no exercise ID."""
@@ -692,6 +707,7 @@ class BZUDataset(Dataset):
     def __len__(self):
         return len(self.df)
 
+    
     def __getitem__(self, idx):
         row  = self.df.iloc[idx]
         skel = load_skeleton(row['filepath'])
@@ -1470,12 +1486,13 @@ def make_weighted_sampler(df):
     return sampler
 
 
-train_sampler = make_weighted_sampler(train_df)
 
 # ضاعف داتا التدريب بالميررورينغ
 train_df_augmented = augment_with_mirrors(train_df)
 print(f'Train before mirroring: {len(train_df)}')
 print(f'Train after  mirroring: {len(train_df_augmented)}')
+
+train_sampler = make_weighted_sampler(train_df_augmented)
 
 # val و test يفضلوا كما هم — بدون تغيير
 train_loader = DataLoader(
@@ -1499,13 +1516,6 @@ optimiser = torch.optim.AdamW(
     lr           = 1e-4,   # was 5e-5
     weight_decay = 5e-4
 )
-
-# Warmup + cosine schedule
-def lr_lambda(epoch):
-    if epoch < WARMUP_EPOCHS:
-        return (epoch + 1) / WARMUP_EPOCHS
-    progress = (epoch - WARMUP_EPOCHS) / max(1, EPOCHS - WARMUP_EPOCHS)
-    return 0.5 * (1.0 + np.cos(np.pi * progress))
 
 scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(
     optimiser, mode='min', factor=0.5,
@@ -1534,7 +1544,7 @@ for epoch in range(1, EPOCHS + 1):
     tr = run_epoch(model, train_loader, optimiser, reg_fn, is_train=True)
     vl = run_epoch(model, val_loader,   optimiser, reg_fn, is_train=False)
     # ← NO test evaluation here
-    scheduler.step(vl['mae'])
+    
 
     for split, res in [('train', tr), ('val', vl)]:
         history[f'{split}_loss'].append(res['loss'])
