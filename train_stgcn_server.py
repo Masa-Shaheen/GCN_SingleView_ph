@@ -276,108 +276,85 @@ print('✓ parse_filename and load_skeleton defined')
 
  
 # ══════════════════════════════════════════════════════════════════════════
-# Cell 7 — Build dataset index FROM PERSON-LEVEL SPLIT (no pre-split dirs)
+# Cell 7 — Build dataset index FROM PRE-SPLIT DIRECTORIES
+#           Replaces the old build_index + get_trial_split approach entirely.
 # ══════════════════════════════════════════════════════════════════════════
-
-# ── Person-to-split mapping ───────────────────────────────────────────────
-PERSON_SPLITS = {
-    'train': ['P0', 'P2', 'P3', 'P4', 'P5', 'P7',
-              'P10', 'P11', 'P14', 'P15'],
-    'val':   ['P1', 'P6', 'P13'],
-    'test':  ['P8', 'P9', 'P12'],
-}
-
-# Reverse map: person → split name  (e.g. 'P0' → 'train')
-PERSON_TO_SPLIT = {
-    person: split
-    for split, persons in PERSON_SPLITS.items()
-    for person in persons
-}
-
-
-def build_index_from_persons(df_csv, camera_id=None):
+ 
+def build_index_from_split(split_name, df_csv, camera_id=None):
     """
-    Scan DATASET_DIR recursively, parse every NPZ filename,
-    assign each file to train/val/test based on PERSON_SPLITS,
-    and merge quality labels from the CSV.
-
-    Returns three DataFrames: train_df, val_df, test_df
+    Scan one of the pre-split folders  (train | valid | test),
+    parse every NPZ filename, and merge quality labels from the CSV.
+ 
+    Parameters
+    ----------
+    split_name : str   — 'train', 'valid', or 'test'
+    df_csv     : pd.DataFrame — loaded CSV with quality labels
+    camera_id  : int | None  — filter by camera; None = keep all cameras
+ 
+    Returns
+    -------
+    pd.DataFrame with one row per NPZ file, columns:
+        exercise, person, trial_num, trial_id, camera, segment,
+        filepath, quality, trial_key
     """
+    split_path = os.path.join(SPLIT_DIR, split_name)
+    if not os.path.exists(split_path):
+        raise FileNotFoundError(f"Split folder not found: {split_path}")
+ 
     all_files = sorted(glob.glob(
-        os.path.join(DATASET_DIR, '**/*.npz'), recursive=True))
-    print(f'Total NPZ files found in DATASET_DIR : {len(all_files)}')
-
-    df_csv_clean         = df_csv.copy()
-    df_csv_clean.columns = df_csv_clean.columns.str.strip()
-
-    buckets = {'train': [], 'val': [], 'test': []}
-    skipped_person = 0
-    skipped_camera = 0
-
+        os.path.join(split_path, '**/*.npz'), recursive=True))
+    print(f'\n[{split_name.upper()}] NPZ files found : {len(all_files)}')
+ 
+    df_csv         = df_csv.copy()
+    df_csv.columns = df_csv.columns.str.strip()
+ 
+    records = []
     for fpath in all_files:
         meta = parse_filename(fpath)
         if meta is None:
             continue
-
-        # ── Camera filter ─────────────────────────────────────────
         if camera_id is not None and meta['camera'] != camera_id:
-            skipped_camera += 1
             continue
-
-        # ── Person → split assignment ──────────────────────────────
-        split_name = PERSON_TO_SPLIT.get(meta['person'])
-        if split_name is None:
-            skipped_person += 1
-            continue                       # person not in any split
-
-        # ── Merge quality label ────────────────────────────────────
-        row = df_csv_clean[
-            (df_csv_clean['exercise'] == f"E{meta['exercise']}") &
-            (df_csv_clean['person']   == meta['person'])          &
-            (df_csv_clean['trial']    == meta['trial_id'])
+ 
+        # Merge quality label from CSV
+        row = df_csv[
+            (df_csv['exercise'] == f"E{meta['exercise']}") &
+            (df_csv['person']   == meta['person'])          &
+            (df_csv['trial']    == meta['trial_id'])
         ]
         meta['quality']   = float(row.iloc[0]['mean']) if len(row) > 0 else np.nan
         meta['trial_key'] = f"E{meta['exercise']}_{meta['person']}_{meta['trial_id']}"
         meta['split']     = split_name
-        buckets[split_name].append(meta)
-
-    print(f'  Skipped (unknown person) : {skipped_person}')
-    print(f'  Skipped (camera filter)  : {skipped_camera}')
-
-    dfs = {}
-    for split_name, records in buckets.items():
-        if not records:
-            print(f'  ⚠️  No records for split="{split_name}"')
-            dfs[split_name] = pd.DataFrame()
-            continue
-
-        df = pd.DataFrame(records)
-
-        # Fill NaN quality with split-conditional means
-        correct_mean   = df.loc[df['trial_num'] <= 2, 'quality'].mean()
-        erroneous_mean = df.loc[df['trial_num'] >= 3, 'quality'].mean()
-        if np.isnan(correct_mean):   correct_mean   = 4.0
-        if np.isnan(erroneous_mean): erroneous_mean = 2.5
-
-        df.loc[df['quality'].isna() & (df['trial_num'] <= 2), 'quality'] = correct_mean
-        df.loc[df['quality'].isna() & (df['trial_num'] >= 3), 'quality'] = erroneous_mean
-
-        print(f'\n[{split_name.upper()}]')
-        print(f'  Samples          : {len(df)}')
-        print(f'  Persons          : {sorted(df["person"].unique())}')
-        print(f'  Unique trials    : {df["trial_key"].nunique()}')
-        print(f'  Quality mean±std : {df["quality"].mean():.3f} ± {df["quality"].std():.3f}')
-        print(f'  Exercise dist    :\n{df["exercise"].value_counts().sort_index().to_string()}')
-
-        dfs[split_name] = df
-
-    return dfs['train'], dfs['val'], dfs['test']
+        records.append(meta)
+ 
+    if not records:
+        print(f'  ⚠️  No records found for split="{split_name}", camera={camera_id}')
+        return pd.DataFrame()
+ 
+    df = pd.DataFrame(records)
+ 
+    # Fill NaN quality with split-conditional means
+    correct_mean   = df.loc[df['trial_num'] <= 2, 'quality'].mean()
+    erroneous_mean = df.loc[df['trial_num'] >= 3, 'quality'].mean()
+    if np.isnan(correct_mean):   correct_mean   = 4.0
+    if np.isnan(erroneous_mean): erroneous_mean = 2.5
+ 
+    df.loc[df['quality'].isna() & (df['trial_num'] <= 2), 'quality'] = correct_mean
+    df.loc[df['quality'].isna() & (df['trial_num'] >= 3), 'quality'] = erroneous_mean
+ 
+    print(f'  Samples          : {len(df)}')
+    print(f'  Unique trials    : {df["trial_key"].nunique()}')
+    print(f'  Quality mean±std : {df["quality"].mean():.3f} ± {df["quality"].std():.3f}')
+    print(f'  Exercise dist    :\n{df["exercise"].value_counts().sort_index().to_string()}')
 
 
+    print(f'  Samples (after camera filter) : {len(df)}')
+    return df 
+ 
 def filter_complete_camera_groups(df, label=''):
     """
-    Keep only trial groups that have all 3 cameras present.
-    Then optionally keep only one camera (if CAMERA_ID is set).
+    Keep only trial+segment groups that have all 3 cameras present.
+    Used even in single-view mode to ensure data quality consistency.
     """
     REQUIRED_CAMERAS = {0, 1, 2}
     coverage   = df.groupby('trial_key')['camera'].apply(set)
@@ -398,13 +375,13 @@ def filter_complete_camera_groups(df, label=''):
     else:
         print(f'  [{label}] ✓ All groups have complete 3-camera coverage')
 
+    # Now filter to your chosen camera only
     if CAMERA_ID is not None:
         df = df[df['camera'] == CAMERA_ID].reset_index(drop=True)
         print(f'  [{label}] Filtered to camera C{CAMERA_ID}: {len(df)} samples')
 
     return df
-
-
+ 
 def remove_corrupted(df, label=''):
     """Drop rows whose NPZ file cannot be loaded."""
     bad = []
@@ -416,44 +393,37 @@ def remove_corrupted(df, label=''):
         df = df[~df['filepath'].isin(bad)].reset_index(drop=True)
     print(f'  [{label}] Clean samples : {len(df)}')
     return df
-
-def augment_with_mirrors(df):
-    """
-    لكل سطر بالـ DataFrame، خلق نسخة مرآة منه.
-    النتيجة: الداتا تتضاعف — الأصلية + المعكوسة.
-    """
-    mirrored = df.copy()
-    mirrored['mirrored'] = True
-    df = df.copy()
-    df['mirrored'] = False
-    return pd.concat([df, mirrored], ignore_index=True)
+ 
+ 
 # ── Build the three splits ────────────────────────────────────────────────
-train_df, val_df, test_df = build_index_from_persons(df_csv, camera_id=None)
+train_df = build_index_from_split('train', df_csv, camera_id=None)  # load all cameras first
+val_df   = build_index_from_split('valid', df_csv, camera_id=None)
+test_df  = build_index_from_split('test',  df_csv, camera_id=None)
 
 # Filter: keep only groups with all 3 cameras, then optionally keep one camera
 train_df = filter_complete_camera_groups(train_df, 'TRAIN')
 val_df   = filter_complete_camera_groups(val_df,   'VALID')
 test_df  = filter_complete_camera_groups(test_df,  'TEST')
-
-# Remove corrupted files
+ 
+# ── Remove corrupted files ────────────────────────────────────────────────
 print('\nChecking for corrupted files...')
 train_df = remove_corrupted(train_df, 'TRAIN')
 val_df   = remove_corrupted(val_df,   'VALID')
 test_df  = remove_corrupted(test_df,  'TEST')
-
-# Combine for shared analysis
+ 
+# ── Combine for shared analysis (optional) ───────────────────────────────
 df_index = pd.concat([train_df, val_df, test_df], ignore_index=True)
-
-# Sanity: no trial_key in more than one split
+ 
+# ── Sanity: no trial_key appears in more than one split ──────────────────
 tr_keys = set(train_df['trial_key'])
 vl_keys = set(val_df['trial_key'])
 te_keys = set(test_df['trial_key'])
-assert tr_keys.isdisjoint(vl_keys), 'LEAK: train ∩ val'
-assert tr_keys.isdisjoint(te_keys), 'LEAK: train ∩ test'
-assert vl_keys.isdisjoint(te_keys), 'LEAK: val ∩ test'
+assert tr_keys.isdisjoint(vl_keys),  'LEAK: train ∩ val'
+assert tr_keys.isdisjoint(te_keys),  'LEAK: train ∩ test'
+assert vl_keys.isdisjoint(te_keys),  'LEAK: val ∩ test'
 print('\n✓ No data-leakage detected across splits')
-
-# Summary table
+ 
+# ── Summary table ─────────────────────────────────────────────────────────
 print(f'\n{"═"*68}')
 print(f'  {"Split":<8} {"Samples":>8} {"Correct":>9} {"Erroneous":>11} '
       f'{"Q mean":>8} {"Q std":>7} {"Q min":>7} {"Q max":>7}')
@@ -466,9 +436,21 @@ for name, d in [('Train', train_df), ('Val', val_df), ('Test', test_df)]:
           f'{q.mean():>8.3f} {q.std():>7.3f} '
           f'{q.min():>7.3f} {q.max():>7.3f}')
 print(f'{"═"*68}')
+ 
+print('\n✓ Pre-split index ready  →  train / val / test DataFrames built')
+ 
 
-print('\n✓ Person-split index ready  →  train / val / test DataFrames built')
+def augment_with_mirrors(df):
+    """
+    لكل سطر بالـ DataFrame، خلق نسخة مرآة منه.
+    النتيجة: الداتا تتضاعف — الأصلية + المعكوسة.
+    """
+    mirrored = df.copy()
+    mirrored['mirrored'] = True   # علامة إنها نسخة معكوسة
+    df = df.copy()
+    df['mirrored'] = False
 
+    return pd.concat([df, mirrored], ignore_index=True)
 # ══════════════════════════════════════════════════════════════════════════
 # Cell 7.5 — Camera Distribution Check
 # ══════════════════════════════════════════════════════════════════════════
@@ -1030,7 +1012,7 @@ class STGCN_Regression(nn.Module):
     NO GRU — temporal information is captured purely through
     the temporal convolution inside each ST-GCN block.
     """
-    def __init__(self, in_features=6, K=3, dropout=0.5):
+    def __init__(self, in_features=6, K=3, dropout=0.3):
         super().__init__()
 
         # K=3 partition adjacency (centripetal / centrifugal / self)
@@ -1044,15 +1026,11 @@ class STGCN_Regression(nn.Module):
         # Stride=2 at blocks 4 & 7 halves temporal resolution
         # T=100 → 50 → 25 after strided blocks
         self.blocks = nn.ModuleList([
-            STGCNBlock(in_features, 64,  K=K, residual=False, dropout=dropout),
-            STGCNBlock(64,  64,          K=K,                 dropout=dropout),
-            STGCNBlock(64,  64,          K=K,                 dropout=dropout),
-            STGCNBlock(64,  128, K=K, stride=2,               dropout=dropout),
-            STGCNBlock(128, 128,         K=K,                 dropout=dropout),
-            STGCNBlock(128, 128,         K=K,                 dropout=dropout),
-            STGCNBlock(128, 256, K=K, stride=2,               dropout=dropout),
-            STGCNBlock(256, 256,         K=K,                 dropout=dropout),
-            STGCNBlock(256, 256,         K=K,                 dropout=dropout),
+            STGCNBlock(in_features, 32,  K=K, residual=False, dropout=dropout),
+            STGCNBlock(32,  64,          K=K,                 dropout=dropout),
+            STGCNBlock(64,  64, K=K, stride=2,               dropout=dropout),
+            STGCNBlock(64, 128,         K=K,                 dropout=dropout),
+            STGCNBlock(128, 128, K=K, stride=2,               dropout=dropout),
         ])
 
         # Global Average Pooling: (B, 256, T', J) → (B, 256)
@@ -1062,13 +1040,10 @@ class STGCN_Regression(nn.Module):
         self.ex_embed = nn.Embedding(NUM_EXERCISES, 32)
 
         self.reg_head = nn.Sequential(
-            nn.Linear(256 + 32, 128),
-            nn.LayerNorm(128),
+            nn.Linear(128 + 32, 64),
+            nn.LayerNorm(64),
             nn.ReLU(),
             nn.Dropout(0.3),
-            nn.Linear(128, 64),
-            nn.ReLU(),
-            nn.Dropout(0.2),
             nn.Linear(64, 1),
         )
 
@@ -1531,8 +1506,8 @@ model = STGCN_Regression(in_features=6, K=3, dropout=0.5).to(DEVICE)
 
 optimiser = torch.optim.AdamW(
     model.parameters(),
-    lr           = 1e-4,   # was 5e-5
-    weight_decay = 5e-4
+    lr           = 3e-4,   # was 5e-5
+    weight_decay = 1e-3
 )
 
 scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(
