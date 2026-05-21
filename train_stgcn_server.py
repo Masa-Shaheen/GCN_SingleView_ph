@@ -1012,7 +1012,7 @@ class STGCN_Regression(nn.Module):
     NO GRU — temporal information is captured purely through
     the temporal convolution inside each ST-GCN block.
     """
-    def __init__(self, in_features=6, K=3, dropout=0.3):
+    def __init__(self, in_features=6, K=3, dropout=0.5):
         super().__init__()
 
         # K=3 partition adjacency (centripetal / centrifugal / self)
@@ -1026,11 +1026,15 @@ class STGCN_Regression(nn.Module):
         # Stride=2 at blocks 4 & 7 halves temporal resolution
         # T=100 → 50 → 25 after strided blocks
         self.blocks = nn.ModuleList([
-            STGCNBlock(in_features, 32,  K=K, residual=False, dropout=dropout),
-            STGCNBlock(32,  64,          K=K,                 dropout=dropout),
-            STGCNBlock(64,  64, K=K, stride=2,               dropout=dropout),
-            STGCNBlock(64, 128,         K=K,                 dropout=dropout),
-            STGCNBlock(128, 128, K=K, stride=2,               dropout=dropout),
+            STGCNBlock(in_features, 64,  K=K, residual=False, dropout=dropout),
+            STGCNBlock(64,  64,          K=K,                 dropout=dropout),
+            STGCNBlock(64,  64,          K=K,                 dropout=dropout),
+            STGCNBlock(64,  128, K=K, stride=2,               dropout=dropout),
+            STGCNBlock(128, 128,         K=K,                 dropout=dropout),
+            STGCNBlock(128, 128,         K=K,                 dropout=dropout),
+            STGCNBlock(128, 256, K=K, stride=2,               dropout=dropout),
+            STGCNBlock(256, 256,         K=K,                 dropout=dropout),
+            STGCNBlock(256, 256,         K=K,                 dropout=dropout),
         ])
 
         # Global Average Pooling: (B, 256, T', J) → (B, 256)
@@ -1040,10 +1044,13 @@ class STGCN_Regression(nn.Module):
         self.ex_embed = nn.Embedding(NUM_EXERCISES, 32)
 
         self.reg_head = nn.Sequential(
-            nn.Linear(128 + 32, 64),
-            nn.LayerNorm(64),
+            nn.Linear(256 + 32, 128),
+            nn.LayerNorm(128),
             nn.ReLU(),
             nn.Dropout(0.3),
+            nn.Linear(128, 64),
+            nn.ReLU(),
+            nn.Dropout(0.2),
             nn.Linear(64, 1),
         )
 
@@ -1506,8 +1513,8 @@ model = STGCN_Regression(in_features=6, K=3, dropout=0.5).to(DEVICE)
 
 optimiser = torch.optim.AdamW(
     model.parameters(),
-    lr           = 3e-4,   # was 5e-5
-    weight_decay = 1e-3
+    lr           = 1e-4,   # was 5e-5
+    weight_decay = 5e-4
 )
 
 scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(
