@@ -791,8 +791,6 @@ class BZUDataset(Dataset):
             skel = load_skeleton(s['filepath'])
             if skel is None:
                 skel = np.zeros((self.target_frames, 17, 3), dtype=np.float32)
-            if self.augment:
-                skel = self._augment(skel)   # online aug for normal samples
 
         skel         = self._normalise_length(skel)
         velocity     = np.zeros_like(skel)
@@ -1561,9 +1559,9 @@ train_samples_balanced = oversample_low_scores(train_samples_original)
 print(f'Train after  oversampling: {len(train_samples_balanced)}')
 
 train_loader = DataLoader(
-    make_ds(train_samples_balanced, aug=True),
+    make_ds(train_samples_balanced, aug=False),   # ← was aug=True
     batch_size  = BATCH_SIZE,
-    shuffle     = True,          # plain shuffle — no WeightedRandomSampler
+    shuffle     = True,
     num_workers = 0,
     pin_memory  = (DEVICE == 'cuda'),
 )
