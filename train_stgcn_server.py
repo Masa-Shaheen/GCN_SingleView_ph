@@ -830,6 +830,7 @@ class BZUDataset(Dataset):
         n_new = max(10, int(T * speed))
         idxs  = np.linspace(0, T - 1, n_new).astype(int)
         skel  = self._normalise_length(skel[idxs])
+        T     = skel.shape[0]   # ← refresh: T is now TARGET_FRAMES
 
         # 2. Temporal shift
         if random.random() < 0.50:
@@ -855,7 +856,7 @@ class BZUDataset(Dataset):
         if random.random() < 0.50:
             crop_ratio = np.random.uniform(0.85, 1.0)
             start = np.random.randint(0, max(1, int(T * (1 - crop_ratio))))
-            end   = start + int(T * crop_ratio)
+            end   = max(start + 1, start + int(T * crop_ratio))   # guard: never empty
             skel  = self._normalise_length(skel[start:end])
 
         # 7. Mirror — inline, identical logic to reference

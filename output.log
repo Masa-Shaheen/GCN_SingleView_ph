@@ -8,11 +8,11 @@ nohup: ignoring input
   SPLIT EXISTS: True
   PATIENCE    : 100 epochs
 ✓ Run directory created:
-   /mvdlph/masa/GCN_SingleView_Regression_Results/run_2026_05_22_17_13_26
+   /mvdlph/masa/GCN_SingleView_Regression_Results/run_2026_05_22_18_55_24
 ✓ Libraries imported
 ✓ Output folders ready:
-   /mvdlph/masa/GCN_SingleView_Regression_Results/run_2026_05_22_17_13_26/plots
-   /mvdlph/masa/GCN_SingleView_Regression_Results/run_2026_05_22_17_13_26/logs
+   /mvdlph/masa/GCN_SingleView_Regression_Results/run_2026_05_22_18_55_24/plots
+   /mvdlph/masa/GCN_SingleView_Regression_Results/run_2026_05_22_18_55_24/logs
 ✓ Global seed fixed to 42
 Total NPZ files found : 15375
 First file: E0_P12_T0_C0_seg0_MMPose_human3d_motionbert_3D.npz
@@ -556,11 +556,11 @@ Shape   : (531, 7)
 527       E9    P15    T3     C1            4  4.4250  1.3566
 528       E9    P15    T4     C1            4  3.6500  1.7029
 529       E9    P15    T5     C1            4  2.7750  1.7466
-530       E9    P15    T6     C1            4  3.3750  1.90392026-05-22 17:13:26,634 | INFO | ======================================================================
-2026-05-22 17:13:26,634 | INFO | ST-GCN Single-View Regression | BZU Physiotherapy Dataset
-2026-05-22 17:13:26,635 | INFO | Camera : CNone  |  Split : 70/15/15  |  Epochs : 300  |  Patience : 100
-2026-05-22 17:13:26,635 | INFO | Log file : /mvdlph/masa/GCN_SingleView_Regression_Results/run_2026_05_22_17_13_26/logs/training_20260522_171326.log
-2026-05-22 17:13:26,636 | INFO | ======================================================================
+530       E9    P15    T6     C1            4  3.3750  1.90392026-05-22 18:55:24,291 | INFO | ======================================================================
+2026-05-22 18:55:24,291 | INFO | ST-GCN Single-View Regression | BZU Physiotherapy Dataset
+2026-05-22 18:55:24,291 | INFO | Camera : CNone  |  Split : 70/15/15  |  Epochs : 300  |  Patience : 100
+2026-05-22 18:55:24,292 | INFO | Log file : /mvdlph/masa/GCN_SingleView_Regression_Results/run_2026_05_22_18_55_24/logs/training_20260522_185524.log
+2026-05-22 18:55:24,292 | INFO | ======================================================================
 
 ============================================================
 Quality stats per person:
@@ -623,7 +623,7 @@ P6: correct= 29 rows | erroneous=  0 rows | quality mean=4.571
 P7: correct= 29 rows | erroneous=  0 rows | quality mean=4.657
 P8: correct= 29 rows | erroneous=  0 rows | quality mean=4.603
 P9: correct= 29 rows | erroneous=  0 rows | quality mean=4.413
-✓ stdout → also writing to /mvdlph/masa/GCN_SingleView_Regression_Results/run_2026_05_22_17_13_26/logs/training_20260522_171326.log
+✓ stdout → also writing to /mvdlph/masa/GCN_SingleView_Regression_Results/run_2026_05_22_18_55_24/logs/training_20260522_185524.log
 ✓ parse_filename and load_skeleton defined
 
 [TRAIN] NPZ files found : 9477
@@ -786,8 +786,14 @@ exercise
 ============================================================
   All Splits Combined
 ============================================================
-train_stgcn_server.py:898: RuntimeWarning: divide by zero encountered in power
+train_stgcn_server.py:953: RuntimeWarning: divide by zero encountered in power
   d_inv_sq = np.where(row_sum > 0, np.power(row_sum, -0.5), 0.0)
+train_stgcn_server.py:953: RuntimeWarning: divide by zero encountered in power
+  d_inv_sq = np.where(row_sum > 0, np.power(row_sum, -0.5), 0.0)
+2026-05-22 18:56:02,831 | INFO | ======================================================================
+2026-05-22 18:56:02,832 | INFO | STARTING REGRESSION TRAINING  (with Early Stopping on MAE)
+2026-05-22 18:56:02,832 | INFO | ======================================================================
+2026-05-22 18:56:02,833 | INFO | train=18510 val=2657 test=3106
                   mean     var  count
 split exercise                       
 Test  0         3.6497  0.6139    464
@@ -857,8 +863,8 @@ Skeleton shape : (61, 17, 3)
 X range : [-0.369, 0.592]
 Y range : [-0.193, 0.198]
 Z range : [0.000, 0.994]
-  ✓ Skeleton plot saved → /mvdlph/masa/GCN_SingleView_Regression_Results/run_2026_05_22_17_13_26/plots/sample_skeleton_3views.png
-  ✓ Motion frames saved → /mvdlph/masa/GCN_SingleView_Regression_Results/run_2026_05_22_17_13_26/plots/sample_skeleton_motion.png
+  ✓ Skeleton plot saved → /mvdlph/masa/GCN_SingleView_Regression_Results/run_2026_05_22_18_55_24/plots/sample_skeleton_3views.png
+  ✓ Motion frames saved → /mvdlph/masa/GCN_SingleView_Regression_Results/run_2026_05_22_18_55_24/plots/sample_skeleton_motion.png
 Axis ranges across all frames:
 X: [-0.369, 0.592] — likely left/right
 Y: [-0.193, 0.198] — likely ???
@@ -915,7 +921,7 @@ GPU    : Tesla V100-PCIE-32GB
 =================================================================
 Quality score distribution audit
 =================================================================
-  ✓ Saved → /mvdlph/masa/GCN_SingleView_Regression_Results/run_2026_05_22_17_13_26/plots/split_quality_distributions.png
+  ✓ Saved → /mvdlph/masa/GCN_SingleView_Regression_Results/run_2026_05_22_18_55_24/plots/split_quality_distributions.png
 
 Split    Type              n    mean     std    min    25%    50%    75%    max
 ----------------------------------------------------------------------
@@ -982,11 +988,40 @@ E9    996   64   182    10.8   2.4    5.9
 ✓ Plotting helpers (regression) defined
 ✓ EarlyStopping defined (monitoring MAE)
 Train before oversampling: 9230
-  [low] added 5067 rows (original=1103, target=6170)
-  [mid_low] added 4213 rows (original=1957, target=6170)
-  Total after oversampling: 18510
+
+===== Oversampling Summary =====
+Original train samples : 9230
+Low (<3)               : 1103
+Mid-low [3,4)          : 1957
+High (>=4)             : 6170
+Augmented added        : 9280
+Final train samples    : 18510
 Train after  oversampling: 18510
+
+════════════════════════════════════════════════════════════════════
+  Camera CNone  |  Train: 18510  Val: 2657  Test: 3106
+  Patience: 100  |  LR: 1e-4  |  Batch: 48
+════════════════════════════════════════════════════════════════════
 Traceback (most recent call last):
-  File "train_stgcn_server.py", line 1534, in <module>
-    sampler     = train_sampler,
-NameError: name 'train_sampler' is not defined
+  File "train_stgcn_server.py", line 1609, in <module>
+    tr = run_epoch(model, train_loader, optimiser, reg_fn, is_train=True)
+  File "train_stgcn_server.py", line 1249, in run_epoch
+    for skels, qualities, exercise_ids in loader:
+  File "/usr/local/lib/python3.8/dist-packages/torch/utils/data/dataloader.py", line 628, in __next__
+    data = self._next_data()
+  File "/usr/local/lib/python3.8/dist-packages/torch/utils/data/dataloader.py", line 671, in _next_data
+    data = self._dataset_fetcher.fetch(index)  # may raise StopIteration
+  File "/usr/local/lib/python3.8/dist-packages/torch/utils/data/_utils/fetch.py", line 58, in fetch
+    data = [self.dataset[idx] for idx in possibly_batched_index]
+  File "/usr/local/lib/python3.8/dist-packages/torch/utils/data/_utils/fetch.py", line 58, in <listcomp>
+    data = [self.dataset[idx] for idx in possibly_batched_index]
+  File "train_stgcn_server.py", line 795, in __getitem__
+    skel = self._augment(skel)   # online aug for normal samples
+  File "train_stgcn_server.py", line 859, in _augment
+    skel  = self._normalise_length(skel[start:end])
+  File "train_stgcn_server.py", line 817, in _normalise_length
+    out[:, j, ax] = np.interp(new_idx, old_idx, skel[:, j, ax])
+  File "<__array_function__ internals>", line 5, in interp
+  File "/usr/local/lib/python3.8/dist-packages/numpy/lib/function_base.py", line 1423, in interp
+    return interp_func(x, xp, fp, left, right)
+ValueError: array of sample points is empty
