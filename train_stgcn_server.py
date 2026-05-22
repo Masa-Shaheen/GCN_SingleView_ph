@@ -1,3 +1,4 @@
+
 # Cell 1 — Configuration  (UNCHANGED except SPLIT_DIR added)
 # ══════════════════════════════════════════════════════════════════════════
 import os
@@ -53,6 +54,7 @@ import torch.nn as nn
 import torch.nn.functional as F
 from torch.utils.data import Dataset, DataLoader
 from sklearn.metrics import r2_score   # no confusion_matrix needed
+from scipy.stats import pearsonr
 
 # Create unique run folder
 run_name = datetime.datetime.now().strftime("run_%Y_%m_%d_%H_%M_%S")
@@ -346,7 +348,6 @@ def build_index_from_split(split_name, df_csv, camera_id=None):
     print(f'  Unique trials    : {df["trial_key"].nunique()}')
     print(f'  Quality mean±std : {df["quality"].mean():.3f} ± {df["quality"].std():.3f}')
     print(f'  Exercise dist    :\n{df["exercise"].value_counts().sort_index().to_string()}')
-
 
     print(f'  Samples (after camera filter) : {len(df)}')
     return df 
@@ -672,38 +673,7 @@ for cam in [0, 1, 2]:
 # Cell 10 — BZUDataset (regression only)
 # ══════════════════════════════════════════════════════════════════════════
 
-def oversample_low_scores(df):
-    """
-    وازن الداتا: اعمل نسخ إضافية من الـ low scores
-    عشان تساوي عدد الـ high scores.
-    low     = quality < 3.0
-    mid_low = 3.0 <= quality < 4.0
-    high    = quality >= 4.0
-    """
-    low     = df[df['quality'] < 3.0]
-    mid_low = df[(df['quality'] >= 3.0) & (df['quality'] < 4.0)]
-    high    = df[df['quality'] >= 4.0]
-
-    target_count = len(high)
-
-    extra_rows = []
-    for group_name, group in [('low', low), ('mid_low', mid_low)]:
-        needed = max(0, target_count - len(group))
-        if needed == 0 or len(group) == 0:
-            continue
-        # sample with replacement
-        sampled = group.sample(n=needed, replace=True, random_state=42)
-        extra_rows.append(sampled)
-        print(f'  [{group_name}] added {needed} rows '
-              f'(original={len(group)}, target={target_count})')
-
-    if extra_rows:
-        df = pd.concat([df] + extra_rows, ignore_index=True)
-
-    print(f'  Total after oversampling: {len(df)}')
-    return df
-
-
+# ── Mirror pairs for left/right joint swapping ───────────────────────────
 MIRROR_PAIRS = [
     (1, 4),   # R-Hip   ↔ L-Hip
     (2, 5),   # R-Knee  ↔ L-Knee
@@ -713,43 +683,127 @@ MIRROR_PAIRS = [
     (13, 16), # L-Wrist    ↔ R-Wrist
 ]
 
+
+# ── CHANGED: augment a raw numpy skeleton array (T, J, 3) ────────────────
+# Matches Shahd's 5 augmentation ops exactly:
+#   jitter → scale → temporal shift → Y-axis rotation → mirror+swap
+# No speed warp, no temporal crop (those stay only in BZUDataset._augment
+# for online augmentation of normal training samples).
+def augment_sequence(skel):
+    seq = skel.copy().astype(np.float32)
+
+    if random.random() < 0.60:                          # 1. Gaussian jitter
+        seq += np.random.normal(0, 0.01, seq.shape).astype(np.float32)
+
+    if random.random() < 0.50:                          # 2. Scale
+        seq *= random.uniform(0.95, 1.05)
+
+    if random.random() < 0.50:                          # 3. Temporal shift
+        shift = random.randint(-5, 5)
+        seq   = np.roll(seq, shift, axis=0)
+
+    if random.random() < 0.50:                          # 4. Y-axis rotation
+        angle        = np.deg2rad(random.uniform(-8, 8))
+        cos_a, sin_a = np.cos(angle), np.sin(angle)
+        x            = seq[:, :, 0].copy()
+        z            = seq[:, :, 2].copy()
+        seq[:, :, 0] = cos_a * x - sin_a * z
+        seq[:, :, 2] = sin_a * x + cos_a * z
+
+    if random.random() < 0.50:                          # 5. Mirror + swap L/R joints
+        seq[:, :, 0] *= -1
+        for left, right in MIRROR_PAIRS:
+            seq[:, [left, right], :] = seq[:, [right, left], :]
+
+    return seq.astype(np.float32)
+
+
+# ── CHANGED: oversample low-score samples WITH augmentation ──────────────
+# 3-tier system (low < 3, mid_low [3,4), high >= 4).
+# target_count = len(high) for each tier.
+# Each added sample is a freshly augmented copy of a randomly chosen
+# base sample — NOT a plain DataFrame row duplicate.
+# Applied to train split only.
+def oversample_low_scores(samples):
+    original  = list(samples)
+    low       = [s for s in samples if s['quality'] < 3.0]
+    mid_low   = [s for s in samples if 3.0 <= s['quality'] < 4.0]
+    high      = [s for s in samples if s['quality'] >= 4.0]
+
+    target_count = len(high)
+    augmented    = []
+
+    for group_name, group in [('low', low), ('mid_low', mid_low)]:
+        if len(group) == 0:
+            continue
+        needed = max(0, target_count - len(group))
+        for i in range(needed):
+            base = random.choice(group)              # sample WITH replacement
+            skel = load_skeleton(base['filepath'])
+            if skel is None:
+                continue
+            aug_skel               = augment_sequence(skel)   # augment now
+            aug_sample             = dict(base)                # shallow copy
+            aug_sample['_aug_skel'] = aug_skel                 # store array
+            aug_sample['is_aug']   = True
+            augmented.append(aug_sample)
+
+    print(f"\n===== Oversampling Summary =====")
+    print(f"Original train samples : {len(original)}")
+    print(f"Low (<3)               : {len(low)}")
+    print(f"Mid-low [3,4)          : {len(mid_low)}")
+    print(f"High (>=4)             : {len(high)}")
+    print(f"Augmented added        : {len(augmented)}")
+    print(f"Final train samples    : {len(original) + len(augmented)}")
+
+    return original + augmented
+
+
 def mirror_skeleton(skel):
     skel = skel.copy()
-    skel[:, :, 0] *= -1          # اعكس محور X (يمين يصير شمال)
-    for i, j in MIRROR_PAIRS:   # بدّل الجوينتس اليمين مع الشمال
+    skel[:, :, 0] *= -1
+    for i, j in MIRROR_PAIRS:
         skel[:, [i, j], :] = skel[:, [j, i], :]
     return skel
 
+
+# ── CHANGED: BZUDataset now accepts a list of dicts instead of a DataFrame.
+# This is required because oversampled entries carry a pre-augmented numpy
+# array ('_aug_skel') that cannot be stored in a DataFrame column cleanly.
+# val/test loaders pass df.to_dict('records') so the interface is uniform.
 class BZUDataset(Dataset):
-    """Returns (skeleton, quality_score) — no exercise ID."""
-    def __init__(self, df, target_frames=TARGET_FRAMES, augment=False):
-        self.df            = df.reset_index(drop=True)
+    def __init__(self, samples, target_frames=TARGET_FRAMES, augment=False):
+        # samples: list of dicts (from df.to_dict('records') + oversampling)
+        self.samples       = samples
         self.target_frames = target_frames
         self.augment       = augment
 
     def __len__(self):
-        return len(self.df)
+        return len(self.samples)
 
-    
     def __getitem__(self, idx):
-        row  = self.df.iloc[idx]
-        skel = load_skeleton(row['filepath'])
-        if skel is None:
-            skel = np.zeros((TARGET_FRAMES, 17, 3), dtype=np.float32)
+        s = self.samples[idx]
 
-        skel = self._normalise_length(skel)
+        # Pre-augmented oversampled entry → use stored array directly
+        if s.get('_aug_skel') is not None:
+            skel = s['_aug_skel'].copy()
+        else:
+            skel = load_skeleton(s['filepath'])
+            if skel is None:
+                skel = np.zeros((self.target_frames, 17, 3), dtype=np.float32)
+            if self.augment:
+                skel = self._augment(skel)   # online aug for normal samples
 
-        if self.augment:
-            skel = self._augment(skel)  # بدون ميررورينغ جوا هون
-
+        skel         = self._normalise_length(skel)
         velocity     = np.zeros_like(skel)
         velocity[1:] = skel[1:] - skel[:-1]
+        skel_vel     = np.concatenate([skel, velocity], axis=-1)
 
-        skel_vel    = np.concatenate([skel, velocity], axis=-1)
-        skel_tensor = torch.tensor(skel_vel,        dtype=torch.float32)
-        quality     = torch.tensor(row['quality'],  dtype=torch.float32)
-        exercise_id = torch.tensor(row['exercise'], dtype=torch.long)
-        return skel_tensor, quality, exercise_id
+        return (
+            torch.tensor(skel_vel,        dtype=torch.float32),
+            torch.tensor(s['quality'],    dtype=torch.float32),
+            torch.tensor(s['exercise'],   dtype=torch.long),
+        )
 
     def _normalise_length(self, skel):
         T = skel.shape[0]
@@ -811,6 +865,7 @@ class BZUDataset(Dataset):
                 skel[:, [left, right], :] = skel[:, [right, left], :]
 
         return skel
+
 print('✓ BZUDataset defined (regression only)')
 
 
@@ -1184,8 +1239,6 @@ def centre_and_scale(x):
     return torch.cat([pos, vel], dim=-1)
 
 
-from scipy.stats import pearsonr   # add this at the top of Cell 2 imports
-
 def run_epoch(model, loader, optimiser, reg_fn, is_train=True):
     model.train() if is_train else model.eval()
     total_loss = 0.0
@@ -1215,7 +1268,6 @@ def run_epoch(model, loader, optimiser, reg_fn, is_train=True):
     qt = np.array(q_true)
     qp = np.array(q_pred)
 
-    # ── NEW: Pearson Correlation ──────────────────────────────────────────
     pcc = float(pearsonr(qt, qp)[0]) if len(qt) > 1 else 0.0
 
     return {
@@ -1223,7 +1275,7 @@ def run_epoch(model, loader, optimiser, reg_fn, is_train=True):
         'rmse': float(np.sqrt(np.mean((qt - qp) ** 2))),
         'mae' : float(np.mean(np.abs(qt - qp))),
         'r2'  : float(r2_score(qt, qp)) if len(qt) > 1 else 0.0,
-        'pcc' : pcc,    # ← NEW
+        'pcc' : pcc,
     }
 
 print('✓ centre_and_scale and run_epoch (regression) defined')
@@ -1404,7 +1456,6 @@ def plot_pcc(history, save_dir, test_pcc=None):
     save_and_show(fig, os.path.join(save_dir, 'pcc_curve.png'))
 
 
-
 def plot_regression_scatter(q_true, q_pred, split_name='Test', save_dir=None):
     qt   = np.array(q_true)
     qp   = np.array(q_pred)
@@ -1489,64 +1540,46 @@ print('✓ EarlyStopping defined (monitoring MAE)')
 # Cell 16 — Training Loop (Regression only)
 # ══════════════════════════════════════════════════════════════════════════
 
-#reg_fn = nn.MSELoss()
 reg_fn = nn.SmoothL1Loss(beta=1.0)
 
-def make_ds(df, aug):
-    return BZUDataset(df, augment=aug)
+# ── CHANGED: helper converts a DataFrame to list-of-dicts ────────────────
+# BZUDataset now accepts a list of dicts (needed so oversampled entries can
+# carry a pre-augmented numpy array that a DataFrame column cannot hold).
+def make_ds(samples, aug):
+    return BZUDataset(samples, augment=aug)
 
-# ── Weighted sampler: emphasise low-quality samples ───────────────────────
-def make_weighted_sampler(df):
-    """
-    Weight each sample inversely proportional to its quality score bucket.
-    Lower quality  →  higher probability of being drawn.
-    Sampling WITH replacement so the loader length stays = len(df).
-    """
-    q = df['quality'].values.astype(np.float32)
-
-    # Invert quality: score 1 → weight 5,  score 5 → weight 1
-    raw_weights = (q.max() + 1.0) - q          # shape (N,)
-
-    # Also up-weight erroneous trials (trial_num >= 3) by ×2
-    erroneous_mask = (df['trial_num'].values >= 3).astype(np.float32)
-    raw_weights   *= (1.0 + erroneous_mask)     # ×2 for erroneous, ×1 otherwise
-
-    weights_tensor = torch.DoubleTensor(raw_weights)
-    sampler = torch.utils.data.WeightedRandomSampler(
-        weights     = weights_tensor,
-        num_samples = len(df),          # same epoch length
-        replacement = True,             # WITH replacement
-    )
-    return sampler
-
-
-
-
-print(f'Train before oversampling: {len(train_df)}')
-train_df_balanced = oversample_low_scores(train_df)
-print(f'Train after  oversampling: {len(train_df_balanced)}')
-
-#train_sampler = make_weighted_sampler(train_df_balanced)
+# ── CHANGED: oversample train split with augmentation then build loader ───
+# 1. Convert train_df to list-of-dicts (same structure as val/test).
+# 2. Call oversample_low_scores — it adds freshly augmented copies of
+#    low/mid-low samples (sample WITH replacement) until each tier reaches
+#    len(high).  No WeightedRandomSampler — plain shuffle=True is enough
+#    because the class balance is already fixed by oversampling.
+train_samples_original = train_df.to_dict('records')
+print(f'Train before oversampling: {len(train_samples_original)}')
+train_samples_balanced = oversample_low_scores(train_samples_original)
+print(f'Train after  oversampling: {len(train_samples_balanced)}')
 
 train_loader = DataLoader(
-    make_ds(train_df_balanced, aug=True),  # ← train_df_balanced
+    make_ds(train_samples_balanced, aug=True),
     batch_size  = BATCH_SIZE,
-    sampler     = train_sampler,
+    shuffle     = True,          # plain shuffle — no WeightedRandomSampler
     num_workers = 0,
     pin_memory  = (DEVICE == 'cuda'),
 )
 
-# val / test loaders unchanged
-val_loader  = DataLoader(make_ds(val_df,  False), batch_size=BATCH_SIZE,
-                         shuffle=False, num_workers=0, pin_memory=(DEVICE=='cuda'))
-test_loader = DataLoader(make_ds(test_df, False), batch_size=BATCH_SIZE,
-                         shuffle=False, num_workers=0, pin_memory=(DEVICE=='cuda'))
+# val / test: convert df → list-of-dicts, no augmentation, no oversampling
+val_loader  = DataLoader(make_ds(val_df.to_dict('records'),  False),
+                         batch_size=BATCH_SIZE, shuffle=False,
+                         num_workers=0, pin_memory=(DEVICE == 'cuda'))
+test_loader = DataLoader(make_ds(test_df.to_dict('records'), False),
+                         batch_size=BATCH_SIZE, shuffle=False,
+                         num_workers=0, pin_memory=(DEVICE == 'cuda'))
 
 model = STGCN_Regression(in_features=6, K=3, dropout=0.5).to(DEVICE)
 
 optimiser = torch.optim.AdamW(
     model.parameters(),
-    lr           = 1e-4,   # was 5e-5
+    lr           = 1e-4,
     weight_decay = 5e-4
 )
 
@@ -1557,27 +1590,24 @@ scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(
 early_stop = EarlyStopping(patience=PATIENCE, min_delta=MIN_DELTA)
 
 SPLITS  = ['train', 'val']
-METRICS = ['loss', 'rmse', 'mae', 'r2', 'pcc'] 
+METRICS = ['loss', 'rmse', 'mae', 'r2', 'pcc']
 history = {f'{s}_{m}': [] for s in SPLITS for m in METRICS}
 stopped_epoch = EPOCHS
 
 log.info('=' * 70)
 log.info('STARTING REGRESSION TRAINING  (with Early Stopping on MAE)')
 log.info('=' * 70)
-log.info(f'train={len(train_df)} val={len(val_df)} test={len(test_df)}')
+log.info(f'train={len(train_samples_balanced)} val={len(val_df)} test={len(test_df)}')
 
 print(f'\n{"═"*68}')
-print(f'  Camera C{CAMERA_ID}  |  Train: {len(train_df)}  '
+print(f'  Camera C{CAMERA_ID}  |  Train: {len(train_samples_balanced)}  '
       f'Val: {len(val_df)}  Test: {len(test_df)}')
 print(f'  Patience: {PATIENCE}  |  LR: 1e-4  |  Batch: {BATCH_SIZE}')
 print(f'{"═"*68}')
 
-# ── REPLACE the per-epoch block inside the for loop ──────────────────────
 for epoch in range(1, EPOCHS + 1):
     tr = run_epoch(model, train_loader, optimiser, reg_fn, is_train=True)
     vl = run_epoch(model, val_loader,   optimiser, reg_fn, is_train=False)
-    # ← NO test evaluation here
-    
 
     for split, res in [('train', tr), ('val', vl)]:
         history[f'{split}_loss'].append(res['loss'])
@@ -1585,6 +1615,8 @@ for epoch in range(1, EPOCHS + 1):
         history[f'{split}_mae'].append(res['mae'])
         history[f'{split}_r2'].append(res['r2'])
         history[f'{split}_pcc'].append(res['pcc'])
+
+    scheduler.step(vl['loss'])
 
     stop, improved = early_stop.step(vl['mae'], model, epoch)
 
@@ -1618,7 +1650,6 @@ best_epoch = early_stop.best_epoch
 # ── Single final test evaluation (only now, with best weights) ────────────
 final_te = run_epoch(model, test_loader, optimiser, reg_fn, is_train=False)
 
-
 print(f'\n  ── Final Test Results (best epoch = {best_epoch}) ──────────────────')
 print(f'  Loss : {final_te["loss"]:.4f}')
 print(f'  RMSE : {final_te["rmse"]:.4f}')
@@ -1629,13 +1660,13 @@ print(f'  R²   : {final_te["r2"]:.4f}')
 model.eval()
 all_true_q, all_pred_q, all_exercise_ids = [], [], []
 with torch.no_grad():
-    for skels, qualities, exercise_ids in test_loader:   # ← أضف exercise_ids
+    for skels, qualities, exercise_ids in test_loader:
         skels        = centre_and_scale(skels.to(DEVICE))
         exercise_ids = exercise_ids.to(DEVICE)
-        preds        = model(skels, exercise_ids)        # ← أضف exercise_ids
+        preds        = model(skels, exercise_ids)
         all_true_q.extend(qualities.numpy())
         all_pred_q.extend(preds.cpu().numpy())
-        all_exercise_ids.extend(exercise_ids.cpu().numpy())   # ← add this
+        all_exercise_ids.extend(exercise_ids.cpu().numpy())
 
 # ── Save all plots ────────────────────────────────────────────────────────
 plot_loss_curves(history, PLOTS_DIR, test_loss=final_te['loss'])
@@ -1645,15 +1676,11 @@ plot_pcc(history, PLOTS_DIR,         test_pcc=final_te['pcc'])
 plot_regression_scatter(all_true_q, all_pred_q, split_name='Test', save_dir=PLOTS_DIR)
 plot_early_stop(history, stopped_epoch, best_epoch, PLOTS_DIR)
 
-
 # ── Save history JSON ─────────────────────────────────────────────────────
 json_path = os.path.join(LOGS_DIR, 'training_history.json')
 with open(json_path, 'w') as f:
     json.dump(history, f, indent=2)
 print(f'  ✓ History → {json_path}')
-
-
-
 
 
 # ══════════════════════════════════════════════════════════════════════════
@@ -1715,8 +1742,6 @@ print(f'  ✓ Test predictions NPZ → {npz_preds_path}')
 # Cell 16.5 — Per-exercise test metrics
 # ══════════════════════════════════════════════════════════════════════════
 
-from scipy.stats import pearsonr
-
 all_true_q_arr  = np.array(all_true_q)
 all_pred_q_arr  = np.array(all_pred_q)
 all_ex_arr      = np.array(all_exercise_ids)
@@ -1736,14 +1761,13 @@ for ex_id in unique_exercises:
 
     mae  = float(np.mean(np.abs(qt - qp)))
     rmse = float(np.sqrt(np.mean((qt - qp) ** 2)))
-    r2   = float(r2_score(qt, qp))   if n > 1 else float('nan')
+    r2   = float(r2_score(qt, qp))    if n > 1 else float('nan')
     pcc  = float(pearsonr(qt, qp)[0]) if n > 1 else float('nan')
 
     per_ex_results[ex_id] = dict(n=n, mae=mae, rmse=rmse, r2=r2, pcc=pcc)
     print(f'  E{ex_id:<11} {n:>5} {mae:>8.4f} {rmse:>8.4f} {r2:>8.4f} {pcc:>8.4f}')
 
 print('─' * 72)
-# Overall row
 print(f'  {"Overall":<12} {len(all_true_q_arr):>5} '
       f'{final_te["mae"]:>8.4f} {final_te["rmse"]:>8.4f} '
       f'{final_te["r2"]:>8.4f} {final_te["pcc"]:>8.4f}')
@@ -1798,7 +1822,6 @@ for i, ex_id in enumerate(unique_exercises):
             fontsize=8, verticalalignment='top',
             bbox=dict(boxstyle='round', facecolor='wheat', alpha=0.7))
 
-# hide unused subplots
 for j in range(i + 1, len(axes)):
     axes[j].set_visible(False)
 
@@ -1831,13 +1854,11 @@ for ax, metric, ylabel, ylim in [
     ax.grid(axis='y', alpha=0.3)
     if ylim:
         ax.set_ylim(ylim)
-    # value labels on bars
     for bar, v in zip(bars, vals):
         va_pos = bar.get_height() + 0.01 if v >= 0 else bar.get_height() - 0.04
         ax.text(bar.get_x() + bar.get_width() / 2, va_pos,
                 f'{v:.3f}', ha='center', va='bottom', fontsize=8)
 
-# draw overall mean reference lines
 for ax, metric in zip(axes, ['mae', 'rmse', 'r2', 'pcc']):
     overall = final_te[metric]
     ax.axhline(overall, color='red', linestyle='--',
@@ -1849,7 +1870,6 @@ bar_path = os.path.join(PLOTS_DIR, 'per_exercise_bar.png')
 plt.savefig(bar_path, dpi=150, bbox_inches='tight')
 plt.close()
 print(f'  ✓ Per-exercise bar chart → {bar_path}')
-
 
 # ── Save per-exercise metrics as NPZ ──────────────────────────────────────
 npz_per_ex_path = os.path.join(LOGS_DIR, 'per_exercise_metrics.npz')
@@ -1879,8 +1899,7 @@ print(f'  Best Epoch       : {best_epoch}  (stopped at {stopped_epoch})')
 print(f'  Best Val MAE     : {best_val_mae:.4f}')
 print(f'  Best Val RMSE    : {best_val_rmse:.4f}')
 print(f'  Best Val R²      : {best_val_r2:.4f}')
-
-print(f'  Best Val PCC     : {best_val_pcc:.4f}')   # ← add this line
+print(f'  Best Val PCC     : {best_val_pcc:.4f}')
 print('─' * 60)
 print(f'  Test MAE         : {final_te["mae"]:.4f}')
 print(f'  Test RMSE        : {final_te["rmse"]:.4f}')
@@ -1888,20 +1907,11 @@ print(f'  Test R²          : {final_te["r2"]:.4f}')
 print(f'  Test PCC         : {final_te["pcc"]:.4f}')
 print('=' * 60)
 
-# print('─' * 60)
-# print(f'  Test MAE         : {final_te["mae"]:.4f}')
-# print(f'  Test RMSE        : {final_te["rmse"]:.4f}')
-# print(f'  Test R²          : {final_te["r2"]:.4f}')
-# print('=' * 60)
-
 log.info(f'Best Epoch={best_epoch}  stopped_epoch={stopped_epoch}')
 log.info(f'Test MAE={final_te["mae"]:.4f}')
 log.info(f'Test RMSE={final_te["rmse"]:.4f}')
 log.info(f'Test R²={final_te["r2"]:.4f}')
-log.info(f'Test PCC={final_te["pcc"]:.4f}')   # ← was missing
-
-
-
+log.info(f'Test PCC={final_te["pcc"]:.4f}')
 
 summary_path = os.path.join(OUT_DIR, 'training_summary.csv')
 
@@ -1923,4 +1933,3 @@ print(f'\n✓ Summary CSV (overall + per-exercise) → {summary_path}')
 
 sys.stdout.restore()
 print('✓ Log file closed and saved.')
-
