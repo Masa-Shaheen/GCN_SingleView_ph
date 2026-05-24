@@ -986,35 +986,22 @@ class STGCN_Regression(nn.Module):
         # Input normalization
         self.data_bn = nn.BatchNorm1d(in_features * NUM_JOINTS)
 
-        # 9 ST-GCN blocks (same depth as original paper)
-        # Stride=2 at blocks 4 & 7 halves temporal resolution
-        # T=100 → 50 → 25 after strided blocks
         self.blocks = nn.ModuleList([
-            STGCNBlock(in_features, 64,  K=K, residual=False, dropout=dropout),
-            STGCNBlock(64,  64,          K=K,                 dropout=dropout),
+            STGCNBlock(in_features, 32,  K=K, residual=False, dropout=dropout),
+            STGCNBlock(32,  32,          K=K,                 dropout=dropout),
+            STGCNBlock(32,  64,  K=K, stride=2,               dropout=dropout),
             STGCNBlock(64,  64,          K=K,                 dropout=dropout),
             STGCNBlock(64,  128, K=K, stride=2,               dropout=dropout),
             STGCNBlock(128, 128,         K=K,                 dropout=dropout),
-            STGCNBlock(128, 128,         K=K,                 dropout=dropout),
-            STGCNBlock(128, 256, K=K, stride=2,               dropout=dropout),
-            STGCNBlock(256, 256,         K=K,                 dropout=dropout),
-            STGCNBlock(256, 256,         K=K,                 dropout=dropout),
         ])
 
-        # Global Average Pooling: (B, 256, T', J) → (B, 256)
         self.gap = nn.AdaptiveAvgPool2d(1)
 
-        # Exercise-conditioned regression
-        #self.ex_embed = nn.Embedding(NUM_EXERCISES, 32)
-
         self.reg_head = nn.Sequential(
-            nn.Linear(256 , 128),
-            nn.LayerNorm(128),
-            nn.ReLU(),
-            nn.Dropout(0.3),
             nn.Linear(128, 64),
+            nn.LayerNorm(64),
             nn.ReLU(),
-            nn.Dropout(0.2),
+            nn.Dropout(0.5),
             nn.Linear(64, 1),
         )
 
