@@ -8,11 +8,11 @@ nohup: ignoring input
   SPLIT EXISTS: True
   PATIENCE    : 100 epochs
 ✓ Run directory created:
-   /mvdlph/masa/GCN_SingleView_Regression_Results/run_2026_05_24_09_59_31
+   /mvdlph/masa/GCN_SingleView_Regression_Results/run_2026_05_24_10_05_34
 ✓ Libraries imported
 ✓ Output folders ready:
-   /mvdlph/masa/GCN_SingleView_Regression_Results/run_2026_05_24_09_59_31/plots
-   /mvdlph/masa/GCN_SingleView_Regression_Results/run_2026_05_24_09_59_31/logs
+   /mvdlph/masa/GCN_SingleView_Regression_Results/run_2026_05_24_10_05_34/plots
+   /mvdlph/masa/GCN_SingleView_Regression_Results/run_2026_05_24_10_05_34/logs
 ✓ Global seed fixed to 42
 Total NPZ files found : 15375
 First file: E0_P12_T0_C0_seg0_MMPose_human3d_motionbert_3D.npz
@@ -556,11 +556,11 @@ Shape   : (531, 7)
 527       E9    P15    T3     C1            4  4.4250  1.3566
 528       E9    P15    T4     C1            4  3.6500  1.7029
 529       E9    P15    T5     C1            4  2.7750  1.7466
-530       E9    P15    T6     C1            4  3.3750  1.90392026-05-24 09:59:31,678 | INFO | ======================================================================
-2026-05-24 09:59:31,678 | INFO | ST-GCN Single-View Regression | BZU Physiotherapy Dataset
-2026-05-24 09:59:31,679 | INFO | Camera : C0  |  Split : 70/15/15  |  Epochs : 300  |  Patience : 100
-2026-05-24 09:59:31,679 | INFO | Log file : /mvdlph/masa/GCN_SingleView_Regression_Results/run_2026_05_24_09_59_31/logs/training_20260524_095931.log
-2026-05-24 09:59:31,680 | INFO | ======================================================================
+530       E9    P15    T6     C1            4  3.3750  1.90392026-05-24 10:05:35,082 | INFO | ======================================================================
+2026-05-24 10:05:35,083 | INFO | ST-GCN Single-View Regression | BZU Physiotherapy Dataset
+2026-05-24 10:05:35,083 | INFO | Camera : C0  |  Split : 70/15/15  |  Epochs : 300  |  Patience : 100
+2026-05-24 10:05:35,084 | INFO | Log file : /mvdlph/masa/GCN_SingleView_Regression_Results/run_2026_05_24_10_05_34/logs/training_20260524_100535.log
+2026-05-24 10:05:35,085 | INFO | ======================================================================
 
 ============================================================
 Quality stats per person:
@@ -623,7 +623,7 @@ P6: correct= 29 rows | erroneous=  0 rows | quality mean=4.571
 P7: correct= 29 rows | erroneous=  0 rows | quality mean=4.657
 P8: correct= 29 rows | erroneous=  0 rows | quality mean=4.603
 P9: correct= 29 rows | erroneous=  0 rows | quality mean=4.413
-✓ stdout → also writing to /mvdlph/masa/GCN_SingleView_Regression_Results/run_2026_05_24_09_59_31/logs/training_20260524_095931.log
+✓ stdout → also writing to /mvdlph/masa/GCN_SingleView_Regression_Results/run_2026_05_24_10_05_34/logs/training_20260524_100535.log
 ✓ parse_filename and load_skeleton defined
 
 [TRAIN] NPZ files found : 9477
@@ -785,50 +785,47 @@ Skeleton shape : (81, 17, 3)
 X range : [-0.369, 0.592]
 Y range : [-0.193, 0.198]
 Z range : [0.000, 0.994]
-  ✓ Skeleton plot saved → /mvdlph/masa/GCN_SingleView_Regression_Results/run_2026_05_24_09_59_31/plots/sample_skeleton_3views.png
-  ✓ Motion frames saved → /mvdlph/masa/GCN_SingleView_Regression_Results/run_2026_05_24_09_59_31/plots/sample_skeleton_motion.png
+  ✓ Skeleton plot saved → /mvdlph/masa/GCN_SingleView_Regression_Results/run_2026_05_24_10_05_34/plots/sample_skeleton_3views.png
+  ✓ Motion frames saved → /mvdlph/masa/GCN_SingleView_Regression_Results/run_2026_05_24_10_05_34/plots/sample_skeleton_motion.png
 Axis ranges across all frames:
 X: [-0.369, 0.592] — likely left/right
 train_stgcn_server.py:828: RuntimeWarning: divide by zero encountered in power
   d_inv_sq = np.where(row_sum > 0, np.power(row_sum, -0.5), 0.0)
 train_stgcn_server.py:828: RuntimeWarning: divide by zero encountered in power
   d_inv_sq = np.where(row_sum > 0, np.power(row_sum, -0.5), 0.0)
-2026-05-24 09:59:54,347 | INFO | ======================================================================
-2026-05-24 09:59:54,348 | INFO | STARTING REGRESSION TRAINING  (with Early Stopping on MAE)
-2026-05-24 09:59:54,349 | INFO | ======================================================================
-2026-05-24 09:59:54,349 | INFO | train=318 val=95 test=156
-2026-05-24 09:59:57,374 | INFO |   Ep   1/300 | Tr loss=0.5660 mae=0.973 r2=-0.307 pcc=0.368 | Vl loss=0.2072 mae=0.575 r2=0.483 pcc=0.898 | ES 0/100 ★
-2026-05-24 09:59:59,012 | INFO |   Ep   2/300 | Tr loss=0.4361 mae=0.789 r2=0.094 pcc=0.544 | Vl loss=0.4365 mae=0.877 r2=-0.145 pcc=0.894 | ES 1/100
-2026-05-24 10:00:00,737 | INFO |   Ep   3/300 | Tr loss=0.3672 mae=0.728 r2=0.257 pcc=0.644 | Vl loss=0.4511 mae=0.899 r2=-0.182 pcc=0.556 | ES 2/100
-2026-05-24 10:00:02,400 | INFO |   Ep   4/300 | Tr loss=0.3590 mae=0.730 r2=0.216 pcc=0.623 | Vl loss=0.4738 mae=0.925 r2=-0.243 pcc=-0.881 | ES 3/100
-2026-05-24 10:00:04,046 | INFO |   Ep   5/300 | Tr loss=0.3047 mae=0.648 r2=0.354 pcc=0.682 | Vl loss=0.5020 mae=0.954 r2=-0.334 pcc=-0.803 | ES 4/100
-2026-05-24 10:00:05,697 | INFO |   Ep   6/300 | Tr loss=0.3263 mae=0.687 r2=0.342 pcc=0.657 | Vl loss=0.4847 mae=0.925 r2=-0.300 pcc=0.716 | ES 5/100
-2026-05-24 10:00:07,351 | INFO |   Ep   7/300 | Tr loss=0.3184 mae=0.678 r2=0.341 pcc=0.647 | Vl loss=0.5438 mae=0.929 r2=-0.532 pcc=0.884 | ES 6/100
-2026-05-24 10:00:09,000 | INFO |   Ep   8/300 | Tr loss=0.2970 mae=0.643 r2=0.402 pcc=0.697 | Vl loss=0.6300 mae=0.991 r2=-0.848 pcc=0.911 | ES 7/100
-2026-05-24 10:00:10,634 | INFO |   Ep   9/300 | Tr loss=0.2835 mae=0.627 r2=0.448 pcc=0.707 | Vl loss=0.6472 mae=1.008 r2=-0.921 pcc=0.855 | ES 8/100
-2026-05-24 10:00:12,264 | INFO |   Ep  10/300 | Tr loss=0.2829 mae=0.621 r2=0.425 pcc=0.704 | Vl loss=0.7011 mae=1.067 r2=-1.148 pcc=-0.889 | ES 9/100
-2026-05-24 10:00:13,920 | INFO |   Ep  11/300 | Tr loss=0.3011 mae=0.646 r2=0.394 pcc=0.678 | Vl loss=0.6983 mae=1.071 r2=-1.136 pcc=-0.914 | ES 10/100
-2026-05-24 10:00:15,560 | INFO |   Ep  12/300 | Tr loss=0.3122 mae=0.650 r2=0.354 pcc=0.638 | Vl loss=0.7328 mae=1.104 r2=-1.276 pcc=-0.858 | ES 11/100
-2026-05-24 10:00:17,194 | INFO |   Ep  13/300 | Tr loss=0.2459 mae=0.571 r2=0.523 pcc=0.743 | Vl loss=0.7346 mae=1.099 r2=-1.281 pcc=-0.814 | ES 12/100
-2026-05-24 10:00:18,828 | INFO |   Ep  14/300 | Tr loss=0.2834 mae=0.606 r2=0.371 pcc=0.677 | Vl loss=0.7559 mae=1.120 r2=-1.375 pcc=-0.826 | ES 13/100
-2026-05-24 10:00:20,465 | INFO |   Ep  15/300 | Tr loss=0.2941 mae=0.631 r2=0.463 pcc=0.703 | Vl loss=0.6627 mae=1.066 r2=-0.968 pcc=-0.798 | ES 14/100
-2026-05-24 10:00:22,108 | INFO |   Ep  16/300 | Tr loss=0.2671 mae=0.613 r2=0.516 pcc=0.744 | Vl loss=0.6164 mae=1.042 r2=-0.775 pcc=-0.838 | ES 15/100
-2026-05-24 10:00:23,736 | INFO |   Ep  17/300 | Tr loss=0.2709 mae=0.607 r2=0.428 pcc=0.701 | Vl loss=0.6140 mae=1.002 r2=-0.782 pcc=0.103 | ES 16/100
-2026-05-24 10:00:25,369 | INFO |   Ep  18/300 | Tr loss=0.2346 mae=0.542 r2=0.546 pcc=0.758 | Vl loss=0.6258 mae=0.993 r2=-0.825 pcc=0.871 | ES 17/100
-2026-05-24 10:00:27,001 | INFO |   Ep  19/300 | Tr loss=0.3061 mae=0.635 r2=0.434 pcc=0.689 | Vl loss=0.6501 mae=1.013 r2=-0.923 pcc=0.869 | ES 18/100
-2026-05-24 10:00:28,631 | INFO |   Ep  20/300 | Tr loss=0.2685 mae=0.613 r2=0.522 pcc=0.737 | Vl loss=0.6460 mae=1.019 r2=-0.906 pcc=0.103 | ES 19/100
-2026-05-24 10:00:30,261 | INFO |   Ep  21/300 | Tr loss=0.3260 mae=0.680 r2=0.341 pcc=0.638 | Vl loss=0.6880 mae=1.068 r2=-1.075 pcc=-0.626 | ES 20/100
-2026-05-24 10:00:31,906 | INFO |   Ep  22/300 | Tr loss=0.2638 mae=0.601 r2=0.508 pcc=0.727 | Vl loss=0.6723 mae=1.073 r2=-1.013 pcc=-0.842 | ES 21/100
-2026-05-24 10:00:33,539 | INFO |   Ep  23/300 | Tr loss=0.2606 mae=0.598 r2=0.476 pcc=0.721 | Vl loss=0.6699 mae=1.071 r2=-1.011 pcc=-0.903 | ES 22/100
-2026-05-24 10:00:35,170 | INFO |   Ep  24/300 | Tr loss=0.2648 mae=0.595 r2=0.519 pcc=0.740 | Vl loss=0.6846 mae=1.080 r2=-1.064 pcc=-0.839 | ES 23/100
-2026-05-24 10:00:36,802 | INFO |   Ep  25/300 | Tr loss=0.2851 mae=0.616 r2=0.443 pcc=0.697 | Vl loss=0.7028 mae=1.091 r2=-1.143 pcc=-0.845 | ES 24/100
-2026-05-24 10:00:38,433 | INFO |   Ep  26/300 | Tr loss=0.2725 mae=0.613 r2=0.472 pcc=0.701 | Vl loss=0.7255 mae=1.120 r2=-1.244 pcc=-0.889 | ES 25/100
-2026-05-24 10:00:40,066 | INFO |   Ep  27/300 | Tr loss=0.2368 mae=0.554 r2=0.527 pcc=0.743 | Vl loss=0.7124 mae=1.104 r2=-1.180 pcc=-0.834 | ES 26/100
-2026-05-24 10:00:41,694 | INFO |   Ep  28/300 | Tr loss=0.2562 mae=0.587 r2=0.529 pcc=0.736 | Vl loss=0.7231 mae=1.106 r2=-1.231 pcc=-0.845 | ES 27/100
-2026-05-24 10:00:43,322 | INFO |   Ep  29/300 | Tr loss=0.2792 mae=0.629 r2=0.458 pcc=0.696 | Vl loss=0.7332 mae=1.106 r2=-1.275 pcc=-0.825 | ES 28/100
-2026-05-24 10:00:44,953 | INFO |   Ep  30/300 | Tr loss=0.2678 mae=0.584 r2=0.560 pcc=0.754 | Vl loss=0.7096 mae=1.074 r2=-1.169 pcc=-0.503 | ES 29/100
-2026-05-24 10:00:46,614 | INFO |   Ep  31/300 | Tr loss=0.2728 mae=0.582 r2=0.513 pcc=0.749 | Vl loss=0.7109 mae=1.073 r2=-1.175 pcc=-0.412 | ES 30/100
-2026-05-24 10:00:48,246 | INFO |   Ep  32/300 | Tr loss=0.2726 mae=0.607 r2=0.457 pcc=0.697 | Vl loss=0.7378 mae=1.111 r2=-1.296 pcc=-0.839 | ES 31/100
+2026-05-24 10:05:57,789 | INFO | ======================================================================
+2026-05-24 10:05:57,790 | INFO | STARTING REGRESSION TRAINING  (with Early Stopping on MAE)
+2026-05-24 10:05:57,790 | INFO | ======================================================================
+2026-05-24 10:05:57,791 | INFO | train=318 val=95 test=156
+2026-05-24 10:05:59,945 | INFO |   Ep   1/300 | Tr loss=0.8683 mae=1.294 r2=-1.262 pcc=0.274 | Vl loss=0.4513 mae=0.865 r2=-0.199 pcc=0.908 | ES 0/100 ★
+2026-05-24 10:06:01,167 | INFO |   Ep   2/300 | Tr loss=0.6916 mae=1.095 r2=-0.642 pcc=0.481 | Vl loss=1.9495 mae=2.442 r2=-7.425 pcc=-0.895 | ES 1/100
+2026-05-24 10:06:02,299 | INFO |   Ep   3/300 | Tr loss=0.6648 mae=1.094 r2=-0.535 pcc=0.509 | Vl loss=1.9050 mae=2.397 r2=-7.153 pcc=-0.515 | ES 2/100
+2026-05-24 10:06:03,413 | INFO |   Ep   4/300 | Tr loss=0.6214 mae=1.035 r2=-0.444 pcc=0.588 | Vl loss=1.9074 mae=2.400 r2=-7.184 pcc=-0.926 | ES 3/100
+2026-05-24 10:06:04,515 | INFO |   Ep   5/300 | Tr loss=0.6201 mae=1.027 r2=-0.544 pcc=0.611 | Vl loss=1.8543 mae=2.346 r2=-6.925 pcc=-0.916 | ES 4/100
+2026-05-24 10:06:05,619 | INFO |   Ep   6/300 | Tr loss=0.5664 mae=0.981 r2=-0.427 pcc=0.581 | Vl loss=1.6343 mae=2.119 r2=-5.837 pcc=-0.914 | ES 5/100
+2026-05-24 10:06:06,729 | INFO |   Ep   7/300 | Tr loss=0.5735 mae=0.982 r2=-0.359 pcc=0.497 | Vl loss=1.2381 mae=1.635 r2=-3.858 pcc=-0.910 | ES 6/100
+2026-05-24 10:06:07,819 | INFO |   Ep   8/300 | Tr loss=0.4913 mae=0.886 r2=-0.066 pcc=0.588 | Vl loss=0.8973 mae=1.267 r2=-2.051 pcc=-0.907 | ES 7/100
+2026-05-24 10:06:08,909 | INFO |   Ep   9/300 | Tr loss=0.4686 mae=0.865 r2=-0.012 pcc=0.620 | Vl loss=0.8524 mae=1.224 r2=-1.817 pcc=-0.867 | ES 8/100
+2026-05-24 10:06:10,006 | INFO |   Ep  10/300 | Tr loss=0.5025 mae=0.895 r2=-0.134 pcc=0.597 | Vl loss=0.9074 mae=1.280 r2=-2.069 pcc=-0.841 | ES 9/100
+2026-05-24 10:06:11,090 | INFO |   Ep  11/300 | Tr loss=0.4587 mae=0.834 r2=-0.082 pcc=0.571 | Vl loss=0.6066 mae=0.987 r2=-0.773 pcc=0.619 | ES 10/100
+2026-05-24 10:06:12,200 | INFO |   Ep  12/300 | Tr loss=0.4223 mae=0.803 r2=0.132 pcc=0.626 | Vl loss=0.4036 mae=0.769 r2=-0.101 pcc=0.712 | ES 0/100 ★
+2026-05-24 10:06:13,317 | INFO |   Ep  13/300 | Tr loss=0.4242 mae=0.796 r2=0.157 pcc=0.647 | Vl loss=0.3188 mae=0.662 r2=0.154 pcc=0.759 | ES 0/100 ★
+2026-05-24 10:06:14,462 | INFO |   Ep  14/300 | Tr loss=0.3915 mae=0.757 r2=0.203 pcc=0.672 | Vl loss=0.4128 mae=0.775 r2=-0.152 pcc=0.682 | ES 1/100
+2026-05-24 10:06:15,551 | INFO |   Ep  15/300 | Tr loss=0.3992 mae=0.760 r2=0.152 pcc=0.617 | Vl loss=0.1992 mae=0.488 r2=0.498 pcc=0.792 | ES 0/100 ★
+2026-05-24 10:06:16,705 | INFO |   Ep  16/300 | Tr loss=0.3822 mae=0.754 r2=0.214 pcc=0.653 | Vl loss=0.1318 mae=0.405 r2=0.671 pcc=0.846 | ES 0/100 ★
+2026-05-24 10:06:17,825 | INFO |   Ep  17/300 | Tr loss=0.3565 mae=0.705 r2=0.305 pcc=0.666 | Vl loss=0.1369 mae=0.419 r2=0.656 pcc=0.857 | ES 1/100
+2026-05-24 10:06:18,960 | INFO |   Ep  18/300 | Tr loss=0.3805 mae=0.755 r2=0.254 pcc=0.645 | Vl loss=0.1275 mae=0.402 r2=0.682 pcc=0.847 | ES 0/100 ★
+2026-05-24 10:06:20,090 | INFO |   Ep  19/300 | Tr loss=0.3878 mae=0.763 r2=0.157 pcc=0.601 | Vl loss=0.1125 mae=0.390 r2=0.720 pcc=0.870 | ES 0/100 ★
+2026-05-24 10:06:21,192 | INFO |   Ep  20/300 | Tr loss=0.3559 mae=0.703 r2=0.258 pcc=0.671 | Vl loss=0.1192 mae=0.405 r2=0.704 pcc=0.859 | ES 1/100
+2026-05-24 10:06:22,279 | INFO |   Ep  21/300 | Tr loss=0.3548 mae=0.717 r2=0.227 pcc=0.646 | Vl loss=0.1378 mae=0.395 r2=0.658 pcc=0.884 | ES 2/100
+2026-05-24 10:06:23,381 | INFO |   Ep  22/300 | Tr loss=0.3261 mae=0.689 r2=0.365 pcc=0.706 | Vl loss=0.1168 mae=0.405 r2=0.710 pcc=0.859 | ES 3/100
+2026-05-24 10:06:24,470 | INFO |   Ep  23/300 | Tr loss=0.3915 mae=0.776 r2=0.187 pcc=0.616 | Vl loss=0.1159 mae=0.395 r2=0.712 pcc=0.866 | ES 4/100
+2026-05-24 10:06:25,571 | INFO |   Ep  24/300 | Tr loss=0.2995 mae=0.654 r2=0.436 pcc=0.720 | Vl loss=0.1180 mae=0.396 r2=0.706 pcc=0.866 | ES 5/100
+2026-05-24 10:06:26,679 | INFO |   Ep  25/300 | Tr loss=0.2515 mae=0.590 r2=0.509 pcc=0.766 | Vl loss=0.1210 mae=0.402 r2=0.698 pcc=0.861 | ES 6/100
+2026-05-24 10:06:27,775 | INFO |   Ep  26/300 | Tr loss=0.3023 mae=0.659 r2=0.376 pcc=0.685 | Vl loss=0.1152 mae=0.393 r2=0.713 pcc=0.856 | ES 7/100
+2026-05-24 10:06:28,912 | INFO |   Ep  27/300 | Tr loss=0.3305 mae=0.683 r2=0.365 pcc=0.680 | Vl loss=0.1343 mae=0.401 r2=0.664 pcc=0.881 | ES 8/100
+2026-05-24 10:06:30,031 | INFO |   Ep  28/300 | Tr loss=0.2859 mae=0.645 r2=0.387 pcc=0.713 | Vl loss=0.1401 mae=0.420 r2=0.643 pcc=0.875 | ES 9/100
+2026-05-24 10:06:31,109 | INFO |   Ep  29/300 | Tr loss=0.3143 mae=0.676 r2=0.383 pcc=0.686 | Vl loss=0.1494 mae=0.424 r2=0.620 pcc=0.883 | ES 10/100
 Y: [-0.193, 0.198] — likely ???
 Z: [0.000, 0.994] — likely height
 
@@ -867,7 +864,7 @@ Joint distances from Hip (body center):
   Joint 16 (R-Wrist     ) distance=5  ─────
 
 ✓ True ST-GCN sanity check passed — output shape: torch.Size([2])
-✓ Total trainable parameters: 3,064,904
+✓ Total trainable parameters: 511,135
 ✓ STGCN_Regression (True ST-GCN, Yan et al. AAAI 2018) defined
 Device : cuda
 GPU    : Tesla V100-PCIE-32GB
@@ -875,7 +872,7 @@ GPU    : Tesla V100-PCIE-32GB
 =================================================================
 Quality score distribution audit
 =================================================================
-  ✓ Saved → /mvdlph/masa/GCN_SingleView_Regression_Results/run_2026_05_24_09_59_31/plots/split_quality_distributions.png
+  ✓ Saved → /mvdlph/masa/GCN_SingleView_Regression_Results/run_2026_05_24_10_05_34/plots/split_quality_distributions.png
 
 Split    Type              n    mean     std    min    25%    50%    75%    max
 ----------------------------------------------------------------------
@@ -937,201 +934,304 @@ E0    318   95   156   100.0  100.0  100.0
   Camera C0  |  Train: 318  Val: 95  Test: 156
   Patience: 100  |  LR: 1e-4  |  Batch: 48
 ════════════════════════════════════════════════════════════════════
-  Ep   1/300 | Tr loss=0.5660 mae=0.973 r2=-0.307 pcc=0.368 | Vl loss=0.2072 mae=0.575 r2=0.483 pcc=0.898 | ES 0/100 ★
-    ★ val_mae=0.5752  rmse=0.6448  r2=0.4826  pcc=0.8977
-  Ep   2/300 | Tr loss=0.4361 mae=0.789 r2=0.094 pcc=0.544 | Vl loss=0.4365 mae=0.877 r2=-0.145 pcc=0.894 | ES 1/100
-  Ep   3/300 | Tr loss=0.3672 mae=0.728 r2=0.257 pcc=0.644 | Vl loss=0.4511 mae=0.899 r2=-0.182 pcc=0.556 | ES 2/100
-  Ep   4/300 | Tr loss=0.3590 mae=0.730 r2=0.216 pcc=0.623 | Vl loss=0.4738 mae=0.925 r2=-0.243 pcc=-0.881 | ES 3/100
-  Ep   5/300 | Tr loss=0.3047 mae=0.648 r2=0.354 pcc=0.682 | Vl loss=0.5020 mae=0.954 r2=-0.334 pcc=-0.803 | ES 4/100
-  Ep   6/300 | Tr loss=0.3263 mae=0.687 r2=0.342 pcc=0.657 | Vl loss=0.4847 mae=0.925 r2=-0.300 pcc=0.716 | ES 5/100
-  Ep   7/300 | Tr loss=0.3184 mae=0.678 r2=0.341 pcc=0.647 | Vl loss=0.5438 mae=0.929 r2=-0.532 pcc=0.884 | ES 6/100
-  Ep   8/300 | Tr loss=0.2970 mae=0.643 r2=0.402 pcc=0.697 | Vl loss=0.6300 mae=0.991 r2=-0.848 pcc=0.911 | ES 7/100
-  Ep   9/300 | Tr loss=0.2835 mae=0.627 r2=0.448 pcc=0.707 | Vl loss=0.6472 mae=1.008 r2=-0.921 pcc=0.855 | ES 8/100
-  Ep  10/300 | Tr loss=0.2829 mae=0.621 r2=0.425 pcc=0.704 | Vl loss=0.7011 mae=1.067 r2=-1.148 pcc=-0.889 | ES 9/100
-  Ep  11/300 | Tr loss=0.3011 mae=0.646 r2=0.394 pcc=0.678 | Vl loss=0.6983 mae=1.071 r2=-1.136 pcc=-0.914 | ES 10/100
-  Ep  12/300 | Tr loss=0.3122 mae=0.650 r2=0.354 pcc=0.638 | Vl loss=0.7328 mae=1.104 r2=-1.276 pcc=-0.858 | ES 11/100
-  Ep  13/300 | Tr loss=0.2459 mae=0.571 r2=0.523 pcc=0.743 | Vl loss=0.7346 mae=1.099 r2=-1.281 pcc=-0.814 | ES 12/100
-  Ep  14/300 | Tr loss=0.2834 mae=0.606 r2=0.371 pcc=0.677 | Vl loss=0.7559 mae=1.120 r2=-1.375 pcc=-0.826 | ES 13/100
-  Ep  15/300 | Tr loss=0.2941 mae=0.631 r2=0.463 pcc=0.703 | Vl loss=0.6627 mae=1.066 r2=-0.968 pcc=-0.798 | ES 14/100
-  Ep  16/300 | Tr loss=0.2671 mae=0.613 r2=0.516 pcc=0.744 | Vl loss=0.6164 mae=1.042 r2=-0.775 pcc=-0.838 | ES 15/100
-  Ep  17/300 | Tr loss=0.2709 mae=0.607 r2=0.428 pcc=0.701 | Vl loss=0.6140 mae=1.002 r2=-0.782 pcc=0.103 | ES 16/100
-  Ep  18/300 | Tr loss=0.2346 mae=0.542 r2=0.546 pcc=0.758 | Vl loss=0.6258 mae=0.993 r2=-0.825 pcc=0.871 | ES 17/100
-  Ep  19/300 | Tr loss=0.3061 mae=0.635 r2=0.434 pcc=0.689 | Vl loss=0.6501 mae=1.013 r2=-0.923 pcc=0.869 | ES 18/100
-  Ep  20/300 | Tr loss=0.2685 mae=0.613 r2=0.522 pcc=0.737 | Vl loss=0.6460 mae=1.019 r2=-0.906 pcc=0.103 | ES 19/100
-  Ep  21/300 | Tr loss=0.3260 mae=0.680 r2=0.341 pcc=0.638 | Vl loss=0.6880 mae=1.068 r2=-1.075 pcc=-0.626 | ES 20/100
-  Ep  22/300 | Tr loss=0.2638 mae=0.601 r2=0.508 pcc=0.727 | Vl loss=0.6723 mae=1.073 r2=-1.013 pcc=-0.842 | ES 21/100
-  Ep  23/300 | Tr loss=0.2606 mae=0.598 r2=0.476 pcc=0.721 | Vl loss=0.6699 mae=1.071 r2=-1.011 pcc=-0.903 | ES 22/100
-  Ep  24/300 | Tr loss=0.2648 mae=0.595 r2=0.519 pcc=0.740 | Vl loss=0.6846 mae=1.080 r2=-1.064 pcc=-0.839 | ES 23/100
-  Ep  25/300 | Tr loss=0.2851 mae=0.616 r2=0.443 pcc=0.697 | Vl loss=0.7028 mae=1.091 r2=-1.143 pcc=-0.845 | ES 24/100
-  Ep  26/300 | Tr loss=0.2725 mae=0.613 r2=0.472 pcc=0.701 | Vl loss=0.7255 mae=1.120 r2=-1.244 pcc=-0.889 | ES 25/100
-  Ep  27/300 | Tr loss=0.2368 mae=0.554 r2=0.527 pcc=0.743 | Vl loss=0.7124 mae=1.104 r2=-1.180 pcc=-0.834 | ES 26/100
-  Ep  28/300 | Tr loss=0.2562 mae=0.587 r2=0.529 pcc=0.736 | Vl loss=0.7231 mae=1.106 r2=-1.231 pcc=-0.845 | ES 27/100
-  Ep  29/300 | Tr loss=0.2792 mae=0.629 r2=0.458 pcc=0.696 | Vl loss=0.7332 mae=1.106 r2=-1.275 pcc=-0.825 | ES 28/100
-  Ep  30/300 | Tr loss=0.2678 mae=0.584 r2=0.560 pcc=0.754 | Vl loss=0.7096 mae=1.074 r2=-1.169 pcc=-0.503 | ES 29/100
-  Ep  31/300 | Tr loss=0.2728 mae=0.582 r2=0.513 pcc=0.749 | Vl loss=0.7109 mae=1.073 r2=-1.175 pcc=-0.412 | ES 30/100
-  Ep  32/300 | Tr loss=0.2726 mae=0.607 r2=0.457 pcc=0.697 | Vl loss=0.7378 mae=1.111 r2=-1.296 pcc=-0.839 | ES 31/100
-2026-05-24 10:00:49,884 | INFO |   Ep  33/300 | Tr loss=0.2592 mae=0.592 r2=0.516 pcc=0.727 | Vl loss=0.7223 mae=1.111 r2=-1.221 pcc=-0.800 | ES 32/100
-2026-05-24 10:00:51,520 | INFO |   Ep  34/300 | Tr loss=0.2680 mae=0.590 r2=0.512 pcc=0.725 | Vl loss=0.6789 mae=1.070 r2=-1.035 pcc=-0.692 | ES 33/100
-2026-05-24 10:00:53,161 | INFO |   Ep  35/300 | Tr loss=0.2624 mae=0.591 r2=0.503 pcc=0.722 | Vl loss=0.6570 mae=1.040 r2=-0.948 pcc=-0.467 | ES 34/100
-2026-05-24 10:00:54,814 | INFO |   Ep  36/300 | Tr loss=0.2449 mae=0.564 r2=0.525 pcc=0.734 | Vl loss=0.6675 mae=1.053 r2=-0.988 pcc=-0.542 | ES 35/100
-2026-05-24 10:00:56,455 | INFO |   Ep  37/300 | Tr loss=0.2336 mae=0.566 r2=0.545 pcc=0.751 | Vl loss=0.6664 mae=1.039 r2=-0.988 pcc=-0.235 | ES 36/100
-2026-05-24 10:00:58,113 | INFO |   Ep  38/300 | Tr loss=0.2153 mae=0.527 r2=0.607 pcc=0.788 | Vl loss=0.6557 mae=1.019 r2=-0.945 pcc=0.874 | ES 37/100
-2026-05-24 10:00:59,786 | INFO |   Ep  39/300 | Tr loss=0.2174 mae=0.526 r2=0.603 pcc=0.788 | Vl loss=0.6517 mae=1.012 r2=-0.927 pcc=0.900 | ES 38/100
-2026-05-24 10:01:01,437 | INFO |   Ep  40/300 | Tr loss=0.2408 mae=0.566 r2=0.553 pcc=0.756 | Vl loss=0.6629 mae=1.022 r2=-0.969 pcc=0.804 | ES 39/100
-2026-05-24 10:01:03,081 | INFO |   Ep  41/300 | Tr loss=0.2790 mae=0.608 r2=0.480 pcc=0.710 | Vl loss=0.6638 mae=1.023 r2=-0.974 pcc=0.800 | ES 40/100
-2026-05-24 10:01:04,743 | INFO |   Ep  42/300 | Tr loss=0.2850 mae=0.612 r2=0.487 pcc=0.715 | Vl loss=0.6497 mae=1.015 r2=-0.920 pcc=0.740 | ES 41/100
-2026-05-24 10:01:06,377 | INFO |   Ep  43/300 | Tr loss=0.2280 mae=0.556 r2=0.588 pcc=0.779 | Vl loss=0.6538 mae=1.022 r2=-0.938 pcc=0.505 | ES 42/100
-2026-05-24 10:01:08,042 | INFO |   Ep  44/300 | Tr loss=0.2503 mae=0.565 r2=0.523 pcc=0.733 | Vl loss=0.6808 mae=1.048 r2=-1.044 pcc=0.049 | ES 43/100
-2026-05-24 10:01:09,674 | INFO |   Ep  45/300 | Tr loss=0.2630 mae=0.599 r2=0.499 pcc=0.718 | Vl loss=0.6693 mae=1.036 r2=-1.001 pcc=0.231 | ES 44/100
-2026-05-24 10:01:11,318 | INFO |   Ep  46/300 | Tr loss=0.2469 mae=0.583 r2=0.510 pcc=0.724 | Vl loss=0.6839 mae=1.051 r2=-1.059 pcc=-0.088 | ES 45/100
-2026-05-24 10:01:13,001 | INFO |   Ep  47/300 | Tr loss=0.2715 mae=0.601 r2=0.523 pcc=0.726 | Vl loss=0.6609 mae=1.033 r2=-0.974 pcc=-0.592 | ES 46/100
-2026-05-24 10:01:14,723 | INFO |   Ep  48/300 | Tr loss=0.2629 mae=0.587 r2=0.511 pcc=0.724 | Vl loss=0.6649 mae=1.039 r2=-0.988 pcc=-0.680 | ES 47/100
-2026-05-24 10:01:16,371 | INFO |   Ep  49/300 | Tr loss=0.2504 mae=0.572 r2=0.504 pcc=0.722 | Vl loss=0.6672 mae=1.041 r2=-0.995 pcc=-0.603 | ES 48/100
-2026-05-24 10:01:18,047 | INFO |   Ep  50/300 | Tr loss=0.2383 mae=0.554 r2=0.557 pcc=0.755 | Vl loss=0.6569 mae=1.036 r2=-0.953 pcc=-0.618 | ES 49/100
-2026-05-24 10:01:19,690 | INFO |   Ep  51/300 | Tr loss=0.2718 mae=0.625 r2=0.457 pcc=0.683 | Vl loss=0.6685 mae=1.050 r2=-1.002 pcc=-0.708 | ES 50/100
-2026-05-24 10:01:21,393 | INFO |   Ep  52/300 | Tr loss=0.2313 mae=0.554 r2=0.557 pcc=0.759 | Vl loss=0.6579 mae=1.032 r2=-0.978 pcc=-0.353 | ES 51/100
-2026-05-24 10:01:23,060 | INFO |   Ep  53/300 | Tr loss=0.2260 mae=0.536 r2=0.558 pcc=0.752 | Vl loss=0.6694 mae=1.041 r2=-0.997 pcc=-0.191 | ES 52/100
-2026-05-24 10:01:24,696 | INFO |   Ep  54/300 | Tr loss=0.2320 mae=0.542 r2=0.572 pcc=0.764 | Vl loss=0.6652 mae=1.035 r2=-0.983 pcc=0.042 | ES 53/100
-2026-05-24 10:01:26,326 | INFO |   Ep  55/300 | Tr loss=0.2598 mae=0.580 r2=0.493 pcc=0.707 | Vl loss=0.7223 mae=1.089 r2=-1.219 pcc=-0.496 | ES 54/100
-2026-05-24 10:01:27,953 | INFO |   Ep  56/300 | Tr loss=0.2517 mae=0.565 r2=0.507 pcc=0.721 | Vl loss=0.7396 mae=1.099 r2=-1.290 pcc=-0.338 | ES 55/100
-2026-05-24 10:01:29,596 | INFO |   Ep  57/300 | Tr loss=0.2537 mae=0.559 r2=0.530 pcc=0.735 | Vl loss=0.7554 mae=1.114 r2=-1.353 pcc=-0.003 | ES 56/100
-2026-05-24 10:01:31,226 | INFO |   Ep  58/300 | Tr loss=0.2428 mae=0.544 r2=0.524 pcc=0.738 | Vl loss=0.7491 mae=1.108 r2=-1.322 pcc=0.402 | ES 57/100
-2026-05-24 10:01:32,866 | INFO |   Ep  59/300 | Tr loss=0.2379 mae=0.538 r2=0.550 pcc=0.748 | Vl loss=0.7241 mae=1.082 r2=-1.220 pcc=0.572 | ES 58/100
-2026-05-24 10:01:34,509 | INFO |   Ep  60/300 | Tr loss=0.2514 mae=0.559 r2=0.512 pcc=0.725 | Vl loss=0.7241 mae=1.082 r2=-1.223 pcc=0.237 | ES 59/100
-2026-05-24 10:01:36,143 | INFO |   Ep  61/300 | Tr loss=0.2293 mae=0.544 r2=0.544 pcc=0.744 | Vl loss=0.7082 mae=1.067 r2=-1.156 pcc=0.414 | ES 60/100
-2026-05-24 10:01:37,778 | INFO |   Ep  62/300 | Tr loss=0.2213 mae=0.522 r2=0.613 pcc=0.791 | Vl loss=0.6935 mae=1.052 r2=-1.096 pcc=0.529 | ES 61/100
-2026-05-24 10:01:39,408 | INFO |   Ep  63/300 | Tr loss=0.2478 mae=0.576 r2=0.513 pcc=0.731 | Vl loss=0.6874 mae=1.051 r2=-1.073 pcc=0.204 | ES 62/100
-2026-05-24 10:01:41,040 | INFO |   Ep  64/300 | Tr loss=0.1917 mae=0.490 r2=0.631 pcc=0.797 | Vl loss=0.6901 mae=1.057 r2=-1.085 pcc=-0.188 | ES 63/100
-2026-05-24 10:01:42,707 | INFO |   Ep  65/300 | Tr loss=0.2315 mae=0.538 r2=0.553 pcc=0.749 | Vl loss=0.7107 mae=1.079 r2=-1.169 pcc=-0.437 | ES 64/100
-2026-05-24 10:01:44,364 | INFO |   Ep  66/300 | Tr loss=0.2116 mae=0.526 r2=0.570 pcc=0.760 | Vl loss=0.7431 mae=1.110 r2=-1.305 pcc=-0.519 | ES 65/100
-2026-05-24 10:01:46,004 | INFO |   Ep  67/300 | Tr loss=0.2276 mae=0.541 r2=0.609 pcc=0.781 | Vl loss=0.7135 mae=1.078 r2=-1.177 pcc=-0.202 | ES 66/100
-2026-05-24 10:01:47,636 | INFO |   Ep  68/300 | Tr loss=0.2198 mae=0.524 r2=0.610 pcc=0.783 | Vl loss=0.7051 mae=1.066 r2=-1.144 pcc=0.062 | ES 67/100
-2026-05-24 10:01:49,352 | INFO |   Ep  69/300 | Tr loss=0.2636 mae=0.588 r2=0.459 pcc=0.696 | Vl loss=0.7511 mae=1.110 r2=-1.334 pcc=-0.254 | ES 68/100
-2026-05-24 10:01:50,994 | INFO |   Ep  70/300 | Tr loss=0.2802 mae=0.611 r2=0.476 pcc=0.705 | Vl loss=0.7717 mae=1.131 r2=-1.425 pcc=-0.353 | ES 69/100
-2026-05-24 10:01:52,622 | INFO |   Ep  71/300 | Tr loss=0.2400 mae=0.548 r2=0.554 pcc=0.749 | Vl loss=0.7326 mae=1.091 r2=-1.254 pcc=-0.096 | ES 70/100
-2026-05-24 10:01:54,250 | INFO |   Ep  72/300 | Tr loss=0.2553 mae=0.574 r2=0.541 pcc=0.739 | Vl loss=0.6823 mae=1.040 r2=-1.048 pcc=0.606 | ES 71/100
-2026-05-24 10:01:55,880 | INFO |   Ep  73/300 | Tr loss=0.2249 mae=0.539 r2=0.556 pcc=0.752 | Vl loss=0.7076 mae=1.065 r2=-1.153 pcc=0.206 | ES 72/100
-2026-05-24 10:01:57,538 | INFO |   Ep  74/300 | Tr loss=0.2445 mae=0.559 r2=0.568 pcc=0.760 | Vl loss=0.7035 mae=1.062 r2=-1.136 pcc=0.270 | ES 73/100
-2026-05-24 10:01:59,171 | INFO |   Ep  75/300 | Tr loss=0.2335 mae=0.544 r2=0.549 pcc=0.749 | Vl loss=0.7121 mae=1.071 r2=-1.171 pcc=0.094 | ES 74/100
-2026-05-24 10:02:00,806 | INFO |   Ep  76/300 | Tr loss=0.2197 mae=0.517 r2=0.562 pcc=0.767 | Vl loss=0.6741 mae=1.035 r2=-1.016 pcc=0.601 | ES 75/100
-2026-05-24 10:02:02,442 | INFO |   Ep  77/300 | Tr loss=0.2245 mae=0.552 r2=0.560 pcc=0.755 | Vl loss=0.7105 mae=1.076 r2=-1.161 pcc=-0.154 | ES 76/100
-2026-05-24 10:02:04,078 | INFO |   Ep  78/300 | Tr loss=0.2429 mae=0.579 r2=0.486 pcc=0.715 | Vl loss=0.7526 mae=1.121 r2=-1.339 pcc=-0.434 | ES 77/100
-2026-05-24 10:02:05,722 | INFO |   Ep  79/300 | Tr loss=0.2408 mae=0.551 r2=0.558 pcc=0.750 | Vl loss=0.7005 mae=1.071 r2=-1.118 pcc=-0.247 | ES 78/100
-2026-05-24 10:02:07,376 | INFO |   Ep  80/300 | Tr loss=0.2162 mae=0.519 r2=0.585 pcc=0.768 | Vl loss=0.6674 mae=1.040 r2=-0.986 pcc=-0.092 | ES 79/100
-2026-05-24 10:02:09,013 | INFO |   Ep  81/300 | Tr loss=0.2287 mae=0.541 r2=0.583 pcc=0.772 | Vl loss=0.6752 mae=1.047 r2=-1.018 pcc=-0.176 | ES 80/100
-2026-05-24 10:02:10,648 | INFO |   Ep  82/300 | Tr loss=0.2589 mae=0.581 r2=0.478 pcc=0.701 | Vl loss=0.6901 mae=1.063 r2=-1.080 pcc=-0.399 | ES 81/100
-2026-05-24 10:02:12,288 | INFO |   Ep  83/300 | Tr loss=0.2281 mae=0.537 r2=0.555 pcc=0.749 | Vl loss=0.6920 mae=1.064 r2=-1.089 pcc=-0.400 | ES 82/100
-2026-05-24 10:02:13,923 | INFO |   Ep  84/300 | Tr loss=0.2301 mae=0.552 r2=0.555 pcc=0.747 | Vl loss=0.7198 mae=1.092 r2=-1.203 pcc=-0.528 | ES 83/100
-2026-05-24 10:02:15,575 | INFO |   Ep  85/300 | Tr loss=0.2642 mae=0.594 r2=0.500 pcc=0.713 | Vl loss=0.7315 mae=1.104 r2=-1.252 pcc=-0.568 | ES 84/100
-2026-05-24 10:02:17,218 | INFO |   Ep  86/300 | Tr loss=0.2385 mae=0.553 r2=0.566 pcc=0.753 | Vl loss=0.7213 mae=1.094 r2=-1.210 pcc=-0.584 | ES 85/100
-2026-05-24 10:02:18,842 | INFO |   Ep  87/300 | Tr loss=0.2293 mae=0.546 r2=0.589 pcc=0.770 | Vl loss=0.7113 mae=1.084 r2=-1.172 pcc=-0.615 | ES 86/100
-2026-05-24 10:02:20,465 | INFO |   Ep  88/300 | Tr loss=0.2357 mae=0.546 r2=0.548 pcc=0.748 | Vl loss=0.7311 mae=1.102 r2=-1.256 pcc=-0.624 | ES 87/100
-2026-05-24 10:02:22,090 | INFO |   Ep  89/300 | Tr loss=0.2257 mae=0.533 r2=0.574 pcc=0.761 | Vl loss=0.7460 mae=1.115 r2=-1.320 pcc=-0.602 | ES 88/100
-2026-05-24 10:02:23,733 | INFO |   Ep  90/300 | Tr loss=0.2322 mae=0.542 r2=0.523 pcc=0.733 | Vl loss=0.7870 mae=1.155 r2=-1.502 pcc=-0.676 | ES 89/100
-2026-05-24 10:02:25,388 | INFO |   Ep  91/300 | Tr loss=0.2370 mae=0.543 r2=0.520 pcc=0.733 | Vl loss=0.8095 mae=1.179 r2=-1.606 pcc=-0.717 | ES 90/100
-2026-05-24 10:02:27,064 | INFO |   Ep  92/300 | Tr loss=0.2069 mae=0.499 r2=0.550 pcc=0.751 | Vl loss=0.8084 mae=1.179 r2=-1.598 pcc=-0.692 | ES 91/100
-2026-05-24 10:02:28,695 | INFO |   Ep  93/300 | Tr loss=0.2328 mae=0.540 r2=0.564 pcc=0.754 | Vl loss=0.7473 mae=1.119 r2=-1.320 pcc=-0.545 | ES 92/100
-2026-05-24 10:02:30,354 | INFO |   Ep  94/300 | Tr loss=0.2313 mae=0.540 r2=0.540 pcc=0.738 | Vl loss=0.7466 mae=1.118 r2=-1.316 pcc=-0.510 | ES 93/100
-2026-05-24 10:02:31,998 | INFO |   Ep  95/300 | Tr loss=0.2065 mae=0.515 r2=0.594 pcc=0.773 | Vl loss=0.7079 mae=1.078 r2=-1.157 pcc=-0.395 | ES 94/100
-2026-05-24 10:02:33,629 | INFO |   Ep  96/300 | Tr loss=0.2400 mae=0.555 r2=0.573 pcc=0.759 | Vl loss=0.7057 mae=1.074 r2=-1.150 pcc=-0.375 | ES 95/100
-2026-05-24 10:02:35,259 | INFO |   Ep  97/300 | Tr loss=0.2071 mae=0.511 r2=0.600 pcc=0.779 | Vl loss=0.7179 mae=1.085 r2=-1.199 pcc=-0.405 | ES 96/100
-2026-05-24 10:02:36,891 | INFO |   Ep  98/300 | Tr loss=0.2312 mae=0.543 r2=0.576 pcc=0.760 | Vl loss=0.7093 mae=1.078 r2=-1.166 pcc=-0.489 | ES 97/100
-2026-05-24 10:02:38,521 | INFO |   Ep  99/300 | Tr loss=0.2724 mae=0.570 r2=0.450 pcc=0.687 | Vl loss=0.7516 mae=1.120 r2=-1.341 pcc=-0.555 | ES 98/100
-2026-05-24 10:02:40,148 | INFO |   Ep 100/300 | Tr loss=0.2349 mae=0.537 r2=0.559 pcc=0.754 | Vl loss=0.7652 mae=1.135 r2=-1.398 pcc=-0.558 | ES 99/100
-  Ep  33/300 | Tr loss=0.2592 mae=0.592 r2=0.516 pcc=0.727 | Vl loss=0.7223 mae=1.111 r2=-1.221 pcc=-0.800 | ES 32/100
-  Ep  34/300 | Tr loss=0.2680 mae=0.590 r2=0.512 pcc=0.725 | Vl loss=0.6789 mae=1.070 r2=-1.035 pcc=-0.692 | ES 33/100
-  Ep  35/300 | Tr loss=0.2624 mae=0.591 r2=0.503 pcc=0.722 | Vl loss=0.6570 mae=1.040 r2=-0.948 pcc=-0.467 | ES 34/100
-  Ep  36/300 | Tr loss=0.2449 mae=0.564 r2=0.525 pcc=0.734 | Vl loss=0.6675 mae=1.053 r2=-0.988 pcc=-0.542 | ES 35/100
-  Ep  37/300 | Tr loss=0.2336 mae=0.566 r2=0.545 pcc=0.751 | Vl loss=0.6664 mae=1.039 r2=-0.988 pcc=-0.235 | ES 36/100
-  Ep  38/300 | Tr loss=0.2153 mae=0.527 r2=0.607 pcc=0.788 | Vl loss=0.6557 mae=1.019 r2=-0.945 pcc=0.874 | ES 37/100
-  Ep  39/300 | Tr loss=0.2174 mae=0.526 r2=0.603 pcc=0.788 | Vl loss=0.6517 mae=1.012 r2=-0.927 pcc=0.900 | ES 38/100
-  Ep  40/300 | Tr loss=0.2408 mae=0.566 r2=0.553 pcc=0.756 | Vl loss=0.6629 mae=1.022 r2=-0.969 pcc=0.804 | ES 39/100
-  Ep  41/300 | Tr loss=0.2790 mae=0.608 r2=0.480 pcc=0.710 | Vl loss=0.6638 mae=1.023 r2=-0.974 pcc=0.800 | ES 40/100
-  Ep  42/300 | Tr loss=0.2850 mae=0.612 r2=0.487 pcc=0.715 | Vl loss=0.6497 mae=1.015 r2=-0.920 pcc=0.740 | ES 41/100
-  Ep  43/300 | Tr loss=0.2280 mae=0.556 r2=0.588 pcc=0.779 | Vl loss=0.6538 mae=1.022 r2=-0.938 pcc=0.505 | ES 42/100
-  Ep  44/300 | Tr loss=0.2503 mae=0.565 r2=0.523 pcc=0.733 | Vl loss=0.6808 mae=1.048 r2=-1.044 pcc=0.049 | ES 43/100
-  Ep  45/300 | Tr loss=0.2630 mae=0.599 r2=0.499 pcc=0.718 | Vl loss=0.6693 mae=1.036 r2=-1.001 pcc=0.231 | ES 44/100
-  Ep  46/300 | Tr loss=0.2469 mae=0.583 r2=0.510 pcc=0.724 | Vl loss=0.6839 mae=1.051 r2=-1.059 pcc=-0.088 | ES 45/100
-  Ep  47/300 | Tr loss=0.2715 mae=0.601 r2=0.523 pcc=0.726 | Vl loss=0.6609 mae=1.033 r2=-0.974 pcc=-0.592 | ES 46/100
-  Ep  48/300 | Tr loss=0.2629 mae=0.587 r2=0.511 pcc=0.724 | Vl loss=0.6649 mae=1.039 r2=-0.988 pcc=-0.680 | ES 47/100
-  Ep  49/300 | Tr loss=0.2504 mae=0.572 r2=0.504 pcc=0.722 | Vl loss=0.6672 mae=1.041 r2=-0.995 pcc=-0.603 | ES 48/100
-  Ep  50/300 | Tr loss=0.2383 mae=0.554 r2=0.557 pcc=0.755 | Vl loss=0.6569 mae=1.036 r2=-0.953 pcc=-0.618 | ES 49/100
-  Ep  51/300 | Tr loss=0.2718 mae=0.625 r2=0.457 pcc=0.683 | Vl loss=0.6685 mae=1.050 r2=-1.002 pcc=-0.708 | ES 50/100
-Epoch 00052: reducing learning rate of group 0 to 5.0000e-05.
-  Ep  52/300 | Tr loss=0.2313 mae=0.554 r2=0.557 pcc=0.759 | Vl loss=0.6579 mae=1.032 r2=-0.978 pcc=-0.353 | ES 51/100
-  Ep  53/300 | Tr loss=0.2260 mae=0.536 r2=0.558 pcc=0.752 | Vl loss=0.6694 mae=1.041 r2=-0.997 pcc=-0.191 | ES 52/100
-  Ep  54/300 | Tr loss=0.2320 mae=0.542 r2=0.572 pcc=0.764 | Vl loss=0.6652 mae=1.035 r2=-0.983 pcc=0.042 | ES 53/100
-  Ep  55/300 | Tr loss=0.2598 mae=0.580 r2=0.493 pcc=0.707 | Vl loss=0.7223 mae=1.089 r2=-1.219 pcc=-0.496 | ES 54/100
-  Ep  56/300 | Tr loss=0.2517 mae=0.565 r2=0.507 pcc=0.721 | Vl loss=0.7396 mae=1.099 r2=-1.290 pcc=-0.338 | ES 55/100
-  Ep  57/300 | Tr loss=0.2537 mae=0.559 r2=0.530 pcc=0.735 | Vl loss=0.7554 mae=1.114 r2=-1.353 pcc=-0.003 | ES 56/100
-  Ep  58/300 | Tr loss=0.2428 mae=0.544 r2=0.524 pcc=0.738 | Vl loss=0.7491 mae=1.108 r2=-1.322 pcc=0.402 | ES 57/100
-  Ep  59/300 | Tr loss=0.2379 mae=0.538 r2=0.550 pcc=0.748 | Vl loss=0.7241 mae=1.082 r2=-1.220 pcc=0.572 | ES 58/100
-  Ep  60/300 | Tr loss=0.2514 mae=0.559 r2=0.512 pcc=0.725 | Vl loss=0.7241 mae=1.082 r2=-1.223 pcc=0.237 | ES 59/100
-  Ep  61/300 | Tr loss=0.2293 mae=0.544 r2=0.544 pcc=0.744 | Vl loss=0.7082 mae=1.067 r2=-1.156 pcc=0.414 | ES 60/100
-  Ep  62/300 | Tr loss=0.2213 mae=0.522 r2=0.613 pcc=0.791 | Vl loss=0.6935 mae=1.052 r2=-1.096 pcc=0.529 | ES 61/100
-  Ep  63/300 | Tr loss=0.2478 mae=0.576 r2=0.513 pcc=0.731 | Vl loss=0.6874 mae=1.051 r2=-1.073 pcc=0.204 | ES 62/100
-  Ep  64/300 | Tr loss=0.1917 mae=0.490 r2=0.631 pcc=0.797 | Vl loss=0.6901 mae=1.057 r2=-1.085 pcc=-0.188 | ES 63/100
-  Ep  65/300 | Tr loss=0.2315 mae=0.538 r2=0.553 pcc=0.749 | Vl loss=0.7107 mae=1.079 r2=-1.169 pcc=-0.437 | ES 64/100
-  Ep  66/300 | Tr loss=0.2116 mae=0.526 r2=0.570 pcc=0.760 | Vl loss=0.7431 mae=1.110 r2=-1.305 pcc=-0.519 | ES 65/100
-  Ep  67/300 | Tr loss=0.2276 mae=0.541 r2=0.609 pcc=0.781 | Vl loss=0.7135 mae=1.078 r2=-1.177 pcc=-0.202 | ES 66/100
-  Ep  68/300 | Tr loss=0.2198 mae=0.524 r2=0.610 pcc=0.783 | Vl loss=0.7051 mae=1.066 r2=-1.144 pcc=0.062 | ES 67/100
-  Ep  69/300 | Tr loss=0.2636 mae=0.588 r2=0.459 pcc=0.696 | Vl loss=0.7511 mae=1.110 r2=-1.334 pcc=-0.254 | ES 68/100
-  Ep  70/300 | Tr loss=0.2802 mae=0.611 r2=0.476 pcc=0.705 | Vl loss=0.7717 mae=1.131 r2=-1.425 pcc=-0.353 | ES 69/100
-  Ep  71/300 | Tr loss=0.2400 mae=0.548 r2=0.554 pcc=0.749 | Vl loss=0.7326 mae=1.091 r2=-1.254 pcc=-0.096 | ES 70/100
-  Ep  72/300 | Tr loss=0.2553 mae=0.574 r2=0.541 pcc=0.739 | Vl loss=0.6823 mae=1.040 r2=-1.048 pcc=0.606 | ES 71/100
-  Ep  73/300 | Tr loss=0.2249 mae=0.539 r2=0.556 pcc=0.752 | Vl loss=0.7076 mae=1.065 r2=-1.153 pcc=0.206 | ES 72/100
-  Ep  74/300 | Tr loss=0.2445 mae=0.559 r2=0.568 pcc=0.760 | Vl loss=0.7035 mae=1.062 r2=-1.136 pcc=0.270 | ES 73/100
-  Ep  75/300 | Tr loss=0.2335 mae=0.544 r2=0.549 pcc=0.749 | Vl loss=0.7121 mae=1.071 r2=-1.171 pcc=0.094 | ES 74/100
-  Ep  76/300 | Tr loss=0.2197 mae=0.517 r2=0.562 pcc=0.767 | Vl loss=0.6741 mae=1.035 r2=-1.016 pcc=0.601 | ES 75/100
-  Ep  77/300 | Tr loss=0.2245 mae=0.552 r2=0.560 pcc=0.755 | Vl loss=0.7105 mae=1.076 r2=-1.161 pcc=-0.154 | ES 76/100
-  Ep  78/300 | Tr loss=0.2429 mae=0.579 r2=0.486 pcc=0.715 | Vl loss=0.7526 mae=1.121 r2=-1.339 pcc=-0.434 | ES 77/100
-  Ep  79/300 | Tr loss=0.2408 mae=0.551 r2=0.558 pcc=0.750 | Vl loss=0.7005 mae=1.071 r2=-1.118 pcc=-0.247 | ES 78/100
-  Ep  80/300 | Tr loss=0.2162 mae=0.519 r2=0.585 pcc=0.768 | Vl loss=0.6674 mae=1.040 r2=-0.986 pcc=-0.092 | ES 79/100
-  Ep  81/300 | Tr loss=0.2287 mae=0.541 r2=0.583 pcc=0.772 | Vl loss=0.6752 mae=1.047 r2=-1.018 pcc=-0.176 | ES 80/100
-  Ep  82/300 | Tr loss=0.2589 mae=0.581 r2=0.478 pcc=0.701 | Vl loss=0.6901 mae=1.063 r2=-1.080 pcc=-0.399 | ES 81/100
-  Ep  83/300 | Tr loss=0.2281 mae=0.537 r2=0.555 pcc=0.749 | Vl loss=0.6920 mae=1.064 r2=-1.089 pcc=-0.400 | ES 82/100
-  Ep  84/300 | Tr loss=0.2301 mae=0.552 r2=0.555 pcc=0.747 | Vl loss=0.7198 mae=1.092 r2=-1.203 pcc=-0.528 | ES 83/100
-  Ep  85/300 | Tr loss=0.2642 mae=0.594 r2=0.500 pcc=0.713 | Vl loss=0.7315 mae=1.104 r2=-1.252 pcc=-0.568 | ES 84/100
-  Ep  86/300 | Tr loss=0.2385 mae=0.553 r2=0.566 pcc=0.753 | Vl loss=0.7213 mae=1.094 r2=-1.210 pcc=-0.584 | ES 85/100
-  Ep  87/300 | Tr loss=0.2293 mae=0.546 r2=0.589 pcc=0.770 | Vl loss=0.7113 mae=1.084 r2=-1.172 pcc=-0.615 | ES 86/100
-  Ep  88/300 | Tr loss=0.2357 mae=0.546 r2=0.548 pcc=0.748 | Vl loss=0.7311 mae=1.102 r2=-1.256 pcc=-0.624 | ES 87/100
-  Ep  89/300 | Tr loss=0.2257 mae=0.533 r2=0.574 pcc=0.761 | Vl loss=0.7460 mae=1.115 r2=-1.320 pcc=-0.602 | ES 88/100
-  Ep  90/300 | Tr loss=0.2322 mae=0.542 r2=0.523 pcc=0.733 | Vl loss=0.7870 mae=1.155 r2=-1.502 pcc=-0.676 | ES 89/100
-  Ep  91/300 | Tr loss=0.2370 mae=0.543 r2=0.520 pcc=0.733 | Vl loss=0.8095 mae=1.179 r2=-1.606 pcc=-0.717 | ES 90/100
-  Ep  92/300 | Tr loss=0.2069 mae=0.499 r2=0.550 pcc=0.751 | Vl loss=0.8084 mae=1.179 r2=-1.598 pcc=-0.692 | ES 91/100
-  Ep  93/300 | Tr loss=0.2328 mae=0.540 r2=0.564 pcc=0.754 | Vl loss=0.7473 mae=1.119 r2=-1.320 pcc=-0.545 | ES 92/100
-  Ep  94/300 | Tr loss=0.2313 mae=0.540 r2=0.540 pcc=0.738 | Vl loss=0.7466 mae=1.118 r2=-1.316 pcc=-0.510 | ES 93/100
-  Ep  95/300 | Tr loss=0.2065 mae=0.515 r2=0.594 pcc=0.773 | Vl loss=0.7079 mae=1.078 r2=-1.157 pcc=-0.395 | ES 94/100
-  Ep  96/300 | Tr loss=0.2400 mae=0.555 r2=0.573 pcc=0.759 | Vl loss=0.7057 mae=1.074 r2=-1.150 pcc=-0.375 | ES 95/100
-  Ep  97/300 | Tr loss=0.2071 mae=0.511 r2=0.600 pcc=0.779 | Vl loss=0.7179 mae=1.085 r2=-1.199 pcc=-0.405 | ES 96/100
-  Ep  98/300 | Tr loss=0.2312 mae=0.543 r2=0.576 pcc=0.760 | Vl loss=0.7093 mae=1.078 r2=-1.166 pcc=-0.489 | ES 97/100
-  Ep  99/300 | Tr loss=0.2724 mae=0.570 r2=0.450 pcc=0.687 | Vl loss=0.7516 mae=1.120 r2=-1.341 pcc=-0.555 | ES 98/100
-  Ep 100/300 | Tr loss=0.2349 mae=0.537 r2=0.559 pcc=0.754 | Vl loss=0.7652 mae=1.135 r2=-1.398 pcc=-0.558 | ES 99/100
-2026-05-24 10:02:41,784 | INFO |   Ep 101/300 | Tr loss=0.2361 mae=0.535 r2=0.589 pcc=0.771 | Vl loss=0.7354 mae=1.106 r2=-1.267 pcc=-0.450 | ES 100/100
-2026-05-24 10:02:41,784 | INFO | Early stopping at epoch 101 best=1
-2026-05-24 10:02:44,859 | INFO | Best Epoch=1  stopped_epoch=101
-2026-05-24 10:02:44,860 | INFO | Test MAE=0.4793
-2026-05-24 10:02:44,860 | INFO | Test RMSE=0.5711
-2026-05-24 10:02:44,861 | INFO | Test R²=0.4662
-2026-05-24 10:02:44,861 | INFO | Test PCC=0.8613
-  Ep 101/300 | Tr loss=0.2361 mae=0.535 r2=0.589 pcc=0.771 | Vl loss=0.7354 mae=1.106 r2=-1.267 pcc=-0.450 | ES 100/100
+  Ep   1/300 | Tr loss=0.8683 mae=1.294 r2=-1.262 pcc=0.274 | Vl loss=0.4513 mae=0.865 r2=-0.199 pcc=0.908 | ES 0/100 ★
+    ★ val_mae=0.8645  rmse=0.9815  r2=-0.1987  pcc=0.9077
+  Ep   2/300 | Tr loss=0.6916 mae=1.095 r2=-0.642 pcc=0.481 | Vl loss=1.9495 mae=2.442 r2=-7.425 pcc=-0.895 | ES 1/100
+  Ep   3/300 | Tr loss=0.6648 mae=1.094 r2=-0.535 pcc=0.509 | Vl loss=1.9050 mae=2.397 r2=-7.153 pcc=-0.515 | ES 2/100
+  Ep   4/300 | Tr loss=0.6214 mae=1.035 r2=-0.444 pcc=0.588 | Vl loss=1.9074 mae=2.400 r2=-7.184 pcc=-0.926 | ES 3/100
+  Ep   5/300 | Tr loss=0.6201 mae=1.027 r2=-0.544 pcc=0.611 | Vl loss=1.8543 mae=2.346 r2=-6.925 pcc=-0.916 | ES 4/100
+  Ep   6/300 | Tr loss=0.5664 mae=0.981 r2=-0.427 pcc=0.581 | Vl loss=1.6343 mae=2.119 r2=-5.837 pcc=-0.914 | ES 5/100
+  Ep   7/300 | Tr loss=0.5735 mae=0.982 r2=-0.359 pcc=0.497 | Vl loss=1.2381 mae=1.635 r2=-3.858 pcc=-0.910 | ES 6/100
+  Ep   8/300 | Tr loss=0.4913 mae=0.886 r2=-0.066 pcc=0.588 | Vl loss=0.8973 mae=1.267 r2=-2.051 pcc=-0.907 | ES 7/100
+  Ep   9/300 | Tr loss=0.4686 mae=0.865 r2=-0.012 pcc=0.620 | Vl loss=0.8524 mae=1.224 r2=-1.817 pcc=-0.867 | ES 8/100
+  Ep  10/300 | Tr loss=0.5025 mae=0.895 r2=-0.134 pcc=0.597 | Vl loss=0.9074 mae=1.280 r2=-2.069 pcc=-0.841 | ES 9/100
+  Ep  11/300 | Tr loss=0.4587 mae=0.834 r2=-0.082 pcc=0.571 | Vl loss=0.6066 mae=0.987 r2=-0.773 pcc=0.619 | ES 10/100
+  Ep  12/300 | Tr loss=0.4223 mae=0.803 r2=0.132 pcc=0.626 | Vl loss=0.4036 mae=0.769 r2=-0.101 pcc=0.712 | ES 0/100 ★
+    ★ val_mae=0.7687  rmse=0.9406  r2=-0.1008  pcc=0.7121
+  Ep  13/300 | Tr loss=0.4242 mae=0.796 r2=0.157 pcc=0.647 | Vl loss=0.3188 mae=0.662 r2=0.154 pcc=0.759 | ES 0/100 ★
+    ★ val_mae=0.6615  rmse=0.8246  r2=0.1538  pcc=0.7593
+  Ep  14/300 | Tr loss=0.3915 mae=0.757 r2=0.203 pcc=0.672 | Vl loss=0.4128 mae=0.775 r2=-0.152 pcc=0.682 | ES 1/100
+  Ep  15/300 | Tr loss=0.3992 mae=0.760 r2=0.152 pcc=0.617 | Vl loss=0.1992 mae=0.488 r2=0.498 pcc=0.792 | ES 0/100 ★
+    ★ val_mae=0.4884  rmse=0.6351  r2=0.4981  pcc=0.7916
+  Ep  16/300 | Tr loss=0.3822 mae=0.754 r2=0.214 pcc=0.653 | Vl loss=0.1318 mae=0.405 r2=0.671 pcc=0.846 | ES 0/100 ★
+    ★ val_mae=0.4047  rmse=0.5141  r2=0.6711  pcc=0.8465
+  Ep  17/300 | Tr loss=0.3565 mae=0.705 r2=0.305 pcc=0.666 | Vl loss=0.1369 mae=0.419 r2=0.656 pcc=0.857 | ES 1/100
+  Ep  18/300 | Tr loss=0.3805 mae=0.755 r2=0.254 pcc=0.645 | Vl loss=0.1275 mae=0.402 r2=0.682 pcc=0.847 | ES 0/100 ★
+    ★ val_mae=0.4024  rmse=0.5051  r2=0.6825  pcc=0.8467
+  Ep  19/300 | Tr loss=0.3878 mae=0.763 r2=0.157 pcc=0.601 | Vl loss=0.1125 mae=0.390 r2=0.720 pcc=0.870 | ES 0/100 ★
+    ★ val_mae=0.3902  rmse=0.4741  r2=0.7203  pcc=0.8696
+  Ep  20/300 | Tr loss=0.3559 mae=0.703 r2=0.258 pcc=0.671 | Vl loss=0.1192 mae=0.405 r2=0.704 pcc=0.859 | ES 1/100
+  Ep  21/300 | Tr loss=0.3548 mae=0.717 r2=0.227 pcc=0.646 | Vl loss=0.1378 mae=0.395 r2=0.658 pcc=0.884 | ES 2/100
+  Ep  22/300 | Tr loss=0.3261 mae=0.689 r2=0.365 pcc=0.706 | Vl loss=0.1168 mae=0.405 r2=0.710 pcc=0.859 | ES 3/100
+  Ep  23/300 | Tr loss=0.3915 mae=0.776 r2=0.187 pcc=0.616 | Vl loss=0.1159 mae=0.395 r2=0.712 pcc=0.866 | ES 4/100
+  Ep  24/300 | Tr loss=0.2995 mae=0.654 r2=0.436 pcc=0.720 | Vl loss=0.1180 mae=0.396 r2=0.706 pcc=0.866 | ES 5/100
+  Ep  25/300 | Tr loss=0.2515 mae=0.590 r2=0.509 pcc=0.766 | Vl loss=0.1210 mae=0.402 r2=0.698 pcc=0.861 | ES 6/100
+  Ep  26/300 | Tr loss=0.3023 mae=0.659 r2=0.376 pcc=0.685 | Vl loss=0.1152 mae=0.393 r2=0.713 pcc=0.856 | ES 7/100
+  Ep  27/300 | Tr loss=0.3305 mae=0.683 r2=0.365 pcc=0.680 | Vl loss=0.1343 mae=0.401 r2=0.664 pcc=0.881 | ES 8/100
+  Ep  28/300 | Tr loss=0.2859 mae=0.645 r2=0.387 pcc=0.713 | Vl loss=0.1401 mae=0.420 r2=0.643 pcc=0.875 | ES 9/100
+  Ep  29/300 | Tr loss=0.3143 mae=0.676 r2=0.383 pcc=0.686 | Vl loss=0.1494 mae=0.424 r2=0.620 pcc=0.883 | ES 10/100
+2026-05-24 10:06:32,202 | INFO |   Ep  30/300 | Tr loss=0.2720 mae=0.613 r2=0.439 pcc=0.728 | Vl loss=0.1722 mae=0.478 r2=0.554 pcc=0.885 | ES 11/100
+2026-05-24 10:06:33,316 | INFO |   Ep  31/300 | Tr loss=0.2906 mae=0.645 r2=0.445 pcc=0.724 | Vl loss=0.1610 mae=0.469 r2=0.582 pcc=0.876 | ES 12/100
+2026-05-24 10:06:34,401 | INFO |   Ep  32/300 | Tr loss=0.2979 mae=0.645 r2=0.446 pcc=0.718 | Vl loss=0.1664 mae=0.480 r2=0.568 pcc=0.873 | ES 13/100
+2026-05-24 10:06:35,497 | INFO |   Ep  33/300 | Tr loss=0.2352 mae=0.576 r2=0.557 pcc=0.781 | Vl loss=0.1575 mae=0.453 r2=0.594 pcc=0.869 | ES 14/100
+2026-05-24 10:06:36,587 | INFO |   Ep  34/300 | Tr loss=0.3070 mae=0.658 r2=0.389 pcc=0.706 | Vl loss=0.1509 mae=0.441 r2=0.611 pcc=0.873 | ES 15/100
+2026-05-24 10:06:37,671 | INFO |   Ep  35/300 | Tr loss=0.2874 mae=0.646 r2=0.459 pcc=0.727 | Vl loss=0.1362 mae=0.408 r2=0.652 pcc=0.878 | ES 16/100
+2026-05-24 10:06:38,760 | INFO |   Ep  36/300 | Tr loss=0.2904 mae=0.638 r2=0.442 pcc=0.706 | Vl loss=0.1445 mae=0.431 r2=0.628 pcc=0.882 | ES 17/100
+2026-05-24 10:06:39,838 | INFO |   Ep  37/300 | Tr loss=0.2542 mae=0.588 r2=0.504 pcc=0.745 | Vl loss=0.1510 mae=0.446 r2=0.611 pcc=0.879 | ES 18/100
+2026-05-24 10:06:40,924 | INFO |   Ep  38/300 | Tr loss=0.2584 mae=0.603 r2=0.531 pcc=0.767 | Vl loss=0.1574 mae=0.455 r2=0.595 pcc=0.881 | ES 19/100
+2026-05-24 10:06:42,012 | INFO |   Ep  39/300 | Tr loss=0.3153 mae=0.668 r2=0.379 pcc=0.699 | Vl loss=0.1354 mae=0.406 r2=0.654 pcc=0.877 | ES 20/100
+2026-05-24 10:06:43,092 | INFO |   Ep  40/300 | Tr loss=0.2598 mae=0.603 r2=0.510 pcc=0.750 | Vl loss=0.1443 mae=0.393 r2=0.637 pcc=0.867 | ES 21/100
+2026-05-24 10:06:44,169 | INFO |   Ep  41/300 | Tr loss=0.2597 mae=0.597 r2=0.507 pcc=0.748 | Vl loss=0.1612 mae=0.435 r2=0.586 pcc=0.877 | ES 22/100
+2026-05-24 10:06:45,254 | INFO |   Ep  42/300 | Tr loss=0.2855 mae=0.603 r2=0.468 pcc=0.732 | Vl loss=0.2234 mae=0.553 r2=0.416 pcc=0.868 | ES 23/100
+2026-05-24 10:06:46,332 | INFO |   Ep  43/300 | Tr loss=0.2603 mae=0.602 r2=0.493 pcc=0.725 | Vl loss=0.1621 mae=0.440 r2=0.582 pcc=0.870 | ES 24/100
+2026-05-24 10:06:47,437 | INFO |   Ep  44/300 | Tr loss=0.2958 mae=0.644 r2=0.458 pcc=0.713 | Vl loss=0.1281 mae=0.391 r2=0.675 pcc=0.876 | ES 25/100
+2026-05-24 10:06:48,565 | INFO |   Ep  45/300 | Tr loss=0.2633 mae=0.613 r2=0.508 pcc=0.747 | Vl loss=0.1398 mae=0.387 r2=0.647 pcc=0.868 | ES 0/100 ★
+2026-05-24 10:06:49,691 | INFO |   Ep  46/300 | Tr loss=0.2608 mae=0.595 r2=0.523 pcc=0.750 | Vl loss=0.1603 mae=0.422 r2=0.595 pcc=0.864 | ES 1/100
+2026-05-24 10:06:50,834 | INFO |   Ep  47/300 | Tr loss=0.2608 mae=0.590 r2=0.522 pcc=0.747 | Vl loss=0.1510 mae=0.410 r2=0.618 pcc=0.871 | ES 2/100
+2026-05-24 10:06:52,051 | INFO |   Ep  48/300 | Tr loss=0.2538 mae=0.575 r2=0.479 pcc=0.718 | Vl loss=0.1256 mae=0.365 r2=0.683 pcc=0.881 | ES 0/100 ★
+2026-05-24 10:06:53,218 | INFO |   Ep  49/300 | Tr loss=0.2839 mae=0.631 r2=0.439 pcc=0.686 | Vl loss=0.1061 mae=0.351 r2=0.733 pcc=0.891 | ES 0/100 ★
+2026-05-24 10:06:54,414 | INFO |   Ep  50/300 | Tr loss=0.2850 mae=0.626 r2=0.499 pcc=0.719 | Vl loss=0.1236 mae=0.385 r2=0.689 pcc=0.882 | ES 1/100
+2026-05-24 10:06:55,602 | INFO |   Ep  51/300 | Tr loss=0.2834 mae=0.648 r2=0.436 pcc=0.707 | Vl loss=0.1286 mae=0.396 r2=0.675 pcc=0.879 | ES 2/100
+2026-05-24 10:06:56,831 | INFO |   Ep  52/300 | Tr loss=0.2420 mae=0.570 r2=0.536 pcc=0.751 | Vl loss=0.1231 mae=0.385 r2=0.688 pcc=0.882 | ES 3/100
+2026-05-24 10:06:58,026 | INFO |   Ep  53/300 | Tr loss=0.2364 mae=0.576 r2=0.510 pcc=0.741 | Vl loss=0.1290 mae=0.396 r2=0.671 pcc=0.885 | ES 4/100
+2026-05-24 10:06:59,182 | INFO |   Ep  54/300 | Tr loss=0.2518 mae=0.570 r2=0.504 pcc=0.739 | Vl loss=0.1397 mae=0.417 r2=0.640 pcc=0.883 | ES 5/100
+2026-05-24 10:07:00,282 | INFO |   Ep  55/300 | Tr loss=0.2503 mae=0.570 r2=0.495 pcc=0.735 | Vl loss=0.1541 mae=0.417 r2=0.605 pcc=0.869 | ES 6/100
+2026-05-24 10:07:01,370 | INFO |   Ep  56/300 | Tr loss=0.2368 mae=0.569 r2=0.531 pcc=0.745 | Vl loss=0.1409 mae=0.397 r2=0.640 pcc=0.873 | ES 7/100
+2026-05-24 10:07:02,462 | INFO |   Ep  57/300 | Tr loss=0.2557 mae=0.595 r2=0.475 pcc=0.706 | Vl loss=0.1314 mae=0.399 r2=0.663 pcc=0.886 | ES 8/100
+2026-05-24 10:07:03,543 | INFO |   Ep  58/300 | Tr loss=0.2481 mae=0.583 r2=0.496 pcc=0.724 | Vl loss=0.1342 mae=0.395 r2=0.656 pcc=0.878 | ES 9/100
+2026-05-24 10:07:04,630 | INFO |   Ep  59/300 | Tr loss=0.2867 mae=0.621 r2=0.478 pcc=0.706 | Vl loss=0.1475 mae=0.405 r2=0.626 pcc=0.868 | ES 10/100
+2026-05-24 10:07:05,713 | INFO |   Ep  60/300 | Tr loss=0.2440 mae=0.575 r2=0.550 pcc=0.751 | Vl loss=0.1297 mae=0.383 r2=0.669 pcc=0.879 | ES 11/100
+2026-05-24 10:07:06,805 | INFO |   Ep  61/300 | Tr loss=0.2363 mae=0.563 r2=0.543 pcc=0.746 | Vl loss=0.1306 mae=0.392 r2=0.667 pcc=0.875 | ES 12/100
+2026-05-24 10:07:07,886 | INFO |   Ep  62/300 | Tr loss=0.2605 mae=0.586 r2=0.540 pcc=0.752 | Vl loss=0.1362 mae=0.397 r2=0.654 pcc=0.867 | ES 13/100
+2026-05-24 10:07:08,974 | INFO |   Ep  63/300 | Tr loss=0.2558 mae=0.586 r2=0.505 pcc=0.738 | Vl loss=0.1637 mae=0.441 r2=0.588 pcc=0.856 | ES 14/100
+2026-05-24 10:07:10,065 | INFO |   Ep  64/300 | Tr loss=0.2437 mae=0.570 r2=0.546 pcc=0.758 | Vl loss=0.1822 mae=0.471 r2=0.543 pcc=0.857 | ES 15/100
+2026-05-24 10:07:11,197 | INFO |   Ep  65/300 | Tr loss=0.2264 mae=0.535 r2=0.551 pcc=0.751 | Vl loss=0.1250 mae=0.374 r2=0.684 pcc=0.877 | ES 16/100
+2026-05-24 10:07:12,289 | INFO |   Ep  66/300 | Tr loss=0.2322 mae=0.552 r2=0.540 pcc=0.744 | Vl loss=0.1304 mae=0.393 r2=0.672 pcc=0.873 | ES 17/100
+2026-05-24 10:07:13,386 | INFO |   Ep  67/300 | Tr loss=0.2220 mae=0.537 r2=0.576 pcc=0.767 | Vl loss=0.1625 mae=0.444 r2=0.592 pcc=0.864 | ES 18/100
+2026-05-24 10:07:14,481 | INFO |   Ep  68/300 | Tr loss=0.2243 mae=0.548 r2=0.560 pcc=0.761 | Vl loss=0.1746 mae=0.454 r2=0.560 pcc=0.858 | ES 19/100
+2026-05-24 10:07:15,612 | INFO |   Ep  69/300 | Tr loss=0.2278 mae=0.550 r2=0.559 pcc=0.760 | Vl loss=0.1661 mae=0.442 r2=0.582 pcc=0.862 | ES 20/100
+2026-05-24 10:07:16,719 | INFO |   Ep  70/300 | Tr loss=0.2827 mae=0.624 r2=0.494 pcc=0.716 | Vl loss=0.1211 mae=0.370 r2=0.693 pcc=0.878 | ES 21/100
+2026-05-24 10:07:17,878 | INFO |   Ep  71/300 | Tr loss=0.2761 mae=0.606 r2=0.479 pcc=0.704 | Vl loss=0.1236 mae=0.374 r2=0.685 pcc=0.880 | ES 22/100
+2026-05-24 10:07:19,024 | INFO |   Ep  72/300 | Tr loss=0.2284 mae=0.552 r2=0.551 pcc=0.758 | Vl loss=0.1423 mae=0.398 r2=0.639 pcc=0.874 | ES 23/100
+2026-05-24 10:07:20,162 | INFO |   Ep  73/300 | Tr loss=0.2114 mae=0.522 r2=0.598 pcc=0.785 | Vl loss=0.2316 mae=0.529 r2=0.413 pcc=0.864 | ES 24/100
+2026-05-24 10:07:21,285 | INFO |   Ep  74/300 | Tr loss=0.2592 mae=0.594 r2=0.470 pcc=0.700 | Vl loss=0.1759 mae=0.461 r2=0.555 pcc=0.874 | ES 25/100
+2026-05-24 10:07:22,462 | INFO |   Ep  75/300 | Tr loss=0.2280 mae=0.548 r2=0.555 pcc=0.754 | Vl loss=0.1600 mae=0.436 r2=0.593 pcc=0.874 | ES 26/100
+2026-05-24 10:07:23,609 | INFO |   Ep  76/300 | Tr loss=0.2548 mae=0.590 r2=0.480 pcc=0.716 | Vl loss=0.1307 mae=0.378 r2=0.665 pcc=0.886 | ES 27/100
+2026-05-24 10:07:24,735 | INFO |   Ep  77/300 | Tr loss=0.2369 mae=0.557 r2=0.565 pcc=0.755 | Vl loss=0.1352 mae=0.390 r2=0.658 pcc=0.877 | ES 28/100
+2026-05-24 10:07:25,846 | INFO |   Ep  78/300 | Tr loss=0.2779 mae=0.608 r2=0.476 pcc=0.701 | Vl loss=0.1156 mae=0.373 r2=0.708 pcc=0.881 | ES 29/100
+2026-05-24 10:07:26,939 | INFO |   Ep  79/300 | Tr loss=0.2400 mae=0.566 r2=0.544 pcc=0.752 | Vl loss=0.1214 mae=0.383 r2=0.692 pcc=0.885 | ES 30/100
+2026-05-24 10:07:28,039 | INFO |   Ep  80/300 | Tr loss=0.2165 mae=0.526 r2=0.584 pcc=0.774 | Vl loss=0.1350 mae=0.395 r2=0.655 pcc=0.875 | ES 31/100
+2026-05-24 10:07:29,151 | INFO |   Ep  81/300 | Tr loss=0.2152 mae=0.514 r2=0.620 pcc=0.792 | Vl loss=0.1604 mae=0.428 r2=0.594 pcc=0.864 | ES 32/100
+2026-05-24 10:07:30,307 | INFO |   Ep  82/300 | Tr loss=0.2212 mae=0.531 r2=0.625 pcc=0.796 | Vl loss=0.1806 mae=0.459 r2=0.544 pcc=0.857 | ES 33/100
+2026-05-24 10:07:31,460 | INFO |   Ep  83/300 | Tr loss=0.2377 mae=0.553 r2=0.527 pcc=0.748 | Vl loss=0.1742 mae=0.451 r2=0.562 pcc=0.864 | ES 34/100
+2026-05-24 10:07:32,527 | INFO |   Ep  84/300 | Tr loss=0.2442 mae=0.567 r2=0.554 pcc=0.762 | Vl loss=0.1939 mae=0.478 r2=0.515 pcc=0.863 | ES 35/100
+2026-05-24 10:07:33,593 | INFO |   Ep  85/300 | Tr loss=0.2475 mae=0.569 r2=0.549 pcc=0.746 | Vl loss=0.1657 mae=0.440 r2=0.584 pcc=0.871 | ES 36/100
+2026-05-24 10:07:34,680 | INFO |   Ep  86/300 | Tr loss=0.2357 mae=0.538 r2=0.541 pcc=0.744 | Vl loss=0.1743 mae=0.451 r2=0.563 pcc=0.867 | ES 37/100
+2026-05-24 10:07:35,744 | INFO |   Ep  87/300 | Tr loss=0.2333 mae=0.538 r2=0.571 pcc=0.761 | Vl loss=0.1982 mae=0.486 r2=0.505 pcc=0.853 | ES 38/100
+2026-05-24 10:07:36,809 | INFO |   Ep  88/300 | Tr loss=0.2225 mae=0.540 r2=0.606 pcc=0.779 | Vl loss=0.1267 mae=0.386 r2=0.685 pcc=0.866 | ES 39/100
+2026-05-24 10:07:37,899 | INFO |   Ep  89/300 | Tr loss=0.2288 mae=0.548 r2=0.611 pcc=0.785 | Vl loss=0.1421 mae=0.409 r2=0.646 pcc=0.859 | ES 40/100
+2026-05-24 10:07:38,995 | INFO |   Ep  90/300 | Tr loss=0.2534 mae=0.570 r2=0.583 pcc=0.772 | Vl loss=0.1679 mae=0.439 r2=0.580 pcc=0.853 | ES 41/100
+2026-05-24 10:07:40,088 | INFO |   Ep  91/300 | Tr loss=0.2648 mae=0.589 r2=0.478 pcc=0.724 | Vl loss=0.1319 mae=0.381 r2=0.665 pcc=0.875 | ES 42/100
+2026-05-24 10:07:41,215 | INFO |   Ep  92/300 | Tr loss=0.2332 mae=0.561 r2=0.526 pcc=0.742 | Vl loss=0.1484 mae=0.412 r2=0.625 pcc=0.876 | ES 43/100
+2026-05-24 10:07:42,323 | INFO |   Ep  93/300 | Tr loss=0.2379 mae=0.565 r2=0.495 pcc=0.716 | Vl loss=0.1278 mae=0.374 r2=0.676 pcc=0.884 | ES 44/100
+2026-05-24 10:07:43,406 | INFO |   Ep  94/300 | Tr loss=0.2329 mae=0.563 r2=0.576 pcc=0.767 | Vl loss=0.1361 mae=0.390 r2=0.653 pcc=0.883 | ES 45/100
+2026-05-24 10:07:44,482 | INFO |   Ep  95/300 | Tr loss=0.2587 mae=0.581 r2=0.527 pcc=0.730 | Vl loss=0.1544 mae=0.422 r2=0.606 pcc=0.875 | ES 46/100
+2026-05-24 10:07:45,560 | INFO |   Ep  96/300 | Tr loss=0.2927 mae=0.612 r2=0.477 pcc=0.705 | Vl loss=0.1584 mae=0.428 r2=0.597 pcc=0.871 | ES 47/100
+2026-05-24 10:07:46,638 | INFO |   Ep  97/300 | Tr loss=0.1969 mae=0.497 r2=0.601 pcc=0.779 | Vl loss=0.1511 mae=0.416 r2=0.618 pcc=0.871 | ES 48/100
+  Ep  30/300 | Tr loss=0.2720 mae=0.613 r2=0.439 pcc=0.728 | Vl loss=0.1722 mae=0.478 r2=0.554 pcc=0.885 | ES 11/100
+  Ep  31/300 | Tr loss=0.2906 mae=0.645 r2=0.445 pcc=0.724 | Vl loss=0.1610 mae=0.469 r2=0.582 pcc=0.876 | ES 12/100
+  Ep  32/300 | Tr loss=0.2979 mae=0.645 r2=0.446 pcc=0.718 | Vl loss=0.1664 mae=0.480 r2=0.568 pcc=0.873 | ES 13/100
+  Ep  33/300 | Tr loss=0.2352 mae=0.576 r2=0.557 pcc=0.781 | Vl loss=0.1575 mae=0.453 r2=0.594 pcc=0.869 | ES 14/100
+  Ep  34/300 | Tr loss=0.3070 mae=0.658 r2=0.389 pcc=0.706 | Vl loss=0.1509 mae=0.441 r2=0.611 pcc=0.873 | ES 15/100
+  Ep  35/300 | Tr loss=0.2874 mae=0.646 r2=0.459 pcc=0.727 | Vl loss=0.1362 mae=0.408 r2=0.652 pcc=0.878 | ES 16/100
+  Ep  36/300 | Tr loss=0.2904 mae=0.638 r2=0.442 pcc=0.706 | Vl loss=0.1445 mae=0.431 r2=0.628 pcc=0.882 | ES 17/100
+  Ep  37/300 | Tr loss=0.2542 mae=0.588 r2=0.504 pcc=0.745 | Vl loss=0.1510 mae=0.446 r2=0.611 pcc=0.879 | ES 18/100
+  Ep  38/300 | Tr loss=0.2584 mae=0.603 r2=0.531 pcc=0.767 | Vl loss=0.1574 mae=0.455 r2=0.595 pcc=0.881 | ES 19/100
+  Ep  39/300 | Tr loss=0.3153 mae=0.668 r2=0.379 pcc=0.699 | Vl loss=0.1354 mae=0.406 r2=0.654 pcc=0.877 | ES 20/100
+  Ep  40/300 | Tr loss=0.2598 mae=0.603 r2=0.510 pcc=0.750 | Vl loss=0.1443 mae=0.393 r2=0.637 pcc=0.867 | ES 21/100
+  Ep  41/300 | Tr loss=0.2597 mae=0.597 r2=0.507 pcc=0.748 | Vl loss=0.1612 mae=0.435 r2=0.586 pcc=0.877 | ES 22/100
+  Ep  42/300 | Tr loss=0.2855 mae=0.603 r2=0.468 pcc=0.732 | Vl loss=0.2234 mae=0.553 r2=0.416 pcc=0.868 | ES 23/100
+  Ep  43/300 | Tr loss=0.2603 mae=0.602 r2=0.493 pcc=0.725 | Vl loss=0.1621 mae=0.440 r2=0.582 pcc=0.870 | ES 24/100
+  Ep  44/300 | Tr loss=0.2958 mae=0.644 r2=0.458 pcc=0.713 | Vl loss=0.1281 mae=0.391 r2=0.675 pcc=0.876 | ES 25/100
+  Ep  45/300 | Tr loss=0.2633 mae=0.613 r2=0.508 pcc=0.747 | Vl loss=0.1398 mae=0.387 r2=0.647 pcc=0.868 | ES 0/100 ★
+    ★ val_mae=0.3869  rmse=0.5327  r2=0.6469  pcc=0.8677
+  Ep  46/300 | Tr loss=0.2608 mae=0.595 r2=0.523 pcc=0.750 | Vl loss=0.1603 mae=0.422 r2=0.595 pcc=0.864 | ES 1/100
+  Ep  47/300 | Tr loss=0.2608 mae=0.590 r2=0.522 pcc=0.747 | Vl loss=0.1510 mae=0.410 r2=0.618 pcc=0.871 | ES 2/100
+  Ep  48/300 | Tr loss=0.2538 mae=0.575 r2=0.479 pcc=0.718 | Vl loss=0.1256 mae=0.365 r2=0.683 pcc=0.881 | ES 0/100 ★
+    ★ val_mae=0.3645  rmse=0.5048  r2=0.6830  pcc=0.8811
+  Ep  49/300 | Tr loss=0.2839 mae=0.631 r2=0.439 pcc=0.686 | Vl loss=0.1061 mae=0.351 r2=0.733 pcc=0.891 | ES 0/100 ★
+    ★ val_mae=0.3512  rmse=0.4635  r2=0.7327  pcc=0.8907
+  Ep  50/300 | Tr loss=0.2850 mae=0.626 r2=0.499 pcc=0.719 | Vl loss=0.1236 mae=0.385 r2=0.689 pcc=0.882 | ES 1/100
+  Ep  51/300 | Tr loss=0.2834 mae=0.648 r2=0.436 pcc=0.707 | Vl loss=0.1286 mae=0.396 r2=0.675 pcc=0.879 | ES 2/100
+  Ep  52/300 | Tr loss=0.2420 mae=0.570 r2=0.536 pcc=0.751 | Vl loss=0.1231 mae=0.385 r2=0.688 pcc=0.882 | ES 3/100
+  Ep  53/300 | Tr loss=0.2364 mae=0.576 r2=0.510 pcc=0.741 | Vl loss=0.1290 mae=0.396 r2=0.671 pcc=0.885 | ES 4/100
+  Ep  54/300 | Tr loss=0.2518 mae=0.570 r2=0.504 pcc=0.739 | Vl loss=0.1397 mae=0.417 r2=0.640 pcc=0.883 | ES 5/100
+  Ep  55/300 | Tr loss=0.2503 mae=0.570 r2=0.495 pcc=0.735 | Vl loss=0.1541 mae=0.417 r2=0.605 pcc=0.869 | ES 6/100
+  Ep  56/300 | Tr loss=0.2368 mae=0.569 r2=0.531 pcc=0.745 | Vl loss=0.1409 mae=0.397 r2=0.640 pcc=0.873 | ES 7/100
+  Ep  57/300 | Tr loss=0.2557 mae=0.595 r2=0.475 pcc=0.706 | Vl loss=0.1314 mae=0.399 r2=0.663 pcc=0.886 | ES 8/100
+  Ep  58/300 | Tr loss=0.2481 mae=0.583 r2=0.496 pcc=0.724 | Vl loss=0.1342 mae=0.395 r2=0.656 pcc=0.878 | ES 9/100
+  Ep  59/300 | Tr loss=0.2867 mae=0.621 r2=0.478 pcc=0.706 | Vl loss=0.1475 mae=0.405 r2=0.626 pcc=0.868 | ES 10/100
+  Ep  60/300 | Tr loss=0.2440 mae=0.575 r2=0.550 pcc=0.751 | Vl loss=0.1297 mae=0.383 r2=0.669 pcc=0.879 | ES 11/100
+  Ep  61/300 | Tr loss=0.2363 mae=0.563 r2=0.543 pcc=0.746 | Vl loss=0.1306 mae=0.392 r2=0.667 pcc=0.875 | ES 12/100
+  Ep  62/300 | Tr loss=0.2605 mae=0.586 r2=0.540 pcc=0.752 | Vl loss=0.1362 mae=0.397 r2=0.654 pcc=0.867 | ES 13/100
+  Ep  63/300 | Tr loss=0.2558 mae=0.586 r2=0.505 pcc=0.738 | Vl loss=0.1637 mae=0.441 r2=0.588 pcc=0.856 | ES 14/100
+  Ep  64/300 | Tr loss=0.2437 mae=0.570 r2=0.546 pcc=0.758 | Vl loss=0.1822 mae=0.471 r2=0.543 pcc=0.857 | ES 15/100
+  Ep  65/300 | Tr loss=0.2264 mae=0.535 r2=0.551 pcc=0.751 | Vl loss=0.1250 mae=0.374 r2=0.684 pcc=0.877 | ES 16/100
+  Ep  66/300 | Tr loss=0.2322 mae=0.552 r2=0.540 pcc=0.744 | Vl loss=0.1304 mae=0.393 r2=0.672 pcc=0.873 | ES 17/100
+  Ep  67/300 | Tr loss=0.2220 mae=0.537 r2=0.576 pcc=0.767 | Vl loss=0.1625 mae=0.444 r2=0.592 pcc=0.864 | ES 18/100
+  Ep  68/300 | Tr loss=0.2243 mae=0.548 r2=0.560 pcc=0.761 | Vl loss=0.1746 mae=0.454 r2=0.560 pcc=0.858 | ES 19/100
+  Ep  69/300 | Tr loss=0.2278 mae=0.550 r2=0.559 pcc=0.760 | Vl loss=0.1661 mae=0.442 r2=0.582 pcc=0.862 | ES 20/100
+  Ep  70/300 | Tr loss=0.2827 mae=0.624 r2=0.494 pcc=0.716 | Vl loss=0.1211 mae=0.370 r2=0.693 pcc=0.878 | ES 21/100
+  Ep  71/300 | Tr loss=0.2761 mae=0.606 r2=0.479 pcc=0.704 | Vl loss=0.1236 mae=0.374 r2=0.685 pcc=0.880 | ES 22/100
+  Ep  72/300 | Tr loss=0.2284 mae=0.552 r2=0.551 pcc=0.758 | Vl loss=0.1423 mae=0.398 r2=0.639 pcc=0.874 | ES 23/100
+  Ep  73/300 | Tr loss=0.2114 mae=0.522 r2=0.598 pcc=0.785 | Vl loss=0.2316 mae=0.529 r2=0.413 pcc=0.864 | ES 24/100
+  Ep  74/300 | Tr loss=0.2592 mae=0.594 r2=0.470 pcc=0.700 | Vl loss=0.1759 mae=0.461 r2=0.555 pcc=0.874 | ES 25/100
+  Ep  75/300 | Tr loss=0.2280 mae=0.548 r2=0.555 pcc=0.754 | Vl loss=0.1600 mae=0.436 r2=0.593 pcc=0.874 | ES 26/100
+  Ep  76/300 | Tr loss=0.2548 mae=0.590 r2=0.480 pcc=0.716 | Vl loss=0.1307 mae=0.378 r2=0.665 pcc=0.886 | ES 27/100
+  Ep  77/300 | Tr loss=0.2369 mae=0.557 r2=0.565 pcc=0.755 | Vl loss=0.1352 mae=0.390 r2=0.658 pcc=0.877 | ES 28/100
+  Ep  78/300 | Tr loss=0.2779 mae=0.608 r2=0.476 pcc=0.701 | Vl loss=0.1156 mae=0.373 r2=0.708 pcc=0.881 | ES 29/100
+  Ep  79/300 | Tr loss=0.2400 mae=0.566 r2=0.544 pcc=0.752 | Vl loss=0.1214 mae=0.383 r2=0.692 pcc=0.885 | ES 30/100
+  Ep  80/300 | Tr loss=0.2165 mae=0.526 r2=0.584 pcc=0.774 | Vl loss=0.1350 mae=0.395 r2=0.655 pcc=0.875 | ES 31/100
+  Ep  81/300 | Tr loss=0.2152 mae=0.514 r2=0.620 pcc=0.792 | Vl loss=0.1604 mae=0.428 r2=0.594 pcc=0.864 | ES 32/100
+  Ep  82/300 | Tr loss=0.2212 mae=0.531 r2=0.625 pcc=0.796 | Vl loss=0.1806 mae=0.459 r2=0.544 pcc=0.857 | ES 33/100
+  Ep  83/300 | Tr loss=0.2377 mae=0.553 r2=0.527 pcc=0.748 | Vl loss=0.1742 mae=0.451 r2=0.562 pcc=0.864 | ES 34/100
+  Ep  84/300 | Tr loss=0.2442 mae=0.567 r2=0.554 pcc=0.762 | Vl loss=0.1939 mae=0.478 r2=0.515 pcc=0.863 | ES 35/100
+  Ep  85/300 | Tr loss=0.2475 mae=0.569 r2=0.549 pcc=0.746 | Vl loss=0.1657 mae=0.440 r2=0.584 pcc=0.871 | ES 36/100
+  Ep  86/300 | Tr loss=0.2357 mae=0.538 r2=0.541 pcc=0.744 | Vl loss=0.1743 mae=0.451 r2=0.563 pcc=0.867 | ES 37/100
+  Ep  87/300 | Tr loss=0.2333 mae=0.538 r2=0.571 pcc=0.761 | Vl loss=0.1982 mae=0.486 r2=0.505 pcc=0.853 | ES 38/100
+  Ep  88/300 | Tr loss=0.2225 mae=0.540 r2=0.606 pcc=0.779 | Vl loss=0.1267 mae=0.386 r2=0.685 pcc=0.866 | ES 39/100
+  Ep  89/300 | Tr loss=0.2288 mae=0.548 r2=0.611 pcc=0.785 | Vl loss=0.1421 mae=0.409 r2=0.646 pcc=0.859 | ES 40/100
+  Ep  90/300 | Tr loss=0.2534 mae=0.570 r2=0.583 pcc=0.772 | Vl loss=0.1679 mae=0.439 r2=0.580 pcc=0.853 | ES 41/100
+  Ep  91/300 | Tr loss=0.2648 mae=0.589 r2=0.478 pcc=0.724 | Vl loss=0.1319 mae=0.381 r2=0.665 pcc=0.875 | ES 42/100
+  Ep  92/300 | Tr loss=0.2332 mae=0.561 r2=0.526 pcc=0.742 | Vl loss=0.1484 mae=0.412 r2=0.625 pcc=0.876 | ES 43/100
+  Ep  93/300 | Tr loss=0.2379 mae=0.565 r2=0.495 pcc=0.716 | Vl loss=0.1278 mae=0.374 r2=0.676 pcc=0.884 | ES 44/100
+  Ep  94/300 | Tr loss=0.2329 mae=0.563 r2=0.576 pcc=0.767 | Vl loss=0.1361 mae=0.390 r2=0.653 pcc=0.883 | ES 45/100
+  Ep  95/300 | Tr loss=0.2587 mae=0.581 r2=0.527 pcc=0.730 | Vl loss=0.1544 mae=0.422 r2=0.606 pcc=0.875 | ES 46/100
+  Ep  96/300 | Tr loss=0.2927 mae=0.612 r2=0.477 pcc=0.705 | Vl loss=0.1584 mae=0.428 r2=0.597 pcc=0.871 | ES 47/100
+  Ep  97/300 | Tr loss=0.1969 mae=0.497 r2=0.601 pcc=0.779 | Vl loss=0.1511 mae=0.416 r2=0.618 pcc=0.871 | ES 48/100
+2026-05-24 10:07:47,716 | INFO |   Ep  98/300 | Tr loss=0.2538 mae=0.581 r2=0.494 pcc=0.707 | Vl loss=0.1244 mae=0.372 r2=0.688 pcc=0.877 | ES 49/100
+2026-05-24 10:07:48,830 | INFO |   Ep  99/300 | Tr loss=0.2373 mae=0.556 r2=0.550 pcc=0.748 | Vl loss=0.1308 mae=0.377 r2=0.670 pcc=0.876 | ES 50/100
+2026-05-24 10:07:49,926 | INFO |   Ep 100/300 | Tr loss=0.2423 mae=0.568 r2=0.550 pcc=0.747 | Vl loss=0.1364 mae=0.385 r2=0.653 pcc=0.878 | ES 51/100
+2026-05-24 10:07:51,013 | INFO |   Ep 101/300 | Tr loss=0.2346 mae=0.549 r2=0.560 pcc=0.754 | Vl loss=0.1497 mae=0.411 r2=0.618 pcc=0.875 | ES 52/100
+2026-05-24 10:07:52,103 | INFO |   Ep 102/300 | Tr loss=0.2244 mae=0.529 r2=0.562 pcc=0.755 | Vl loss=0.1530 mae=0.418 r2=0.610 pcc=0.874 | ES 53/100
+2026-05-24 10:07:53,183 | INFO |   Ep 103/300 | Tr loss=0.2546 mae=0.568 r2=0.529 pcc=0.731 | Vl loss=0.1644 mae=0.440 r2=0.582 pcc=0.871 | ES 54/100
+2026-05-24 10:07:54,274 | INFO |   Ep 104/300 | Tr loss=0.2193 mae=0.521 r2=0.606 pcc=0.781 | Vl loss=0.1835 mae=0.469 r2=0.536 pcc=0.866 | ES 55/100
+2026-05-24 10:07:55,347 | INFO |   Ep 105/300 | Tr loss=0.2180 mae=0.509 r2=0.576 pcc=0.763 | Vl loss=0.1690 mae=0.448 r2=0.572 pcc=0.870 | ES 56/100
+2026-05-24 10:07:56,427 | INFO |   Ep 106/300 | Tr loss=0.2467 mae=0.568 r2=0.538 pcc=0.738 | Vl loss=0.1572 mae=0.429 r2=0.601 pcc=0.873 | ES 57/100
+2026-05-24 10:07:57,516 | INFO |   Ep 107/300 | Tr loss=0.2187 mae=0.529 r2=0.587 pcc=0.769 | Vl loss=0.2170 mae=0.509 r2=0.453 pcc=0.859 | ES 58/100
+2026-05-24 10:07:58,599 | INFO |   Ep 108/300 | Tr loss=0.2193 mae=0.517 r2=0.556 pcc=0.751 | Vl loss=0.1768 mae=0.456 r2=0.555 pcc=0.865 | ES 59/100
+2026-05-24 10:07:59,678 | INFO |   Ep 109/300 | Tr loss=0.2501 mae=0.562 r2=0.539 pcc=0.740 | Vl loss=0.1824 mae=0.463 r2=0.541 pcc=0.861 | ES 60/100
+2026-05-24 10:08:00,757 | INFO |   Ep 110/300 | Tr loss=0.2751 mae=0.607 r2=0.474 pcc=0.698 | Vl loss=0.1664 mae=0.441 r2=0.582 pcc=0.868 | ES 61/100
+2026-05-24 10:08:01,847 | INFO |   Ep 111/300 | Tr loss=0.2189 mae=0.527 r2=0.610 pcc=0.789 | Vl loss=0.2001 mae=0.486 r2=0.498 pcc=0.861 | ES 62/100
+2026-05-24 10:08:02,932 | INFO |   Ep 112/300 | Tr loss=0.2376 mae=0.545 r2=0.535 pcc=0.739 | Vl loss=0.2021 mae=0.489 r2=0.492 pcc=0.861 | ES 63/100
+2026-05-24 10:08:04,027 | INFO |   Ep 113/300 | Tr loss=0.2630 mae=0.580 r2=0.468 pcc=0.696 | Vl loss=0.1862 mae=0.469 r2=0.533 pcc=0.866 | ES 64/100
+2026-05-24 10:08:05,119 | INFO |   Ep 114/300 | Tr loss=0.2146 mae=0.530 r2=0.583 pcc=0.764 | Vl loss=0.1819 mae=0.465 r2=0.545 pcc=0.866 | ES 65/100
+2026-05-24 10:08:06,205 | INFO |   Ep 115/300 | Tr loss=0.2128 mae=0.511 r2=0.611 pcc=0.788 | Vl loss=0.1787 mae=0.459 r2=0.551 pcc=0.865 | ES 66/100
+2026-05-24 10:08:07,302 | INFO |   Ep 116/300 | Tr loss=0.2496 mae=0.550 r2=0.547 pcc=0.744 | Vl loss=0.1532 mae=0.422 r2=0.614 pcc=0.872 | ES 67/100
+2026-05-24 10:08:08,457 | INFO |   Ep 117/300 | Tr loss=0.2057 mae=0.519 r2=0.594 pcc=0.773 | Vl loss=0.1496 mae=0.416 r2=0.623 pcc=0.873 | ES 68/100
+2026-05-24 10:08:09,618 | INFO |   Ep 118/300 | Tr loss=0.2474 mae=0.555 r2=0.583 pcc=0.767 | Vl loss=0.1464 mae=0.411 r2=0.631 pcc=0.874 | ES 69/100
+2026-05-24 10:08:10,729 | INFO |   Ep 119/300 | Tr loss=0.2219 mae=0.533 r2=0.582 pcc=0.766 | Vl loss=0.1866 mae=0.470 r2=0.531 pcc=0.864 | ES 70/100
+2026-05-24 10:08:11,828 | INFO |   Ep 120/300 | Tr loss=0.2354 mae=0.543 r2=0.562 pcc=0.754 | Vl loss=0.2008 mae=0.489 r2=0.495 pcc=0.860 | ES 71/100
+2026-05-24 10:08:12,932 | INFO |   Ep 121/300 | Tr loss=0.2346 mae=0.539 r2=0.543 pcc=0.741 | Vl loss=0.1454 mae=0.406 r2=0.633 pcc=0.873 | ES 72/100
+2026-05-24 10:08:14,032 | INFO |   Ep 122/300 | Tr loss=0.2632 mae=0.588 r2=0.539 pcc=0.737 | Vl loss=0.1864 mae=0.469 r2=0.532 pcc=0.863 | ES 73/100
+2026-05-24 10:08:15,150 | INFO |   Ep 123/300 | Tr loss=0.2209 mae=0.526 r2=0.556 pcc=0.752 | Vl loss=0.2193 mae=0.510 r2=0.448 pcc=0.855 | ES 74/100
+2026-05-24 10:08:16,277 | INFO |   Ep 124/300 | Tr loss=0.1918 mae=0.493 r2=0.631 pcc=0.798 | Vl loss=0.2190 mae=0.510 r2=0.449 pcc=0.856 | ES 75/100
+2026-05-24 10:08:17,461 | INFO |   Ep 125/300 | Tr loss=0.2387 mae=0.545 r2=0.544 pcc=0.741 | Vl loss=0.1873 mae=0.471 r2=0.529 pcc=0.863 | ES 76/100
+2026-05-24 10:08:18,573 | INFO |   Ep 126/300 | Tr loss=0.2091 mae=0.509 r2=0.603 pcc=0.777 | Vl loss=0.1585 mae=0.432 r2=0.600 pcc=0.870 | ES 77/100
+2026-05-24 10:08:19,703 | INFO |   Ep 127/300 | Tr loss=0.1944 mae=0.474 r2=0.637 pcc=0.799 | Vl loss=0.1675 mae=0.444 r2=0.577 pcc=0.866 | ES 78/100
+2026-05-24 10:08:20,804 | INFO |   Ep 128/300 | Tr loss=0.2321 mae=0.535 r2=0.530 pcc=0.740 | Vl loss=0.1845 mae=0.468 r2=0.535 pcc=0.862 | ES 79/100
+2026-05-24 10:08:21,905 | INFO |   Ep 129/300 | Tr loss=0.2411 mae=0.554 r2=0.539 pcc=0.736 | Vl loss=0.1664 mae=0.443 r2=0.580 pcc=0.866 | ES 80/100
+2026-05-24 10:08:23,002 | INFO |   Ep 130/300 | Tr loss=0.2193 mae=0.518 r2=0.602 pcc=0.780 | Vl loss=0.1549 mae=0.424 r2=0.608 pcc=0.871 | ES 81/100
+2026-05-24 10:08:24,132 | INFO |   Ep 131/300 | Tr loss=0.2227 mae=0.527 r2=0.552 pcc=0.748 | Vl loss=0.1543 mae=0.424 r2=0.608 pcc=0.873 | ES 82/100
+2026-05-24 10:08:25,249 | INFO |   Ep 132/300 | Tr loss=0.2359 mae=0.541 r2=0.568 pcc=0.757 | Vl loss=0.1604 mae=0.437 r2=0.593 pcc=0.874 | ES 83/100
+2026-05-24 10:08:26,346 | INFO |   Ep 133/300 | Tr loss=0.2354 mae=0.552 r2=0.570 pcc=0.755 | Vl loss=0.1850 mae=0.473 r2=0.532 pcc=0.867 | ES 84/100
+2026-05-24 10:08:27,450 | INFO |   Ep 134/300 | Tr loss=0.2234 mae=0.527 r2=0.525 pcc=0.732 | Vl loss=0.1580 mae=0.435 r2=0.599 pcc=0.876 | ES 85/100
+2026-05-24 10:08:28,569 | INFO |   Ep 135/300 | Tr loss=0.2342 mae=0.544 r2=0.548 pcc=0.742 | Vl loss=0.1546 mae=0.429 r2=0.608 pcc=0.877 | ES 86/100
+2026-05-24 10:08:29,830 | INFO |   Ep 136/300 | Tr loss=0.2147 mae=0.521 r2=0.554 pcc=0.746 | Vl loss=0.1551 mae=0.429 r2=0.609 pcc=0.875 | ES 87/100
+2026-05-24 10:08:31,068 | INFO |   Ep 137/300 | Tr loss=0.2421 mae=0.547 r2=0.541 pcc=0.737 | Vl loss=0.1678 mae=0.446 r2=0.578 pcc=0.871 | ES 88/100
+2026-05-24 10:08:32,142 | INFO |   Ep 138/300 | Tr loss=0.1803 mae=0.478 r2=0.645 pcc=0.804 | Vl loss=0.1826 mae=0.465 r2=0.540 pcc=0.867 | ES 89/100
+2026-05-24 10:08:33,238 | INFO |   Ep 139/300 | Tr loss=0.2300 mae=0.540 r2=0.541 pcc=0.739 | Vl loss=0.1679 mae=0.444 r2=0.576 pcc=0.870 | ES 90/100
+2026-05-24 10:08:34,332 | INFO |   Ep 140/300 | Tr loss=0.2216 mae=0.525 r2=0.577 pcc=0.761 | Vl loss=0.1457 mae=0.406 r2=0.630 pcc=0.878 | ES 91/100
+2026-05-24 10:08:35,413 | INFO |   Ep 141/300 | Tr loss=0.2077 mae=0.500 r2=0.615 pcc=0.786 | Vl loss=0.1559 mae=0.425 r2=0.603 pcc=0.876 | ES 92/100
+2026-05-24 10:08:36,505 | INFO |   Ep 142/300 | Tr loss=0.2453 mae=0.549 r2=0.556 pcc=0.753 | Vl loss=0.1574 mae=0.429 r2=0.601 pcc=0.874 | ES 93/100
+2026-05-24 10:08:37,662 | INFO |   Ep 143/300 | Tr loss=0.2231 mae=0.523 r2=0.568 pcc=0.758 | Vl loss=0.1328 mae=0.382 r2=0.664 pcc=0.880 | ES 94/100
+2026-05-24 10:08:38,738 | INFO |   Ep 144/300 | Tr loss=0.2262 mae=0.531 r2=0.602 pcc=0.780 | Vl loss=0.1744 mae=0.454 r2=0.561 pcc=0.870 | ES 95/100
+2026-05-24 10:08:39,832 | INFO |   Ep 145/300 | Tr loss=0.2157 mae=0.512 r2=0.589 pcc=0.773 | Vl loss=0.1620 mae=0.437 r2=0.590 pcc=0.876 | ES 96/100
+2026-05-24 10:08:40,910 | INFO |   Ep 146/300 | Tr loss=0.2133 mae=0.527 r2=0.560 pcc=0.750 | Vl loss=0.1291 mae=0.373 r2=0.670 pcc=0.888 | ES 97/100
+2026-05-24 10:08:41,994 | INFO |   Ep 147/300 | Tr loss=0.2850 mae=0.596 r2=0.509 pcc=0.715 | Vl loss=0.1344 mae=0.386 r2=0.658 pcc=0.884 | ES 98/100
+2026-05-24 10:08:43,080 | INFO |   Ep 148/300 | Tr loss=0.2439 mae=0.550 r2=0.560 pcc=0.749 | Vl loss=0.1252 mae=0.367 r2=0.682 pcc=0.885 | ES 99/100
+2026-05-24 10:08:44,162 | INFO |   Ep 149/300 | Tr loss=0.2187 mae=0.521 r2=0.550 pcc=0.748 | Vl loss=0.1174 mae=0.357 r2=0.701 pcc=0.890 | ES 100/100
+2026-05-24 10:08:44,163 | INFO | Early stopping at epoch 149 best=49
+  Ep  98/300 | Tr loss=0.2538 mae=0.581 r2=0.494 pcc=0.707 | Vl loss=0.1244 mae=0.372 r2=0.688 pcc=0.877 | ES 49/100
+  Ep  99/300 | Tr loss=0.2373 mae=0.556 r2=0.550 pcc=0.748 | Vl loss=0.1308 mae=0.377 r2=0.670 pcc=0.876 | ES 50/100
+Epoch 00100: reducing learning rate of group 0 to 5.0000e-05.
+  Ep 100/300 | Tr loss=0.2423 mae=0.568 r2=0.550 pcc=0.747 | Vl loss=0.1364 mae=0.385 r2=0.653 pcc=0.878 | ES 51/100
+  Ep 101/300 | Tr loss=0.2346 mae=0.549 r2=0.560 pcc=0.754 | Vl loss=0.1497 mae=0.411 r2=0.618 pcc=0.875 | ES 52/100
+  Ep 102/300 | Tr loss=0.2244 mae=0.529 r2=0.562 pcc=0.755 | Vl loss=0.1530 mae=0.418 r2=0.610 pcc=0.874 | ES 53/100
+  Ep 103/300 | Tr loss=0.2546 mae=0.568 r2=0.529 pcc=0.731 | Vl loss=0.1644 mae=0.440 r2=0.582 pcc=0.871 | ES 54/100
+  Ep 104/300 | Tr loss=0.2193 mae=0.521 r2=0.606 pcc=0.781 | Vl loss=0.1835 mae=0.469 r2=0.536 pcc=0.866 | ES 55/100
+  Ep 105/300 | Tr loss=0.2180 mae=0.509 r2=0.576 pcc=0.763 | Vl loss=0.1690 mae=0.448 r2=0.572 pcc=0.870 | ES 56/100
+  Ep 106/300 | Tr loss=0.2467 mae=0.568 r2=0.538 pcc=0.738 | Vl loss=0.1572 mae=0.429 r2=0.601 pcc=0.873 | ES 57/100
+  Ep 107/300 | Tr loss=0.2187 mae=0.529 r2=0.587 pcc=0.769 | Vl loss=0.2170 mae=0.509 r2=0.453 pcc=0.859 | ES 58/100
+  Ep 108/300 | Tr loss=0.2193 mae=0.517 r2=0.556 pcc=0.751 | Vl loss=0.1768 mae=0.456 r2=0.555 pcc=0.865 | ES 59/100
+  Ep 109/300 | Tr loss=0.2501 mae=0.562 r2=0.539 pcc=0.740 | Vl loss=0.1824 mae=0.463 r2=0.541 pcc=0.861 | ES 60/100
+  Ep 110/300 | Tr loss=0.2751 mae=0.607 r2=0.474 pcc=0.698 | Vl loss=0.1664 mae=0.441 r2=0.582 pcc=0.868 | ES 61/100
+  Ep 111/300 | Tr loss=0.2189 mae=0.527 r2=0.610 pcc=0.789 | Vl loss=0.2001 mae=0.486 r2=0.498 pcc=0.861 | ES 62/100
+  Ep 112/300 | Tr loss=0.2376 mae=0.545 r2=0.535 pcc=0.739 | Vl loss=0.2021 mae=0.489 r2=0.492 pcc=0.861 | ES 63/100
+  Ep 113/300 | Tr loss=0.2630 mae=0.580 r2=0.468 pcc=0.696 | Vl loss=0.1862 mae=0.469 r2=0.533 pcc=0.866 | ES 64/100
+  Ep 114/300 | Tr loss=0.2146 mae=0.530 r2=0.583 pcc=0.764 | Vl loss=0.1819 mae=0.465 r2=0.545 pcc=0.866 | ES 65/100
+  Ep 115/300 | Tr loss=0.2128 mae=0.511 r2=0.611 pcc=0.788 | Vl loss=0.1787 mae=0.459 r2=0.551 pcc=0.865 | ES 66/100
+  Ep 116/300 | Tr loss=0.2496 mae=0.550 r2=0.547 pcc=0.744 | Vl loss=0.1532 mae=0.422 r2=0.614 pcc=0.872 | ES 67/100
+  Ep 117/300 | Tr loss=0.2057 mae=0.519 r2=0.594 pcc=0.773 | Vl loss=0.1496 mae=0.416 r2=0.623 pcc=0.873 | ES 68/100
+  Ep 118/300 | Tr loss=0.2474 mae=0.555 r2=0.583 pcc=0.767 | Vl loss=0.1464 mae=0.411 r2=0.631 pcc=0.874 | ES 69/100
+  Ep 119/300 | Tr loss=0.2219 mae=0.533 r2=0.582 pcc=0.766 | Vl loss=0.1866 mae=0.470 r2=0.531 pcc=0.864 | ES 70/100
+  Ep 120/300 | Tr loss=0.2354 mae=0.543 r2=0.562 pcc=0.754 | Vl loss=0.2008 mae=0.489 r2=0.495 pcc=0.860 | ES 71/100
+  Ep 121/300 | Tr loss=0.2346 mae=0.539 r2=0.543 pcc=0.741 | Vl loss=0.1454 mae=0.406 r2=0.633 pcc=0.873 | ES 72/100
+  Ep 122/300 | Tr loss=0.2632 mae=0.588 r2=0.539 pcc=0.737 | Vl loss=0.1864 mae=0.469 r2=0.532 pcc=0.863 | ES 73/100
+  Ep 123/300 | Tr loss=0.2209 mae=0.526 r2=0.556 pcc=0.752 | Vl loss=0.2193 mae=0.510 r2=0.448 pcc=0.855 | ES 74/100
+  Ep 124/300 | Tr loss=0.1918 mae=0.493 r2=0.631 pcc=0.798 | Vl loss=0.2190 mae=0.510 r2=0.449 pcc=0.856 | ES 75/100
+  Ep 125/300 | Tr loss=0.2387 mae=0.545 r2=0.544 pcc=0.741 | Vl loss=0.1873 mae=0.471 r2=0.529 pcc=0.863 | ES 76/100
+  Ep 126/300 | Tr loss=0.2091 mae=0.509 r2=0.603 pcc=0.777 | Vl loss=0.1585 mae=0.432 r2=0.600 pcc=0.870 | ES 77/100
+  Ep 127/300 | Tr loss=0.1944 mae=0.474 r2=0.637 pcc=0.799 | Vl loss=0.1675 mae=0.444 r2=0.577 pcc=0.866 | ES 78/100
+  Ep 128/300 | Tr loss=0.2321 mae=0.535 r2=0.530 pcc=0.740 | Vl loss=0.1845 mae=0.468 r2=0.535 pcc=0.862 | ES 79/100
+  Ep 129/300 | Tr loss=0.2411 mae=0.554 r2=0.539 pcc=0.736 | Vl loss=0.1664 mae=0.443 r2=0.580 pcc=0.866 | ES 80/100
+  Ep 130/300 | Tr loss=0.2193 mae=0.518 r2=0.602 pcc=0.780 | Vl loss=0.1549 mae=0.424 r2=0.608 pcc=0.871 | ES 81/100
+  Ep 131/300 | Tr loss=0.2227 mae=0.527 r2=0.552 pcc=0.748 | Vl loss=0.1543 mae=0.424 r2=0.608 pcc=0.873 | ES 82/100
+  Ep 132/300 | Tr loss=0.2359 mae=0.541 r2=0.568 pcc=0.757 | Vl loss=0.1604 mae=0.437 r2=0.593 pcc=0.874 | ES 83/100
+  Ep 133/300 | Tr loss=0.2354 mae=0.552 r2=0.570 pcc=0.755 | Vl loss=0.1850 mae=0.473 r2=0.532 pcc=0.867 | ES 84/100
+  Ep 134/300 | Tr loss=0.2234 mae=0.527 r2=0.525 pcc=0.732 | Vl loss=0.1580 mae=0.435 r2=0.599 pcc=0.876 | ES 85/100
+  Ep 135/300 | Tr loss=0.2342 mae=0.544 r2=0.548 pcc=0.742 | Vl loss=0.1546 mae=0.429 r2=0.608 pcc=0.877 | ES 86/100
+  Ep 136/300 | Tr loss=0.2147 mae=0.521 r2=0.554 pcc=0.746 | Vl loss=0.1551 mae=0.429 r2=0.609 pcc=0.875 | ES 87/100
+  Ep 137/300 | Tr loss=0.2421 mae=0.547 r2=0.541 pcc=0.737 | Vl loss=0.1678 mae=0.446 r2=0.578 pcc=0.871 | ES 88/100
+  Ep 138/300 | Tr loss=0.1803 mae=0.478 r2=0.645 pcc=0.804 | Vl loss=0.1826 mae=0.465 r2=0.540 pcc=0.867 | ES 89/100
+  Ep 139/300 | Tr loss=0.2300 mae=0.540 r2=0.541 pcc=0.739 | Vl loss=0.1679 mae=0.444 r2=0.576 pcc=0.870 | ES 90/100
+  Ep 140/300 | Tr loss=0.2216 mae=0.525 r2=0.577 pcc=0.761 | Vl loss=0.1457 mae=0.406 r2=0.630 pcc=0.878 | ES 91/100
+  Ep 141/300 | Tr loss=0.2077 mae=0.500 r2=0.615 pcc=0.786 | Vl loss=0.1559 mae=0.425 r2=0.603 pcc=0.876 | ES 92/100
+  Ep 142/300 | Tr loss=0.2453 mae=0.549 r2=0.556 pcc=0.753 | Vl loss=0.1574 mae=0.429 r2=0.601 pcc=0.874 | ES 93/100
+  Ep 143/300 | Tr loss=0.2231 mae=0.523 r2=0.568 pcc=0.758 | Vl loss=0.1328 mae=0.382 r2=0.664 pcc=0.880 | ES 94/100
+  Ep 144/300 | Tr loss=0.2262 mae=0.531 r2=0.602 pcc=0.780 | Vl loss=0.1744 mae=0.454 r2=0.561 pcc=0.870 | ES 95/100
+  Ep 145/300 | Tr loss=0.2157 mae=0.512 r2=0.589 pcc=0.773 | Vl loss=0.1620 mae=0.437 r2=0.590 pcc=0.876 | ES 96/100
+  Ep 146/300 | Tr loss=0.2133 mae=0.527 r2=0.560 pcc=0.750 | Vl loss=0.1291 mae=0.373 r2=0.670 pcc=0.888 | ES 97/100
+  Ep 147/300 | Tr loss=0.2850 mae=0.596 r2=0.509 pcc=0.715 | Vl loss=0.1344 mae=0.386 r2=0.658 pcc=0.884 | ES 98/100
+  Ep 148/300 | Tr loss=0.2439 mae=0.550 r2=0.560 pcc=0.749 | Vl loss=0.1252 mae=0.367 r2=0.682 pcc=0.885 | ES 99/100
+  Ep 149/300 | Tr loss=0.2187 mae=0.521 r2=0.550 pcc=0.748 | Vl loss=0.1174 mae=0.357 r2=0.701 pcc=0.890 | ES 100/100
 
-  ⏹  Early stopping at epoch 101 (best=1)
+  ⏹  Early stopping at epoch 149 (best=49)
 
 ✓ Training complete!
 
-  ── Final Test Results (best epoch = 1) ──────────────────
-  Loss : 0.1963
-  RMSE : 0.5711
-  MAE  : 0.4793
-  R²   : 0.4662
-  ✓ Saved → /mvdlph/masa/GCN_SingleView_Regression_Results/run_2026_05_24_09_59_31/plots/loss_curve.png
-  ✓ Saved → /mvdlph/masa/GCN_SingleView_Regression_Results/run_2026_05_24_09_59_31/plots/rmse_mae.png
-  ✓ Saved → /mvdlph/masa/GCN_SingleView_Regression_Results/run_2026_05_24_09_59_31/plots/r2_curve.png
-  ✓ Saved → /mvdlph/masa/GCN_SingleView_Regression_Results/run_2026_05_24_09_59_31/plots/pcc_curve.png
-  ✓ Saved → /mvdlph/masa/GCN_SingleView_Regression_Results/run_2026_05_24_09_59_31/plots/regression_scatter_test.png
-  ✓ Saved → /mvdlph/masa/GCN_SingleView_Regression_Results/run_2026_05_24_09_59_31/plots/early_stopping.png
-  ✓ History → /mvdlph/masa/GCN_SingleView_Regression_Results/run_2026_05_24_09_59_31/logs/training_history.json
+  ── Final Test Results (best epoch = 49) ──────────────────
+  Loss : 0.1913
+  RMSE : 0.6825
+  MAE  : 0.5404
+  R²   : 0.2377
+  ✓ Saved → /mvdlph/masa/GCN_SingleView_Regression_Results/run_2026_05_24_10_05_34/plots/loss_curve.png
+  ✓ Saved → /mvdlph/masa/GCN_SingleView_Regression_Results/run_2026_05_24_10_05_34/plots/rmse_mae.png
+  ✓ Saved → /mvdlph/masa/GCN_SingleView_Regression_Results/run_2026_05_24_10_05_34/plots/r2_curve.png
+  ✓ Saved → /mvdlph/masa/GCN_SingleView_Regression_Results/run_2026_05_24_10_05_34/plots/pcc_curve.png
+  ✓ Saved → /mvdlph/masa/GCN_SingleView_Regression_Results/run_2026_05_24_10_05_34/plots/regression_scatter_test.png
+  ✓ Saved → /mvdlph/masa/GCN_SingleView_Regression_Results/run_2026_05_24_10_05_34/plots/early_stopping.png
+  ✓ History → /mvdlph/masa/GCN_SingleView_Regression_Results/run_2026_05_24_10_05_34/logs/training_history.json
 ============================================================
 DIAGNOSTIC 1: Per-exercise skeleton variance (C0)
 ============================================================
@@ -1145,33 +1245,38 @@ DIAGNOSTIC 2: Quality score distribution per split
  Train: mean=3.765 std=0.985 min=1.34 max=4.74 | correct=206 erroneous=112
    Val: mean=3.561 std=0.901 min=2.28 max=4.68 | correct=59 erroneous=36
   Test: mean=3.645 std=0.784 min=2.30 max=4.75 | correct=78 erroneous=78
-  ✓ History NPZ → /mvdlph/masa/GCN_SingleView_Regression_Results/run_2026_05_24_09_59_31/logs/training_history.npz
-  ✓ Test predictions NPZ → /mvdlph/masa/GCN_SingleView_Regression_Results/run_2026_05_24_09_59_31/logs/test_predictions.npz
+  ✓ History NPZ → /mvdlph/masa/GCN_SingleView_Regression_Results/run_2026_05_24_10_05_34/logs/training_history.npz
+  ✓ Test predictions NPZ → /mvdlph/masa/GCN_SingleView_Regression_Results/run_2026_05_24_10_05_34/logs/test_predictions.npz
+2026-05-24 10:08:47,370 | INFO | Best Epoch=49  stopped_epoch=149
+2026-05-24 10:08:47,370 | INFO | Test MAE=0.5404
+2026-05-24 10:08:47,371 | INFO | Test RMSE=0.6825
+2026-05-24 10:08:47,372 | INFO | Test R²=0.2377
+2026-05-24 10:08:47,372 | INFO | Test PCC=0.8620
 ========================================================================
   Exercise         n      MAE     RMSE       R²      PCC
 ────────────────────────────────────────────────────────────────────────
-  E0             156   0.4793   0.5711   0.4662   0.8613
+  E0             156   0.5404   0.6825   0.2377   0.8620
 ────────────────────────────────────────────────────────────────────────
-  Overall        156   0.4793   0.5711   0.4662   0.8613
+  Overall        156   0.5404   0.6825   0.2377   0.8620
 ========================================================================
 
-  ✓ Per-exercise CSV → /mvdlph/masa/GCN_SingleView_Regression_Results/run_2026_05_24_09_59_31/logs/per_exercise_metrics.csv
-  ✓ Per-exercise scatter grid → /mvdlph/masa/GCN_SingleView_Regression_Results/run_2026_05_24_09_59_31/plots/per_exercise_scatter.png
-  ✓ Per-exercise bar chart → /mvdlph/masa/GCN_SingleView_Regression_Results/run_2026_05_24_09_59_31/plots/per_exercise_bar.png
-  ✓ Per-exercise metrics NPZ → /mvdlph/masa/GCN_SingleView_Regression_Results/run_2026_05_24_09_59_31/logs/per_exercise_metrics.npz
+  ✓ Per-exercise CSV → /mvdlph/masa/GCN_SingleView_Regression_Results/run_2026_05_24_10_05_34/logs/per_exercise_metrics.csv
+  ✓ Per-exercise scatter grid → /mvdlph/masa/GCN_SingleView_Regression_Results/run_2026_05_24_10_05_34/plots/per_exercise_scatter.png
+  ✓ Per-exercise bar chart → /mvdlph/masa/GCN_SingleView_Regression_Results/run_2026_05_24_10_05_34/plots/per_exercise_bar.png
+  ✓ Per-exercise metrics NPZ → /mvdlph/masa/GCN_SingleView_Regression_Results/run_2026_05_24_10_05_34/logs/per_exercise_metrics.npz
 ============================================================
   TRAINING SUMMARY — ST-GCN Regression (Single View)
 ============================================================
-  Best Epoch       : 1  (stopped at 101)
-  Best Val MAE     : 0.5752
-  Best Val RMSE    : 0.6448
-  Best Val R²      : 0.4826
-  Best Val PCC     : 0.8977
+  Best Epoch       : 49  (stopped at 149)
+  Best Val MAE     : 0.3512
+  Best Val RMSE    : 0.4635
+  Best Val R²      : 0.7327
+  Best Val PCC     : 0.8907
 ────────────────────────────────────────────────────────────
-  Test MAE         : 0.4793
-  Test RMSE        : 0.5711
-  Test R²          : 0.4662
-  Test PCC         : 0.8613
+  Test MAE         : 0.5404
+  Test RMSE        : 0.6825
+  Test R²          : 0.2377
+  Test PCC         : 0.8620
 ============================================================
 
 ✓ Summary CSV (overall + per-exercise) → /mvdlph/masa/GCN_SingleView_Regression_Results/training_summary.csv
