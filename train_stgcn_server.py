@@ -5,7 +5,7 @@ import os
 DATASET_DIR   = "/mvdlph/Dataset_CVDLPT_Videos_Segments_P0P15_MMPose_human3d_motionbert_H36M_3D_1_2026"
 SPLIT_DIR     = os.path.join(DATASET_DIR, "by_person")   # ← NEW: pre-split root
 CSV_PATH      = "/mvdlph/label_events_20260129_155122_stats_short.csv"
-CAMERA_ID     = None
+CAMERA_ID     = 0
 NPZ_KEY       = "keypoints_3d"
 NUM_JOINTS    = 17
 TARGET_FRAMES = 120
@@ -411,6 +411,14 @@ train_df = remove_corrupted(train_df, 'TRAIN')
 val_df   = remove_corrupted(val_df,   'VALID')
 test_df  = remove_corrupted(test_df,  'TEST')
  
+# ── Filter to Exercise E0 only ────────────────────────────────────────────
+train_df = train_df[train_df['exercise'] == 0].reset_index(drop=True)
+val_df   = val_df  [val_df  ['exercise'] == 0].reset_index(drop=True)
+test_df  = test_df [test_df ['exercise'] == 0].reset_index(drop=True)
+
+print(f'\n✓ Filtered to E0 only:')
+print(f'  Train : {len(train_df)}  Val : {len(val_df)}  Test : {len(test_df)}')
+ 
 # ── Combine for shared analysis (optional) ───────────────────────────────
 df_index = pd.concat([train_df, val_df, test_df], ignore_index=True)
  
@@ -440,17 +448,6 @@ print(f'{"═"*68}')
 print('\n✓ Pre-split index ready  →  train / val / test DataFrames built')
  
 
-def augment_with_mirrors(df):
-    """
-    لكل سطر بالـ DataFrame، خلق نسخة مرآة منه.
-    النتيجة: الداتا تتضاعف — الأصلية + المعكوسة.
-    """
-    mirrored = df.copy()
-    mirrored['mirrored'] = True   # علامة إنها نسخة معكوسة
-    df = df.copy()
-    df['mirrored'] = False
-
-    return pd.concat([df, mirrored], ignore_index=True)
 # ══════════════════════════════════════════════════════════════════════════
 # Cell 7.5 — Camera Distribution Check
 # ══════════════════════════════════════════════════════════════════════════
@@ -681,21 +678,6 @@ for cam in [0, 1, 2]:
 # ══════════════════════════════════════════════════════════════════════════
 # Cell 10 — BZUDataset (regression only)
 # ══════════════════════════════════════════════════════════════════════════
-MIRROR_PAIRS = [
-    (1, 4),   # R-Hip   ↔ L-Hip
-    (2, 5),   # R-Knee  ↔ L-Knee
-    (3, 6),   # R-Ankle ↔ L-Ankle
-    (11, 14), # L-Shoulder ↔ R-Shoulder
-    (12, 15), # L-Elbow    ↔ R-Elbow
-    (13, 16), # L-Wrist    ↔ R-Wrist
-]
-
-def mirror_skeleton(skel):
-    skel = skel.copy()
-    skel[:, :, 0] *= -1          # اعكس محور X (يمين يصير شمال)
-    for i, j in MIRROR_PAIRS:   # بدّل الجوينتس اليمين مع الشمال
-        skel[:, [i, j], :] = skel[:, [j, i], :]
-    return skel
 
 class BZUDataset(Dataset):
     """Returns (skeleton, quality_score) — no exercise ID."""
@@ -707,29 +689,25 @@ class BZUDataset(Dataset):
     def __len__(self):
         return len(self.df)
 
-    
     def __getitem__(self, idx):
-        row  = self.df.iloc[idx]
-        skel = load_skeleton(row['filepath'])
+        row     = self.df.iloc[idx]
+        skel    = load_skeleton(row['filepath'])
         if skel is None:
             skel = np.zeros((TARGET_FRAMES, 17, 3), dtype=np.float32)
-
-        skel = self._normalise_length(skel)
-
-        # ── NEW: لو النسخة معكوسة، اعكسها ──
-        if row.get('mirrored', False):
-            skel = mirror_skeleton(skel)
-
+        skel        = self._normalise_length(skel)
         if self.augment:
-            skel = self._augment(skel)  # بدون ميررورينغ جوا هون
+            skel    = self._augment(skel)
 
-        velocity     = np.zeros_like(skel)
-        velocity[1:] = skel[1:] - skel[:-1]
+        # ── Velocity (T-1, J, 3) → pad to (T, J, 3) ──
+        velocity    = np.zeros_like(skel)
+        velocity[1:] = skel[1:] - skel[:-1]   # finite difference
 
+        # ── Stack: (T, J, 6) = position + velocity ──
         skel_vel    = np.concatenate([skel, velocity], axis=-1)
-        skel_tensor = torch.tensor(skel_vel,        dtype=torch.float32)
-        quality     = torch.tensor(row['quality'],  dtype=torch.float32)
-        exercise_id = torch.tensor(row['exercise'], dtype=torch.long)
+
+        skel_tensor = torch.tensor(skel_vel,          dtype=torch.float32)
+        quality     = torch.tensor(row['quality'],     dtype=torch.float32)
+        exercise_id = torch.tensor(row['exercise'],    dtype=torch.long)
         return skel_tensor, quality, exercise_id
 
     def _normalise_length(self, skel):
@@ -748,34 +726,20 @@ class BZUDataset(Dataset):
         T = skel.shape[0]
 
         # 1. Random temporal speed warp (0.75 – 1.25×)
-        speed  = np.random.uniform(0.75, 1.25)
-        n_new  = max(10, int(T * speed))
-        idxs   = np.linspace(0, T - 1, n_new).astype(int)
-        skel   = self._normalise_length(skel[idxs])          # → TARGET_FRAMES
+        speed = np.random.uniform(0.75, 1.25)
+        n_new = max(10, int(T * speed))
+        idxs  = np.linspace(0, T - 1, n_new).astype(int)
+        skel  = self._normalise_length(skel[idxs])   # → TARGET_FRAMES
 
-        # 2. Small Gaussian joint jitter
-        skel  += np.random.randn(*skel.shape).astype(np.float32) * 0.005
-
-        # 3. Random global rotation around Y-axis (±15°)
-        angle  = np.random.uniform(-15, 15) * np.pi / 180.0
-        c, s   = np.cos(angle), np.sin(angle)
-        R      = np.array([[c, 0, s],
-                        [0, 1, 0],
-                        [-s,0, c]], dtype=np.float32)
-        skel   = skel @ R.T                                  # (T, J, 3)
-
-        # 4. Random uniform limb-length scale (0.9 – 1.1)
-        scale  = np.random.uniform(0.9, 1.1)
-        skel  *= scale
-
-        # 5. Random temporal crop + re-stretch (keeps 80–100 % of frames)
-        crop_ratio = np.random.uniform(0.80, 1.0)
-        start = np.random.randint(0, max(1, int(T * (1 - crop_ratio))))
-        end   = start + int(T * crop_ratio)
-        skel  = self._normalise_length(skel[start:end])
+        # 2. Random frame drop (keep 80–100% of frames, then re-stretch)
+        keep_ratio = np.random.uniform(0.80, 1.0)
+        n_keep     = max(10, int(self.target_frames * keep_ratio))
+        keep_idxs  = np.sort(
+            np.random.choice(self.target_frames, n_keep, replace=False)
+        )
+        skel = self._normalise_length(skel[keep_idxs])   # → TARGET_FRAMES
 
         return skel
-
 
 print('✓ BZUDataset defined (regression only)')
 
@@ -1022,35 +986,22 @@ class STGCN_Regression(nn.Module):
         # Input normalization
         self.data_bn = nn.BatchNorm1d(in_features * NUM_JOINTS)
 
-        # 9 ST-GCN blocks (same depth as original paper)
-        # Stride=2 at blocks 4 & 7 halves temporal resolution
-        # T=100 → 50 → 25 after strided blocks
         self.blocks = nn.ModuleList([
-            STGCNBlock(in_features, 64,  K=K, residual=False, dropout=dropout),
-            STGCNBlock(64,  64,          K=K,                 dropout=dropout),
+            STGCNBlock(in_features, 32,  K=K, residual=False, dropout=dropout),
+            STGCNBlock(32,  32,          K=K,                 dropout=dropout),
+            STGCNBlock(32,  64,  K=K, stride=2,               dropout=dropout),
             STGCNBlock(64,  64,          K=K,                 dropout=dropout),
             STGCNBlock(64,  128, K=K, stride=2,               dropout=dropout),
             STGCNBlock(128, 128,         K=K,                 dropout=dropout),
-            STGCNBlock(128, 128,         K=K,                 dropout=dropout),
-            STGCNBlock(128, 256, K=K, stride=2,               dropout=dropout),
-            STGCNBlock(256, 256,         K=K,                 dropout=dropout),
-            STGCNBlock(256, 256,         K=K,                 dropout=dropout),
         ])
 
-        # Global Average Pooling: (B, 256, T', J) → (B, 256)
         self.gap = nn.AdaptiveAvgPool2d(1)
 
-        # Exercise-conditioned regression
-        self.ex_embed = nn.Embedding(NUM_EXERCISES, 32)
-
         self.reg_head = nn.Sequential(
-            nn.Linear(256 + 32, 128),
-            nn.LayerNorm(128),
-            nn.ReLU(),
-            nn.Dropout(0.3),
             nn.Linear(128, 64),
+            nn.LayerNorm(64),
             nn.ReLU(),
-            nn.Dropout(0.2),
+            nn.Dropout(0.5),
             nn.Linear(64, 1),
         )
 
@@ -1070,7 +1021,7 @@ class STGCN_Regression(nn.Module):
                 if m.bias is not None:
                     nn.init.zeros_(m.bias)
 
-    def forward(self, x, exercise_id):
+    def forward(self, x):
         """
         x           : (B, T, J, C)
         exercise_id : (B,)
@@ -1091,9 +1042,9 @@ class STGCN_Regression(nn.Module):
         x = self.gap(x).squeeze(-1).squeeze(-1)
 
         # Exercise embedding + regression
-        ex  = self.ex_embed(exercise_id)                     # (B, 32)
-        h   = torch.cat([x, ex], dim=1)                      # (B, 288)
-        out = 3.0 + 2.0 * torch.tanh(self.reg_head(h).squeeze(1))
+        # ex  = self.ex_embed(exercise_id)                     # (B, 32)
+        # h   = torch.cat([x, ex], dim=1)                      # (B, 288)
+        out = 3.0 + 2.0 * torch.tanh(self.reg_head(x).squeeze(1))
         return out
 
 
@@ -1101,7 +1052,7 @@ class STGCN_Regression(nn.Module):
 _dummy_x  = torch.zeros(2, TARGET_FRAMES, NUM_JOINTS, 6)
 _dummy_ex = torch.zeros(2, dtype=torch.long)
 _model    = STGCN_Regression()
-_out      = _model(_dummy_x, _dummy_ex)
+_out      = _model(_dummy_x)
 assert _out.shape == (2,), f"Expected (2,), got {_out.shape}"
 print(f'\n✓ True ST-GCN sanity check passed — output shape: {_out.shape}')
 
@@ -1164,7 +1115,7 @@ def run_epoch(model, loader, optimiser, reg_fn, is_train=True):
             qualities    = qualities.to(DEVICE)
             exercise_ids = exercise_ids.to(DEVICE)
 
-            preds = model(skels, exercise_ids)
+            preds = model(skels)
             loss  = reg_fn(preds, qualities)
 
             if is_train:
@@ -1486,23 +1437,15 @@ def make_weighted_sampler(df):
     return sampler
 
 
+train_sampler = make_weighted_sampler(train_df)
 
-# 
-train_df_augmented = augment_with_mirrors(train_df)
-print(f'Train before mirroring: {len(train_df)}')
-print(f'Train after  mirroring: {len(train_df_augmented)}')
-
-train_sampler = make_weighted_sampler(train_df_augmented)
-
-# val و test يفضلوا كما هم — بدون تغيير
 train_loader = DataLoader(
-    make_ds(train_df_augmented, aug=True),
+    make_ds(train_df, aug=True),        # augment=True → every draw is different
     batch_size  = BATCH_SIZE,
     sampler     = train_sampler,        # ← replaces shuffle=True
     num_workers = 0,
     pin_memory  = (DEVICE == 'cuda'),
 )
-
 # val / test loaders unchanged
 val_loader  = DataLoader(make_ds(val_df,  False), batch_size=BATCH_SIZE,
                          shuffle=False, num_workers=0, pin_memory=(DEVICE=='cuda'))
@@ -1522,6 +1465,7 @@ scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(
     patience=20,            # tighter patience (was 50)
     min_lr=1e-6, verbose=True
 )
+
 early_stop = EarlyStopping(patience=PATIENCE, min_delta=MIN_DELTA)
 
 SPLITS  = ['train', 'val']
@@ -1545,7 +1489,7 @@ for epoch in range(1, EPOCHS + 1):
     tr = run_epoch(model, train_loader, optimiser, reg_fn, is_train=True)
     vl = run_epoch(model, val_loader,   optimiser, reg_fn, is_train=False)
     # ← NO test evaluation here
-    
+    scheduler.step(vl['mae'])
 
     for split, res in [('train', tr), ('val', vl)]:
         history[f'{split}_loss'].append(res['loss'])
@@ -1600,7 +1544,7 @@ with torch.no_grad():
     for skels, qualities, exercise_ids in test_loader:   # ← أضف exercise_ids
         skels        = centre_and_scale(skels.to(DEVICE))
         exercise_ids = exercise_ids.to(DEVICE)
-        preds        = model(skels, exercise_ids)        # ← أضف exercise_ids
+        preds        = model(skels)        # ← أضف exercise_ids
         all_true_q.extend(qualities.numpy())
         all_pred_q.extend(preds.cpu().numpy())
         all_exercise_ids.extend(exercise_ids.cpu().numpy())   # ← add this
