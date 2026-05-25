@@ -25,6 +25,11 @@ WARMUP_EPOCHS = 20
 # ── Reproducibility ───────────────────────────────────────────────────────
 SEED = 42
  
+# ── Exercise Filter ───────────────────────────────────────────────────────
+EXCLUDED_EXERCISES = {3, 7, 9}          # E3, E7, E9 removed from all splits
+EXERCISE_REMAP     = {}                  # filled automatically in Cell 7
+
+
 print('✓ Configuration loaded')
 print(f'  DATASET_DIR : {DATASET_DIR}')
 print(f'  SPLIT_DIR   : {SPLIT_DIR}')
@@ -394,7 +399,35 @@ def remove_corrupted(df, label=''):
     print(f'  [{label}] Clean samples : {len(df)}')
     return df
  
- 
+# ── Exclude exercises ─────────────────────────────────────────────────────
+def exclude_exercises(df, excluded=EXCLUDED_EXERCISES, label=''):
+    before = len(df)
+    df = df[~df['exercise'].isin(excluded)].reset_index(drop=True)
+    print(f'  [{label}] Excluded E{sorted(excluded)} → '
+          f'{before - len(df)} rows dropped, {len(df)} remain')
+    return df
+
+train_df = exclude_exercises(train_df, label='TRAIN')
+val_df   = exclude_exercises(val_df,   label='VALID')
+test_df  = exclude_exercises(test_df,  label='TEST')
+
+# ── Remap exercise IDs to contiguous 0-based integers ────────────────────
+# E.g.  {0:0, 1:1, 2:2, 4:3, 5:4, 6:5, 8:6}
+remaining_exercises = sorted(
+    set(train_df['exercise'].unique()) |
+    set(val_df['exercise'].unique())   |
+    set(test_df['exercise'].unique())
+)
+EXERCISE_REMAP = {orig: new for new, orig in enumerate(remaining_exercises)}
+print(f'\n  Exercise ID remap : {EXERCISE_REMAP}')
+
+for df_ in [train_df, val_df, test_df]:
+    df_['exercise'] = df_['exercise'].map(EXERCISE_REMAP)
+
+df_index = pd.concat([train_df, val_df, test_df], ignore_index=True)
+print(f'  Remaining exercises (remapped): {sorted(df_index["exercise"].unique())}')
+
+
 # ── Build the three splits ────────────────────────────────────────────────
 train_df = build_index_from_split('train', df_csv, camera_id=None)  # load all cameras first
 val_df   = build_index_from_split('valid', df_csv, camera_id=None)
@@ -410,14 +443,6 @@ print('\nChecking for corrupted files...')
 train_df = remove_corrupted(train_df, 'TRAIN')
 val_df   = remove_corrupted(val_df,   'VALID')
 test_df  = remove_corrupted(test_df,  'TEST')
- 
-# ── Filter to Exercise E0 only ────────────────────────────────────────────
-train_df = train_df[train_df['exercise'] == 0].reset_index(drop=True)
-val_df   = val_df  [val_df  ['exercise'] == 0].reset_index(drop=True)
-test_df  = test_df [test_df ['exercise'] == 0].reset_index(drop=True)
-
-print(f'\n✓ Filtered to E0 only:')
-print(f'  Train : {len(train_df)}  Val : {len(val_df)}  Test : {len(test_df)}')
  
 # ── Combine for shared analysis (optional) ───────────────────────────────
 df_index = pd.concat([train_df, val_df, test_df], ignore_index=True)
@@ -448,6 +473,17 @@ print(f'{"═"*68}')
 print('\n✓ Pre-split index ready  →  train / val / test DataFrames built')
  
 
+def augment_with_mirrors(df):
+    """
+    لكل سطر بالـ DataFrame، خلق نسخة مرآة منه.
+    النتيجة: الداتا تتضاعف — الأصلية + المعكوسة.
+    """
+    mirrored = df.copy()
+    mirrored['mirrored'] = True   # علامة إنها نسخة معكوسة
+    df = df.copy()
+    df['mirrored'] = False
+
+    return pd.concat([df, mirrored], ignore_index=True)
 # ══════════════════════════════════════════════════════════════════════════
 # Cell 7.5 — Camera Distribution Check
 # ══════════════════════════════════════════════════════════════════════════
@@ -726,20 +762,34 @@ class BZUDataset(Dataset):
         T = skel.shape[0]
 
         # 1. Random temporal speed warp (0.75 – 1.25×)
-        speed = np.random.uniform(0.75, 1.25)
-        n_new = max(10, int(T * speed))
-        idxs  = np.linspace(0, T - 1, n_new).astype(int)
-        skel  = self._normalise_length(skel[idxs])   # → TARGET_FRAMES
+        speed  = np.random.uniform(0.75, 1.25)
+        n_new  = max(10, int(T * speed))
+        idxs   = np.linspace(0, T - 1, n_new).astype(int)
+        skel   = self._normalise_length(skel[idxs])          # → TARGET_FRAMES
 
-        # 2. Random frame drop (keep 80–100% of frames, then re-stretch)
-        keep_ratio = np.random.uniform(0.80, 1.0)
-        n_keep     = max(10, int(self.target_frames * keep_ratio))
-        keep_idxs  = np.sort(
-            np.random.choice(self.target_frames, n_keep, replace=False)
-        )
-        skel = self._normalise_length(skel[keep_idxs])   # → TARGET_FRAMES
+        # 2. Small Gaussian joint jitter
+        skel  += np.random.randn(*skel.shape).astype(np.float32) * 0.005
+
+        # 3. Random global rotation around Y-axis (±15°)
+        angle  = np.random.uniform(-15, 15) * np.pi / 180.0
+        c, s   = np.cos(angle), np.sin(angle)
+        R      = np.array([[c, 0, s],
+                        [0, 1, 0],
+                        [-s,0, c]], dtype=np.float32)
+        skel   = skel @ R.T                                  # (T, J, 3)
+
+        # 4. Random uniform limb-length scale (0.9 – 1.1)
+        scale  = np.random.uniform(0.9, 1.1)
+        skel  *= scale
+
+        # 5. Random temporal crop + re-stretch (keeps 80–100 % of frames)
+        crop_ratio = np.random.uniform(0.80, 1.0)
+        start = np.random.randint(0, max(1, int(T * (1 - crop_ratio))))
+        end   = start + int(T * crop_ratio)
+        skel  = self._normalise_length(skel[start:end])
 
         return skel
+
 
 print('✓ BZUDataset defined (regression only)')
 
@@ -958,7 +1008,7 @@ class STGCNBlock(nn.Module):
 
 # ── Step 4: Full Model ─────────────────────────────────────────────────────
 
-NUM_EXERCISES = 10
+NUM_EXERCISES = len(EXERCISE_REMAP) 
 
 class STGCN_Regression(nn.Module):
     """
@@ -986,22 +1036,35 @@ class STGCN_Regression(nn.Module):
         # Input normalization
         self.data_bn = nn.BatchNorm1d(in_features * NUM_JOINTS)
 
+        # 9 ST-GCN blocks (same depth as original paper)
+        # Stride=2 at blocks 4 & 7 halves temporal resolution
+        # T=100 → 50 → 25 after strided blocks
         self.blocks = nn.ModuleList([
-            STGCNBlock(in_features, 32,  K=K, residual=False, dropout=dropout),
-            STGCNBlock(32,  32,          K=K,                 dropout=dropout),
-            STGCNBlock(32,  64,  K=K, stride=2,               dropout=dropout),
+            STGCNBlock(in_features, 64,  K=K, residual=False, dropout=dropout),
+            STGCNBlock(64,  64,          K=K,                 dropout=dropout),
             STGCNBlock(64,  64,          K=K,                 dropout=dropout),
             STGCNBlock(64,  128, K=K, stride=2,               dropout=dropout),
             STGCNBlock(128, 128,         K=K,                 dropout=dropout),
+            STGCNBlock(128, 128,         K=K,                 dropout=dropout),
+            STGCNBlock(128, 256, K=K, stride=2,               dropout=dropout),
+            STGCNBlock(256, 256,         K=K,                 dropout=dropout),
+            STGCNBlock(256, 256,         K=K,                 dropout=dropout),
         ])
 
+        # Global Average Pooling: (B, 256, T', J) → (B, 256)
         self.gap = nn.AdaptiveAvgPool2d(1)
 
+        # Exercise-conditioned regression
+        self.ex_embed = nn.Embedding(NUM_EXERCISES, 32)
+
         self.reg_head = nn.Sequential(
-            nn.Linear(128, 64),
-            nn.LayerNorm(64),
+            nn.Linear(256 + 32, 128),
+            nn.LayerNorm(128),
             nn.ReLU(),
-            nn.Dropout(0.5),
+            nn.Dropout(0.3),
+            nn.Linear(128, 64),
+            nn.ReLU(),
+            nn.Dropout(0.2),
             nn.Linear(64, 1),
         )
 
@@ -1021,7 +1084,7 @@ class STGCN_Regression(nn.Module):
                 if m.bias is not None:
                     nn.init.zeros_(m.bias)
 
-    def forward(self, x):
+    def forward(self, x, exercise_id):
         """
         x           : (B, T, J, C)
         exercise_id : (B,)
@@ -1042,9 +1105,9 @@ class STGCN_Regression(nn.Module):
         x = self.gap(x).squeeze(-1).squeeze(-1)
 
         # Exercise embedding + regression
-        # ex  = self.ex_embed(exercise_id)                     # (B, 32)
-        # h   = torch.cat([x, ex], dim=1)                      # (B, 288)
-        out = 3.0 + 2.0 * torch.tanh(self.reg_head(x).squeeze(1))
+        ex  = self.ex_embed(exercise_id)                     # (B, 32)
+        h   = torch.cat([x, ex], dim=1)                      # (B, 288)
+        out = 3.0 + 2.0 * torch.tanh(self.reg_head(h).squeeze(1))
         return out
 
 
@@ -1052,7 +1115,7 @@ class STGCN_Regression(nn.Module):
 _dummy_x  = torch.zeros(2, TARGET_FRAMES, NUM_JOINTS, 6)
 _dummy_ex = torch.zeros(2, dtype=torch.long)
 _model    = STGCN_Regression()
-_out      = _model(_dummy_x)
+_out      = _model(_dummy_x, _dummy_ex)
 assert _out.shape == (2,), f"Expected (2,), got {_out.shape}"
 print(f'\n✓ True ST-GCN sanity check passed — output shape: {_out.shape}')
 
@@ -1115,7 +1178,7 @@ def run_epoch(model, loader, optimiser, reg_fn, is_train=True):
             qualities    = qualities.to(DEVICE)
             exercise_ids = exercise_ids.to(DEVICE)
 
-            preds = model(skels)
+            preds = model(skels, exercise_ids)
             loss  = reg_fn(preds, qualities)
 
             if is_train:
@@ -1452,20 +1515,25 @@ val_loader  = DataLoader(make_ds(val_df,  False), batch_size=BATCH_SIZE,
 test_loader = DataLoader(make_ds(test_df, False), batch_size=BATCH_SIZE,
                          shuffle=False, num_workers=0, pin_memory=(DEVICE=='cuda'))
 
-model = STGCN_Regression(in_features=6, K=3, dropout=0.6).to(DEVICE)
+model = STGCN_Regression(in_features=6, K=3, dropout=0.5).to(DEVICE)
 
 optimiser = torch.optim.AdamW(
     model.parameters(),
-    lr           = 5e-5,    # lower LR for small dataset
-    weight_decay = 1e-3     # stronger regularization (was 5e-4)
+    lr           = 1e-4,   # was 5e-5
+    weight_decay = 5e-4
 )
+
+# Warmup + cosine schedule
+def lr_lambda(epoch):
+    if epoch < WARMUP_EPOCHS:
+        return (epoch + 1) / WARMUP_EPOCHS
+    progress = (epoch - WARMUP_EPOCHS) / max(1, EPOCHS - WARMUP_EPOCHS)
+    return 0.5 * (1.0 + np.cos(np.pi * progress))
 
 scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(
     optimiser, mode='min', factor=0.5,
-    patience=20,            # tighter patience (was 50)
-    min_lr=1e-6, verbose=True
+    patience=50, min_lr=1e-6, verbose=True
 )
-
 early_stop = EarlyStopping(patience=PATIENCE, min_delta=MIN_DELTA)
 
 SPLITS  = ['train', 'val']
@@ -1544,7 +1612,7 @@ with torch.no_grad():
     for skels, qualities, exercise_ids in test_loader:   # ← أضف exercise_ids
         skels        = centre_and_scale(skels.to(DEVICE))
         exercise_ids = exercise_ids.to(DEVICE)
-        preds        = model(skels)        # ← أضف exercise_ids
+        preds        = model(skels, exercise_ids)        # ← أضف exercise_ids
         all_true_q.extend(qualities.numpy())
         all_pred_q.extend(preds.cpu().numpy())
         all_exercise_ids.extend(exercise_ids.cpu().numpy())   # ← add this
