@@ -282,37 +282,22 @@ print('✓ parse_filename and load_skeleton defined')
  
 # ══════════════════════════════════════════════════════════════════════════
 # Cell 7 — Build dataset index FROM PRE-SPLIT DIRECTORIES
-#           Replaces the old build_index + get_trial_split approach entirely.
 # ══════════════════════════════════════════════════════════════════════════
- 
+
+# ── Function definitions ──────────────────────────────────────────────────
+
 def build_index_from_split(split_name, df_csv, camera_id=None):
-    """
-    Scan one of the pre-split folders  (train | valid | test),
-    parse every NPZ filename, and merge quality labels from the CSV.
- 
-    Parameters
-    ----------
-    split_name : str   — 'train', 'valid', or 'test'
-    df_csv     : pd.DataFrame — loaded CSV with quality labels
-    camera_id  : int | None  — filter by camera; None = keep all cameras
- 
-    Returns
-    -------
-    pd.DataFrame with one row per NPZ file, columns:
-        exercise, person, trial_num, trial_id, camera, segment,
-        filepath, quality, trial_key
-    """
     split_path = os.path.join(SPLIT_DIR, split_name)
     if not os.path.exists(split_path):
         raise FileNotFoundError(f"Split folder not found: {split_path}")
- 
+
     all_files = sorted(glob.glob(
         os.path.join(split_path, '**/*.npz'), recursive=True))
     print(f'\n[{split_name.upper()}] NPZ files found : {len(all_files)}')
- 
+
     df_csv         = df_csv.copy()
     df_csv.columns = df_csv.columns.str.strip()
- 
+
     records = []
     for fpath in all_files:
         meta = parse_filename(fpath)
@@ -320,8 +305,7 @@ def build_index_from_split(split_name, df_csv, camera_id=None):
             continue
         if camera_id is not None and meta['camera'] != camera_id:
             continue
- 
-        # Merge quality label from CSV
+
         row = df_csv[
             (df_csv['exercise'] == f"E{meta['exercise']}") &
             (df_csv['person']   == meta['person'])          &
@@ -331,36 +315,30 @@ def build_index_from_split(split_name, df_csv, camera_id=None):
         meta['trial_key'] = f"E{meta['exercise']}_{meta['person']}_{meta['trial_id']}"
         meta['split']     = split_name
         records.append(meta)
- 
+
     if not records:
         print(f'  ⚠️  No records found for split="{split_name}", camera={camera_id}')
         return pd.DataFrame()
- 
+
     df = pd.DataFrame(records)
- 
-    # Fill NaN quality with split-conditional means
+
     correct_mean   = df.loc[df['trial_num'] <= 2, 'quality'].mean()
     erroneous_mean = df.loc[df['trial_num'] >= 3, 'quality'].mean()
     if np.isnan(correct_mean):   correct_mean   = 4.0
     if np.isnan(erroneous_mean): erroneous_mean = 2.5
- 
+
     df.loc[df['quality'].isna() & (df['trial_num'] <= 2), 'quality'] = correct_mean
     df.loc[df['quality'].isna() & (df['trial_num'] >= 3), 'quality'] = erroneous_mean
- 
+
     print(f'  Samples          : {len(df)}')
     print(f'  Unique trials    : {df["trial_key"].nunique()}')
     print(f'  Quality mean±std : {df["quality"].mean():.3f} ± {df["quality"].std():.3f}')
     print(f'  Exercise dist    :\n{df["exercise"].value_counts().sort_index().to_string()}')
-
-
     print(f'  Samples (after camera filter) : {len(df)}')
-    return df 
- 
+    return df
+
+
 def filter_complete_camera_groups(df, label=''):
-    """
-    Keep only trial+segment groups that have all 3 cameras present.
-    Used even in single-view mode to ensure data quality consistency.
-    """
     REQUIRED_CAMERAS = {0, 1, 2}
     coverage   = df.groupby('trial_key')['camera'].apply(set)
     complete   = coverage[coverage.apply(lambda s: REQUIRED_CAMERAS.issubset(s))].index
@@ -380,15 +358,14 @@ def filter_complete_camera_groups(df, label=''):
     else:
         print(f'  [{label}] ✓ All groups have complete 3-camera coverage')
 
-    # Now filter to your chosen camera only
     if CAMERA_ID is not None:
         df = df[df['camera'] == CAMERA_ID].reset_index(drop=True)
         print(f'  [{label}] Filtered to camera C{CAMERA_ID}: {len(df)} samples')
 
     return df
- 
+
+
 def remove_corrupted(df, label=''):
-    """Drop rows whose NPZ file cannot be loaded."""
     bad = []
     for fpath in df['filepath']:
         if load_skeleton(fpath) is None:
@@ -398,8 +375,8 @@ def remove_corrupted(df, label=''):
         df = df[~df['filepath'].isin(bad)].reset_index(drop=True)
     print(f'  [{label}] Clean samples : {len(df)}')
     return df
- 
-# ── Exclude exercises ─────────────────────────────────────────────────────
+
+
 def exclude_exercises(df, excluded=EXCLUDED_EXERCISES, label=''):
     before = len(df)
     df = df[~df['exercise'].isin(excluded)].reset_index(drop=True)
@@ -407,12 +384,30 @@ def exclude_exercises(df, excluded=EXCLUDED_EXERCISES, label=''):
           f'{before - len(df)} rows dropped, {len(df)} remain')
     return df
 
+
+# ── STEP 1: Build raw splits ──────────────────────────────────────────────
+train_df = build_index_from_split('train', df_csv, camera_id=None)
+val_df   = build_index_from_split('valid', df_csv, camera_id=None)
+test_df  = build_index_from_split('test',  df_csv, camera_id=None)
+
+# ── STEP 2: Camera completeness filter ───────────────────────────────────
+train_df = filter_complete_camera_groups(train_df, 'TRAIN')
+val_df   = filter_complete_camera_groups(val_df,   'VALID')
+test_df  = filter_complete_camera_groups(test_df,  'TEST')
+
+# ── STEP 3: Remove corrupted files ───────────────────────────────────────
+print('\nChecking for corrupted files...')
+train_df = remove_corrupted(train_df, 'TRAIN')
+val_df   = remove_corrupted(val_df,   'VALID')
+test_df  = remove_corrupted(test_df,  'TEST')
+
+# ── STEP 4: Exclude E3, E7, E9 ───────────────────────────────────────────
+print('\nExcluding exercises...')
 train_df = exclude_exercises(train_df, label='TRAIN')
 val_df   = exclude_exercises(val_df,   label='VALID')
 test_df  = exclude_exercises(test_df,  label='TEST')
 
-# ── Remap exercise IDs to contiguous 0-based integers ────────────────────
-# E.g.  {0:0, 1:1, 2:2, 4:3, 5:4, 6:5, 8:6}
+# ── STEP 5: Remap exercise IDs to contiguous 0-based integers ────────────
 remaining_exercises = sorted(
     set(train_df['exercise'].unique()) |
     set(val_df['exercise'].unique())   |
@@ -424,38 +419,18 @@ print(f'\n  Exercise ID remap : {EXERCISE_REMAP}')
 for df_ in [train_df, val_df, test_df]:
     df_['exercise'] = df_['exercise'].map(EXERCISE_REMAP)
 
+# ── STEP 6: Combine & leakage check ──────────────────────────────────────
 df_index = pd.concat([train_df, val_df, test_df], ignore_index=True)
 print(f'  Remaining exercises (remapped): {sorted(df_index["exercise"].unique())}')
 
-
-# ── Build the three splits ────────────────────────────────────────────────
-train_df = build_index_from_split('train', df_csv, camera_id=None)  # load all cameras first
-val_df   = build_index_from_split('valid', df_csv, camera_id=None)
-test_df  = build_index_from_split('test',  df_csv, camera_id=None)
-
-# Filter: keep only groups with all 3 cameras, then optionally keep one camera
-train_df = filter_complete_camera_groups(train_df, 'TRAIN')
-val_df   = filter_complete_camera_groups(val_df,   'VALID')
-test_df  = filter_complete_camera_groups(test_df,  'TEST')
- 
-# ── Remove corrupted files ────────────────────────────────────────────────
-print('\nChecking for corrupted files...')
-train_df = remove_corrupted(train_df, 'TRAIN')
-val_df   = remove_corrupted(val_df,   'VALID')
-test_df  = remove_corrupted(test_df,  'TEST')
- 
-# ── Combine for shared analysis (optional) ───────────────────────────────
-df_index = pd.concat([train_df, val_df, test_df], ignore_index=True)
- 
-# ── Sanity: no trial_key appears in more than one split ──────────────────
 tr_keys = set(train_df['trial_key'])
 vl_keys = set(val_df['trial_key'])
 te_keys = set(test_df['trial_key'])
-assert tr_keys.isdisjoint(vl_keys),  'LEAK: train ∩ val'
-assert tr_keys.isdisjoint(te_keys),  'LEAK: train ∩ test'
-assert vl_keys.isdisjoint(te_keys),  'LEAK: val ∩ test'
+assert tr_keys.isdisjoint(vl_keys), 'LEAK: train ∩ val'
+assert tr_keys.isdisjoint(te_keys), 'LEAK: train ∩ test'
+assert vl_keys.isdisjoint(te_keys), 'LEAK: val ∩ test'
 print('\n✓ No data-leakage detected across splits')
- 
+
 # ── Summary table ─────────────────────────────────────────────────────────
 print(f'\n{"═"*68}')
 print(f'  {"Split":<8} {"Samples":>8} {"Correct":>9} {"Erroneous":>11} '
@@ -469,21 +444,9 @@ for name, d in [('Train', train_df), ('Val', val_df), ('Test', test_df)]:
           f'{q.mean():>8.3f} {q.std():>7.3f} '
           f'{q.min():>7.3f} {q.max():>7.3f}')
 print(f'{"═"*68}')
- 
+
 print('\n✓ Pre-split index ready  →  train / val / test DataFrames built')
  
-
-def augment_with_mirrors(df):
-    """
-    لكل سطر بالـ DataFrame، خلق نسخة مرآة منه.
-    النتيجة: الداتا تتضاعف — الأصلية + المعكوسة.
-    """
-    mirrored = df.copy()
-    mirrored['mirrored'] = True   # علامة إنها نسخة معكوسة
-    df = df.copy()
-    df['mirrored'] = False
-
-    return pd.concat([df, mirrored], ignore_index=True)
 # ══════════════════════════════════════════════════════════════════════════
 # Cell 7.5 — Camera Distribution Check
 # ══════════════════════════════════════════════════════════════════════════
@@ -762,34 +725,20 @@ class BZUDataset(Dataset):
         T = skel.shape[0]
 
         # 1. Random temporal speed warp (0.75 – 1.25×)
-        speed  = np.random.uniform(0.75, 1.25)
-        n_new  = max(10, int(T * speed))
-        idxs   = np.linspace(0, T - 1, n_new).astype(int)
-        skel   = self._normalise_length(skel[idxs])          # → TARGET_FRAMES
+        speed = np.random.uniform(0.75, 1.25)
+        n_new = max(10, int(T * speed))
+        idxs  = np.linspace(0, T - 1, n_new).astype(int)
+        skel  = self._normalise_length(skel[idxs])   # → TARGET_FRAMES
 
-        # 2. Small Gaussian joint jitter
-        skel  += np.random.randn(*skel.shape).astype(np.float32) * 0.005
-
-        # 3. Random global rotation around Y-axis (±15°)
-        angle  = np.random.uniform(-15, 15) * np.pi / 180.0
-        c, s   = np.cos(angle), np.sin(angle)
-        R      = np.array([[c, 0, s],
-                        [0, 1, 0],
-                        [-s,0, c]], dtype=np.float32)
-        skel   = skel @ R.T                                  # (T, J, 3)
-
-        # 4. Random uniform limb-length scale (0.9 – 1.1)
-        scale  = np.random.uniform(0.9, 1.1)
-        skel  *= scale
-
-        # 5. Random temporal crop + re-stretch (keeps 80–100 % of frames)
-        crop_ratio = np.random.uniform(0.80, 1.0)
-        start = np.random.randint(0, max(1, int(T * (1 - crop_ratio))))
-        end   = start + int(T * crop_ratio)
-        skel  = self._normalise_length(skel[start:end])
+        # 2. Random frame drop (keep 80–100% of frames, then re-stretch)
+        keep_ratio = np.random.uniform(0.80, 1.0)
+        n_keep     = max(10, int(self.target_frames * keep_ratio))
+        keep_idxs  = np.sort(
+            np.random.choice(self.target_frames, n_keep, replace=False)
+        )
+        skel = self._normalise_length(skel[keep_idxs])   # → TARGET_FRAMES
 
         return skel
-
 
 print('✓ BZUDataset defined (regression only)')
 
