@@ -5,7 +5,7 @@ import os
 DATASET_DIR   = "/mvdlph/Dataset_CVDLPT_Videos_Segments_P0P15_MMPose_human3d_motionbert_H36M_3D_1_2026"
 SPLIT_DIR     = os.path.join(DATASET_DIR, "by_person")   # ← NEW: pre-split root
 CSV_PATH      = "/mvdlph/label_events_20260129_155122_stats_short.csv"
-CAMERA_ID     = 0
+CAMERA_ID     = 1
 NPZ_KEY       = "keypoints_3d"
 NUM_JOINTS    = 17
 TARGET_FRAMES = 120
@@ -1115,7 +1115,7 @@ def centre_and_scale(x):
 
 from scipy.stats import pearsonr   # add this at the top of Cell 2 imports
 
-def run_epoch(model, loader, optimiser, reg_fn, is_train=True):
+def run_epoch(model, loader, reg_fn, is_train=True, optimiser=None):
     model.train() if is_train else model.eval()
     total_loss = 0.0
     q_true, q_pred = [], []
@@ -1503,8 +1503,8 @@ print(f'{"═"*68}')
 
 # ── REPLACE the per-epoch block inside the for loop ──────────────────────
 for epoch in range(1, EPOCHS + 1):
-    tr = run_epoch(model, train_loader, optimiser, reg_fn, is_train=True)
-    vl = run_epoch(model, val_loader,   optimiser, reg_fn, is_train=False)
+    tr = run_epoch(model, train_loader, reg_fn, is_train=True,  optimiser=optimiser)
+    vl = run_epoch(model, val_loader,   reg_fn, is_train=False)
     # ← NO test evaluation here
     scheduler.step(vl['mae'])
 
@@ -1545,7 +1545,7 @@ model.load_state_dict(early_stop.best_wts)
 best_epoch = early_stop.best_epoch
 
 # ── Single final test evaluation (only now, with best weights) ────────────
-final_te = run_epoch(model, test_loader, optimiser, reg_fn, is_train=False)
+final_te = run_epoch(model, test_loader, reg_fn, is_train=False)
 
 
 print(f'\n  ── Final Test Results (best epoch = {best_epoch}) ──────────────────')
