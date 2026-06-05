@@ -1,4 +1,3 @@
-# ══════════════════════════════════════════════════════════════════════════
 # Cell 1 — Configuration
 # ══════════════════════════════════════════════════════════════════════════
 import os
@@ -6,18 +5,24 @@ import os
 DATASET_DIR   = "/mvdlph/Dataset_CVDLPT_Videos_Segments_P0P15_MMPose_human3d_motionbert_H36M_3D_1_2026"
 SPLIT_DIR     = os.path.join(DATASET_DIR, "by_person")
 CSV_PATH      = "/mvdlph/label_events_20260129_155122_stats_short.csv"
-CAMERA_ID     = None          # None = use all 3 cameras for fusion
 NPZ_KEY       = "keypoints_3d"
 NUM_JOINTS    = 17
 TARGET_FRAMES = 120
-TRAIN_RATIO   = 0.70          # kept for reference
+TRAIN_RATIO   = 0.70
 VAL_RATIO     = 0.15
 EPOCHS        = 300
 LR            = 1e-4
-BATCH_SIZE    = 24            # halved vs single-view: each sample loads 3 NPZ files
-WEIGHT_DECAY  = 5e-4
-OUT_DIR       = "/mvdlph/masa/GCN_TriView_Fusion_Results"
-FEATURE_DIM   = 64            # F: projected feature size per camera branch
+BATCH_SIZE    = 48
+WEIGHT_DECAY  = 1e-4
+OUT_DIR       = "/mvdlph/masa/GCN_MidFusion_MultiView_Regression_Results"
+
+# ── Mid-Fusion specific ───────────────────────────────────────────────────
+REQUIRED_CAMERAS  = {0, 1, 2}          # all 3 cameras must be present
+IN_FEATURES       = 6                  # pos(3) + vel(3) per joint per camera
+ENCODER_OUT_DIM   = 64                 # per-camera encoder output features per joint
+# After concat of 3 cameras: 64*3 = 192 features per joint
+# Projection layer maps 192 → PROJ_DIM before entering ST-GCN blocks
+PROJ_DIM          = 64
 
 # ── Early Stopping ────────────────────────────────────────────────────────
 PATIENCE      = 100
@@ -29,18 +34,17 @@ SEED = 42
 
 # ── Exercise Filter ───────────────────────────────────────────────────────
 EXCLUDED_EXERCISES = {3, 7, 9}
-EXERCISE_REMAP     = {}        # filled automatically in Cell 7
+EXERCISE_REMAP     = {}
 
 print('✓ Configuration loaded')
-print(f'  DATASET_DIR : {DATASET_DIR}')
-print(f'  SPLIT_DIR   : {SPLIT_DIR}')
-print(f'  NPZ_KEY     : {NPZ_KEY}')
-print(f'  CAMERA_ID   : {CAMERA_ID}  (all cameras used for fusion)')
-print(f'  FEATURE_DIM : {FEATURE_DIM}')
-print(f'  BATCH_SIZE  : {BATCH_SIZE}')
-print(f'  EXISTS      : {os.path.exists(DATASET_DIR)}')
-print(f'  SPLIT EXISTS: {os.path.exists(SPLIT_DIR)}')
-print(f'  PATIENCE    : {PATIENCE} epochs')
+print(f'  DATASET_DIR  : {DATASET_DIR}')
+print(f'  SPLIT_DIR    : {SPLIT_DIR}')
+print(f'  NPZ_KEY      : {NPZ_KEY}')
+print(f'  CAMERAS      : {sorted(REQUIRED_CAMERAS)}')
+print(f'  ENCODER_OUT  : {ENCODER_OUT_DIM} per camera → {ENCODER_OUT_DIM*3} fused → proj {PROJ_DIM}')
+print(f'  EXISTS       : {os.path.exists(DATASET_DIR)}')
+print(f'  SPLIT EXISTS : {os.path.exists(SPLIT_DIR)}')
+print(f'  PATIENCE     : {PATIENCE} epochs')
 
 
 # ══════════════════════════════════════════════════════════════════════════
@@ -56,28 +60,25 @@ import matplotlib.pyplot as plt
 
 import torch
 import torch.nn as nn
-import torch.nn.functional as F_func
+import torch.nn.functional as F
 from torch.utils.data import Dataset, DataLoader
 from sklearn.metrics import r2_score
+from scipy.stats import pearsonr
 
-# Create unique run folder
 run_name = datetime.datetime.now().strftime("run_%Y_%m_%d_%H_%M_%S")
 RUN_DIR  = os.path.join(OUT_DIR, run_name)
-
 PLOTS_DIR = os.path.join(RUN_DIR, "plots")
 LOGS_DIR  = os.path.join(RUN_DIR, "logs")
 
 for d in [PLOTS_DIR, LOGS_DIR]:
     os.makedirs(d, exist_ok=True)
 
-print("✓ Run directory created:")
-print("  ", RUN_DIR)
+print("✓ Run directory created:", RUN_DIR)
 print("✓ Libraries imported")
 print("✓ Output folders ready:")
 for d in [PLOTS_DIR, LOGS_DIR]:
     print("  ", d)
 
-# ── Reproducibility ───────────────────────────────────────────────────────
 import random
 
 def set_seed(seed: int):
@@ -187,7 +188,6 @@ log_file  = os.path.join(LOGS_DIR, f"training_{timestamp}.log")
 
 
 class Tee:
-    """Mirrors stdout to a log file simultaneously."""
     def __init__(self, console, filepath):
         self.console  = console
         self._logfile = open(filepath, 'a', encoding='utf-8', buffering=1)
@@ -217,12 +217,12 @@ logging.basicConfig(
         logging.StreamHandler(),
     ]
 )
-log = logging.getLogger("GCN-TriViewFusion")
+log = logging.getLogger("GCN-MidFusion-Regression")
 log.info("=" * 70)
-log.info("ST-GCN Tri-View Middle Fusion Regression | BZU Physiotherapy Dataset")
-log.info(f"Fusion  : Gated (3 cameras → F={FEATURE_DIM} features → weighted sum)")
-log.info(f"Epochs  : {EPOCHS}  |  Patience : {PATIENCE}  |  Batch : {BATCH_SIZE}")
-log.info(f"Log file: {log_file}")
+log.info("ST-GCN Mid-Fusion Multi-View Regression | BZU Physiotherapy Dataset")
+log.info(f"Cameras: {sorted(REQUIRED_CAMERAS)}  |  Encoder: {IN_FEATURES}→{ENCODER_OUT_DIM}→proj{PROJ_DIM}")
+log.info(f"Epochs : {EPOCHS}  |  Patience : {PATIENCE}")
+log.info(f"Log file : {log_file}")
 log.info("=" * 70)
 
 
@@ -325,26 +325,27 @@ def build_index_from_split(split_name, df_csv, camera_id=None):
 
 
 def filter_complete_camera_groups(df, label=''):
-    REQUIRED_CAMERAS = {0, 1, 2}
-    coverage   = df.groupby('trial_key')['camera'].apply(set)
+    """
+    For mid-fusion: keep ONLY trial_key+segment groups that have ALL 3 cameras.
+    Groups the index by (trial_key, segment) since each segment needs all cameras.
+    """
+    # Group by (trial_key, segment) — each physical clip must have all 3 cameras
+    coverage = df.groupby(['trial_key', 'segment'])['camera'].apply(set)
     complete   = coverage[coverage.apply(lambda s: REQUIRED_CAMERAS.issubset(s))].index
     incomplete = coverage[~coverage.apply(lambda s: REQUIRED_CAMERAS.issubset(s))]
 
     n_before = len(df)
-    df = df[df['trial_key'].isin(complete)].reset_index(drop=True)
+    df = df.set_index(['trial_key', 'segment'])
+    df = df.loc[df.index.isin(complete)].reset_index()
     n_skipped_files  = n_before - len(df)
     n_skipped_groups = len(incomplete)
 
     if n_skipped_groups:
         print(f'  [{label}] ⚠️  Skipped {n_skipped_files} files '
-              f'from {n_skipped_groups} groups with incomplete camera coverage')
-        if n_skipped_groups <= 10:
-            for key in incomplete.index:
-                print(f'       – {key}  cameras={sorted(incomplete[key])}')
+              f'from {n_skipped_groups} (trial,segment) groups with incomplete camera coverage')
     else:
-        print(f'  [{label}] ✓ All groups have complete 3-camera coverage')
+        print(f'  [{label}] ✓ All (trial,segment) groups have complete 3-camera coverage')
 
-    # For fusion we always keep ALL cameras — do not filter by CAMERA_ID here
     return df
 
 
@@ -368,12 +369,12 @@ def exclude_exercises(df, excluded=EXCLUDED_EXERCISES, label=''):
     return df
 
 
-# ── STEP 1: Build raw splits (load ALL cameras, no CAMERA_ID filter) ──────
+# ── STEP 1: Build raw splits ──────────────────────────────────────────────
 train_df = build_index_from_split('train', df_csv, camera_id=None)
 val_df   = build_index_from_split('valid', df_csv, camera_id=None)
 test_df  = build_index_from_split('test',  df_csv, camera_id=None)
 
-# ── STEP 2: Camera completeness filter ───────────────────────────────────
+# ── STEP 2: Camera completeness filter (per trial+segment) ───────────────
 train_df = filter_complete_camera_groups(train_df, 'TRAIN')
 val_df   = filter_complete_camera_groups(val_df,   'VALID')
 test_df  = filter_complete_camera_groups(test_df,  'TEST')
@@ -402,24 +403,62 @@ print(f'\n  Exercise ID remap : {EXERCISE_REMAP}')
 for df_ in [train_df, val_df, test_df]:
     df_['exercise'] = df_['exercise'].map(EXERCISE_REMAP)
 
-# ── STEP 6: Combine & leakage check ──────────────────────────────────────
-df_index = pd.concat([train_df, val_df, test_df], ignore_index=True)
+# ── STEP 6: Build multi-view index grouped by (trial_key, segment) ────────
+#
+# For mid-fusion, each Dataset item is ONE (trial_key, segment) group
+# containing the filepaths for all 3 cameras.
+# We pivot the per-camera rows into a single row with columns:
+#   filepath_c0, filepath_c1, filepath_c2, quality, exercise, trial_num, ...
+
+def build_multiview_index(df, label=''):
+    """
+    Pivot per-camera rows into one row per (trial_key, segment).
+    Each output row has filepath_c0, filepath_c1, filepath_c2.
+    """
+    records = []
+    for (trial_key, segment), grp in df.groupby(['trial_key', 'segment']):
+        cam_map = {int(row['camera']): row['filepath'] for _, row in grp.iterrows()}
+        if not REQUIRED_CAMERAS.issubset(cam_map.keys()):
+            continue
+        row0 = grp.iloc[0]
+        records.append({
+            'trial_key'  : trial_key,
+            'segment'    : segment,
+            'filepath_c0': cam_map[0],
+            'filepath_c1': cam_map[1],
+            'filepath_c2': cam_map[2],
+            'quality'    : row0['quality'],
+            'exercise'   : row0['exercise'],
+            'trial_num'  : row0['trial_num'],
+            'trial_id'   : row0['trial_id'],
+            'person'     : row0['person'],
+        })
+    out = pd.DataFrame(records).reset_index(drop=True)
+    print(f'  [{label}] Multi-view groups (items): {len(out)}')
+    return out
+
+
+train_mv = build_multiview_index(train_df, 'TRAIN')
+val_mv   = build_multiview_index(val_df,   'VALID')
+test_mv  = build_multiview_index(test_df,  'TEST')
+
+# ── STEP 7: Combine & leakage check ──────────────────────────────────────
+df_index = pd.concat([train_mv, val_mv, test_mv], ignore_index=True)
 print(f'  Remaining exercises (remapped): {sorted(df_index["exercise"].unique())}')
 
-tr_keys = set(train_df['trial_key'])
-vl_keys = set(val_df['trial_key'])
-te_keys = set(test_df['trial_key'])
+tr_keys = set(train_mv['trial_key'])
+vl_keys = set(val_mv['trial_key'])
+te_keys = set(test_mv['trial_key'])
 assert tr_keys.isdisjoint(vl_keys), 'LEAK: train ∩ val'
 assert tr_keys.isdisjoint(te_keys), 'LEAK: train ∩ test'
 assert vl_keys.isdisjoint(te_keys), 'LEAK: val ∩ test'
 print('\n✓ No data-leakage detected across splits')
 
-# ── Summary table ─────────────────────────────────────────────────────────
 print(f'\n{"═"*68}')
-print(f'  {"Split":<8} {"Samples":>8} {"Correct":>9} {"Erroneous":>11} '
+print(f'  {"Split":<8} {"Groups":>8} {"Correct":>9} {"Erroneous":>11} '
       f'{"Q mean":>8} {"Q std":>7} {"Q min":>7} {"Q max":>7}')
 print(f'  {"─"*66}')
-for name, d in [('Train', train_df), ('Val', val_df), ('Test', test_df)]:
+for name, d in [('Train', train_mv), ('Val', val_mv), ('Test', test_mv)]:
     cor = (d['trial_num'] <= 2).sum()
     err = (d['trial_num'] >= 3).sum()
     q   = d['quality']
@@ -428,16 +467,28 @@ for name, d in [('Train', train_df), ('Val', val_df), ('Test', test_df)]:
           f'{q.min():>7.3f} {q.max():>7.3f}')
 print(f'{"═"*68}')
 
-print('\n✓ Pre-split index ready  →  train / val / test DataFrames built')
+print('\n✓ Multi-view index ready  →  train_mv / val_mv / test_mv')
 
 
 # ══════════════════════════════════════════════════════════════════════════
-# Cell 7.5 — Camera Distribution Check
+# Cell 7.5 — Camera Distribution & Diagnostic Checks
 # ══════════════════════════════════════════════════════════════════════════
 
-print(df_index['camera'].value_counts().sort_index())
-print(f"\nCameras present: {sorted(df_index['camera'].unique())}")
-print(df_index.groupby(['exercise', 'camera']).size().unstack(fill_value=0))
+print(f"\nMulti-view dataset sizes:")
+print(f"  Train groups : {len(train_mv)}")
+print(f"  Val groups   : {len(val_mv)}")
+print(f"  Test groups  : {len(test_mv)}")
+
+print(f"\nExercise distribution in multi-view train:")
+print(train_mv['exercise'].value_counts().sort_index())
+
+# Verify all 3 camera files exist for a sample
+sample_row = train_mv.iloc[0]
+for cam in [0, 1, 2]:
+    fp = sample_row[f'filepath_c{cam}']
+    skel = load_skeleton(fp)
+    status = f"shape={skel.shape}" if skel is not None else "❌ FAILED"
+    print(f"  Camera {cam}: {os.path.basename(fp)} → {status}")
 
 
 # ══════════════════════════════════════════════════════════════════════════
@@ -454,7 +505,7 @@ for ex_id, ex_df in df_index.groupby('exercise'):
 # Cell 7.6.5 — Mean & Variance per Exercise per Split
 # ══════════════════════════════════════════════════════════════════════════
 
-for split_name, split_df in [('Train', train_df), ('Val', val_df), ('Test', test_df)]:
+for split_name, split_df in [('Train', train_mv), ('Val', val_mv), ('Test', test_mv)]:
     print(f"\n{'='*50}")
     print(f"  {split_name}")
     print(f"{'='*50}")
@@ -463,52 +514,29 @@ for split_name, split_df in [('Train', train_df), ('Val', val_df), ('Test', test
           .round(4)
           .to_string())
 
-print(f"\n{'='*60}")
-print("  All Splits Combined")
-print(f"{'='*60}")
-df_all = pd.concat([
-    train_df.assign(split='Train'),
-    val_df.assign(split='Val'),
-    test_df.assign(split='Test')
-])
-print(df_all.groupby(['split', 'exercise'])['quality']
-      .agg(['mean', 'var', 'count'])
-      .round(4)
-      .to_string())
-
 
 # ══════════════════════════════════════════════════════════════════════════
 # Cell 7.7 — Frame length distribution
 # ══════════════════════════════════════════════════════════════════════════
 
 lengths = []
-sample_files = df_index['filepath'].sample(min(500, len(df_index)), random_state=42)
+sample_rows = df_index.sample(min(500, len(df_index)), random_state=42)
 
-for fpath in sample_files:
-    skel = load_skeleton(fpath)
+for _, row in sample_rows.iterrows():
+    skel = load_skeleton(row['filepath_c0'])   # C0 as representative
     if skel is not None:
         lengths.append(skel.shape[0])
 
 lengths = np.array(lengths)
-print(f"Frame length distribution (sample of {len(lengths)} files):")
-print(f"  min    = {lengths.min()}")
-print(f"  max    = {lengths.max()}")
-print(f"  mean   = {lengths.mean():.1f}")
-print(f"  median = {np.median(lengths):.1f}")
-print(f"  std    = {lengths.std():.1f}")
-print(f"\nPercentiles:")
+print(f"Frame length distribution (sample of {len(lengths)} files, C0):")
+print(f"  min={lengths.min()}  max={lengths.max()}  "
+      f"mean={lengths.mean():.1f}  median={np.median(lengths):.1f}  std={lengths.std():.1f}")
 for p in [25, 50, 75, 90, 95, 99]:
     print(f"  {p:3d}th = {np.percentile(lengths, p):.0f}")
 
-print(f"\nValue counts (top 10):")
-unique, counts = np.unique(lengths, return_counts=True)
-top10 = sorted(zip(counts, unique), reverse=True)[:10]
-for cnt, val in top10:
-    print(f"  {int(val):4d} frames → {cnt:4d} files ({cnt/len(lengths)*100:.1f}%)")
-
 
 # ══════════════════════════════════════════════════════════════════════════
-# Cell 8 — Skeleton visualisation helpers
+# Cell 8 — Skeleton visualisation helpers  (unchanged from single-view)
 # ══════════════════════════════════════════════════════════════════════════
 
 SKELETON_EDGES = [
@@ -547,7 +575,7 @@ def plot_skeleton_3d(skel, frame_idx=0, title='Skeleton Sanity Check', save_path
     fig.suptitle(title, fontsize=13, fontweight='bold', y=1.01)
     views = [
         (axes[0], x,  y,  'Front View  (X–Y)', 'X (left/right)', 'Y (up/down)',  False),
-        (axes[1], z,  y,  'Side View   (Z–Y)', 'Z (depth)',      'Y (up/down)',  False),
+        (axes[1], z,  y,  'Side View   (Z–Y)', 'Z (depth)',       'Y (up/down)', False),
         (axes[2], x, -z,  'Top View    (X–Z)', 'X (left/right)', '-Z (forward)', False),
     ]
     for ax, hx, hy, view_title, xlabel, ylabel, invert_y in views:
@@ -574,40 +602,18 @@ def plot_skeleton_3d(skel, frame_idx=0, title='Skeleton Sanity Check', save_path
         print(f'  ✓ Skeleton plot saved → {save_path}')
     plt.close()
 
-
-def plot_skeleton_frames(skel, n_frames=5, title='Skeleton Motion', save_path=None):
-    T    = skel.shape[0]
-    idxs = np.linspace(0, T - 1, n_frames, dtype=int)
-    fig, axes = plt.subplots(1, n_frames, figsize=(4 * n_frames, 5))
-    fig.suptitle(title, fontsize=12, fontweight='bold')
-    for col, fi in enumerate(idxs):
-        ax  = axes[col]
-        pts = skel[fi]
-        x, y = pts[:, 0], pts[:, 1]
-        for (i, j) in SKELETON_EDGES:
-            ax.plot([x[i], x[j]], [y[i], y[j]], color='dimgray', lw=2)
-        for part, pidxs in JOINT_COLORS.items():
-            ax.scatter(x[pidxs], y[pidxs], c=PART_COLOR[part],
-                       s=60, edgecolors='black', linewidths=0.4, zorder=3)
-        ax.set_title(f'Frame {fi}', fontsize=9)
-        ax.set_aspect('equal'); ax.invert_yaxis(); ax.axis('off')
-    plt.tight_layout()
-    if save_path:
-        plt.savefig(save_path, dpi=150, bbox_inches='tight')
-        print(f'  ✓ Motion frames saved → {save_path}')
-    plt.close()
-
 print('✓ Skeleton visualisation helpers defined')
 
 
 # ══════════════════════════════════════════════════════════════════════════
-# Cell 9 — Visualise a sample skeleton
+# Cell 9 — Visualise a sample skeleton (C0 as representative)
 # ══════════════════════════════════════════════════════════════════════════
 
 idx         = 10
-sample_skel = load_skeleton(df_index.iloc[idx]['filepath'])
+sample_row  = df_index.iloc[idx]
+sample_skel = load_skeleton(sample_row['filepath_c0'])
 
-print(df_index.iloc[idx][['person', 'exercise', 'trial_id', 'segment', 'camera', 'filepath']])
+print(sample_row[['person', 'exercise', 'trial_id', 'segment', 'filepath_c0']])
 print(f'Skeleton shape : {sample_skel.shape}')
 print(f'X range : [{sample_skel[:,:,0].min():.3f}, {sample_skel[:,:,0].max():.3f}]')
 print(f'Y range : [{sample_skel[:,:,1].min():.3f}, {sample_skel[:,:,1].max():.3f}]')
@@ -615,112 +621,70 @@ print(f'Z range : [{sample_skel[:,:,2].min():.3f}, {sample_skel[:,:,2].max():.3f
 
 plot_skeleton_3d(
     sample_skel, frame_idx=0,
-    title=f"Skeleton · {df_index.iloc[idx]['trial_key']} · E{df_index.iloc[idx]['exercise']}",
+    title=f"Skeleton C0 · {sample_row['trial_key']} · E{sample_row['exercise']}",
     save_path=os.path.join(PLOTS_DIR, 'sample_skeleton_3views.png'),
 )
-plot_skeleton_frames(
-    sample_skel, n_frames=5,
-    title=f"Motion Sequence · {df_index.iloc[idx]['trial_key']}",
-    save_path=os.path.join(PLOTS_DIR, 'sample_skeleton_motion.png'),
-)
 
-print("\nHip  mean XYZ:", sample_skel[:, 0, :].mean(axis=0))
-print("Head mean XYZ:", sample_skel[:, 10, :].mean(axis=0))
-print("Difference (head - hip):",
-      sample_skel[:, 10, :].mean(axis=0) - sample_skel[:, 0, :].mean(axis=0))
-
-print('\n── Camera angle comparison (P0, E0, T0, seg0) ──')
-for cam in [0, 1, 2]:
-    files = df_index[
-        (df_index['person']   == 'P0') &
-        (df_index['exercise'] == 0)    &
-        (df_index['camera']   == cam)  &
-        (df_index['trial_id'] == 'T0') &
-        (df_index['segment']  == 0)
-    ]
-    if len(files) > 0:
-        skel = load_skeleton(files.iloc[0]['filepath'])
-        print(f"\nCamera {cam}:")
-        print(f"  Hip  XYZ: {skel[:, 0, :].mean(axis=0).round(3)}")
-        print(f"  Head XYZ: {skel[:,10, :].mean(axis=0).round(3)}")
-        print(f"  X range: [{skel[:,:,0].min():.2f}, {skel[:,:,0].max():.2f}]")
-        print(f"  Z range: [{skel[:,:,2].min():.2f}, {skel[:,:,2].max():.2f}]")
-    else:
-        print(f"\nCamera {cam}: no file found")
+hip  = sample_skel[:, 0, :]
+head = sample_skel[:, 10, :]
+print("\nHip  mean XYZ:", hip.mean(axis=0))
+print("Head mean XYZ:", head.mean(axis=0))
+print("Difference (head - hip):", head.mean(axis=0) - hip.mean(axis=0))
 
 
 # ══════════════════════════════════════════════════════════════════════════
-# Cell 10 — TriViewDataset
-# Groups segments by (trial_key, segment), returns all 3 cameras per sample
+# Cell 10 — BZUDataset  *** MID-FUSION VERSION ***
+#
+# Each __getitem__ loads the SAME (trial_key, segment) from all 3 cameras
+# and returns:
+#   skel_c0 : (T, J, 6)   position + velocity, camera 0
+#   skel_c1 : (T, J, 6)   position + velocity, camera 1
+#   skel_c2 : (T, J, 6)   position + velocity, camera 2
+#   quality : scalar
+#   exercise_id : int
 # ══════════════════════════════════════════════════════════════════════════
 
-class TriViewDataset(Dataset):
+class BZUDatasetMultiView(Dataset):
     """
+    Loads all 3 camera views for each (trial_key, segment) group.
     Returns (skel_c0, skel_c1, skel_c2, quality, exercise_id).
-
-    Groups per-camera rows from df by (trial_key, segment).
-    Only keeps triplets where cameras 0, 1, AND 2 are all present.
-    Each skeleton gets position + velocity channels → (T, J, 6).
     """
     def __init__(self, df, target_frames=TARGET_FRAMES, augment=False):
+        # df here is the pivoted multi-view dataframe (one row = one group)
+        self.df            = df.reset_index(drop=True)
         self.target_frames = target_frames
         self.augment       = augment
 
-        # Build index: one entry per (trial_key, segment)
-        groups = {}
-        for _, row in df.iterrows():
-            key = (row['trial_key'], int(row['segment']))
-            if key not in groups:
-                groups[key] = {
-                    'quality'   : row['quality'],
-                    'exercise'  : row['exercise'],
-                    'trial_num' : row['trial_num'],
-                    'filepaths' : {},
-                }
-            groups[key]['filepaths'][int(row['camera'])] = row['filepath']
-
-        self.samples = []
-        skipped = 0
-        for (trial_key, seg), info in groups.items():
-            if all(c in info['filepaths'] for c in [0, 1, 2]):
-                self.samples.append({
-                    'fp0'      : info['filepaths'][0],
-                    'fp1'      : info['filepaths'][1],
-                    'fp2'      : info['filepaths'][2],
-                    'quality'  : float(info['quality']),
-                    'exercise' : int(info['exercise']),
-                    'trial_num': int(info['trial_num']),
-                })
-            else:
-                skipped += 1
-
-        print(f'  TriViewDataset: {len(self.samples)} triplets '
-              f'(skipped {skipped} incomplete)  augment={augment}')
-
     def __len__(self):
-        return len(self.samples)
+        return len(self.df)
 
     def __getitem__(self, idx):
-        s = self.samples[idx]
+        row = self.df.iloc[idx]
 
         skels = []
-        for fp in [s['fp0'], s['fp1'], s['fp2']]:
-            skel = load_skeleton(fp)
+        for cam in [0, 1, 2]:
+            skel = load_skeleton(row[f'filepath_c{cam}'])
             if skel is None:
-                skel = np.zeros((TARGET_FRAMES, NUM_JOINTS, 3), dtype=np.float32)
+                skel = np.zeros((self.target_frames, NUM_JOINTS, 3), dtype=np.float32)
             skel = self._normalise_length(skel)
             if self.augment:
                 skel = self._augment(skel)
 
-            # velocity channel
-            vel      = np.zeros_like(skel)
-            vel[1:]  = skel[1:] - skel[:-1]
-            skel_vel = np.concatenate([skel, vel], axis=-1)   # (T, J, 6)
-            skels.append(torch.tensor(skel_vel, dtype=torch.float32))
+            # velocity
+            velocity      = np.zeros_like(skel)
+            velocity[1:]  = skel[1:] - skel[:-1]
 
-        quality     = torch.tensor(s['quality'],   dtype=torch.float32)
-        exercise_id = torch.tensor(s['exercise'],  dtype=torch.long)
-        return skels[0], skels[1], skels[2], quality, exercise_id
+            # stack → (T, J, 6)
+            skel_vel = np.concatenate([skel, velocity], axis=-1)
+            skels.append(skel_vel)
+
+        skel_c0 = torch.tensor(skels[0], dtype=torch.float32)
+        skel_c1 = torch.tensor(skels[1], dtype=torch.float32)
+        skel_c2 = torch.tensor(skels[2], dtype=torch.float32)
+        quality     = torch.tensor(row['quality'],  dtype=torch.float32)
+        exercise_id = torch.tensor(row['exercise'], dtype=torch.long)
+
+        return skel_c0, skel_c1, skel_c2, quality, exercise_id
 
     def _normalise_length(self, skel):
         T = skel.shape[0]
@@ -736,28 +700,49 @@ class TriViewDataset(Dataset):
         return out
 
     def _augment(self, skel):
-        T     = skel.shape[0]
-        # 1. Random temporal speed warp
+        T = skel.shape[0]
         speed = np.random.uniform(0.75, 1.25)
         n_new = max(10, int(T * speed))
         idxs  = np.linspace(0, T - 1, n_new).astype(int)
         skel  = self._normalise_length(skel[idxs])
-        # 2. Random frame drop
+
         keep_ratio = np.random.uniform(0.80, 1.0)
         n_keep     = max(10, int(self.target_frames * keep_ratio))
         keep_idxs  = np.sort(
-            np.random.choice(self.target_frames, n_keep, replace=False))
-        return self._normalise_length(skel[keep_idxs])
+            np.random.choice(self.target_frames, n_keep, replace=False)
+        )
+        skel = self._normalise_length(skel[keep_idxs])
+        return skel
 
-print('✓ TriViewDataset defined')
+print('✓ BZUDatasetMultiView defined')
 
 
 # ══════════════════════════════════════════════════════════════════════════
-# Cell 11 — True ST-GCN building blocks
-#           (identical to single-view — reused as-is)
+# Cell 11 — ST-GCN (Yan et al., AAAI 2018) + Mid-Fusion Camera Encoder
+#
+# Mid-Fusion pipeline:
+#
+#   Camera 0 (B,T,J,6) ──[CameraEncoder]──► (B,T,J,64) ─┐
+#   Camera 1 (B,T,J,6) ──[CameraEncoder]──► (B,T,J,64) ──┤ concat → (B,T,J,192)
+#   Camera 2 (B,T,J,6) ──[CameraEncoder]──► (B,T,J,64) ─┘
+#                                                          │
+#                                             [FusionProjection] → (B,T,J,64)
+#                                                          │
+#                                         [9 × ST-GCN Blocks]
+#                                                          │
+#                                            [GAP] → (B,256)
+#                                                          │
+#                                      [ExerciseEmbed + RegressionHead]
+#                                                          │
+#                                                    Quality Score
+#
+# The CameraEncoder is PER-JOINT: it mixes the 6 features of each joint
+# independently (shared MLP weights across joints), so spatial structure
+# is preserved for the GCN.
 # ══════════════════════════════════════════════════════════════════════════
 
 from collections import deque
+
 
 def get_joint_distances(num_joints, edges, center_joint=0):
     adj = {i: [] for i in range(num_joints)}
@@ -807,6 +792,8 @@ def build_stgcn_adjacency(num_joints, edges, center_joint=0):
     return torch.tensor(A, dtype=torch.float32)
 
 
+# ── Spatial Graph Conv (true ST-GCN) ─────────────────────────────────────
+
 class SpatialGraphConv(nn.Module):
     def __init__(self, in_channels, out_channels, K=3):
         super().__init__()
@@ -818,13 +805,15 @@ class SpatialGraphConv(nn.Module):
 
     def forward(self, x, A):
         B, C, T, J = x.shape
-        x   = self.conv(x)
-        x   = x.view(B, self.K, -1, T, J)
+        x = self.conv(x)
+        x = x.view(B, self.K, -1, T, J)
         A_eff = A + self.M
         out   = torch.einsum('bkctj,kjv->bctv', x, A_eff)
         out   = self.bn(out)
         return self.relu(out)
 
+
+# ── ST-GCN Block ─────────────────────────────────────────────────────────
 
 class STGCNBlock(nn.Module):
     def __init__(self, in_channels, out_channels, K=3,
@@ -861,133 +850,138 @@ class STGCNBlock(nn.Module):
         return self.relu(x + res)
 
 
-print('✓ ST-GCN building blocks defined (SpatialGraphConv, STGCNBlock)')
+# ── *** NEW: Per-Camera Encoder (Mid-Fusion) *** ──────────────────────────
+#
+# Operates per-joint: treats each (joint, time) independently.
+# Applied as a 1×1 conv along the feature axis → preserves (T, J) structure.
+# Independent weights per camera (not shared) → each camera can learn its own
+# view-specific feature embedding before fusion.
+
+class CameraEncoder(nn.Module):
+    """
+    Encodes one camera's skeleton features per joint:
+        (B, C_in, T, J) → (B, C_out, T, J)
+
+    Uses 1×1 Conv2d so weights are shared across (T, J) positions —
+    i.e., the same small MLP is applied to every joint at every frame,
+    which is exactly right for skeleton data.
+
+    In_channels  = IN_FEATURES = 6  (pos_xyz + vel_xyz)
+    Out_channels = ENCODER_OUT_DIM = 64
+    """
+    def __init__(self, in_channels=IN_FEATURES, out_channels=ENCODER_OUT_DIM,
+                 dropout=0.3):
+        super().__init__()
+        self.net = nn.Sequential(
+            nn.Conv2d(in_channels, out_channels, kernel_size=1, bias=False),
+            nn.BatchNorm2d(out_channels),
+            nn.ReLU(),
+            nn.Dropout(dropout),
+        )
+
+    def forward(self, x):
+        """x: (B, C_in, T, J) → (B, C_out, T, J)"""
+        return self.net(x)
 
 
-# ══════════════════════════════════════════════════════════════════════════
-# Cell 11.5 — STGCNEncoder + GatedTriViewFusion
-# ══════════════════════════════════════════════════════════════════════════
+# ── *** NEW: Fusion Projection *** ────────────────────────────────────────
+
+class FusionProjection(nn.Module):
+    """
+    Projects concatenated 3-camera features back to PROJ_DIM:
+        (B, 3*ENCODER_OUT_DIM, T, J) → (B, PROJ_DIM, T, J)
+
+    Uses a 1×1 conv + BN + ReLU — same per-joint pattern.
+    """
+    def __init__(self, in_channels=ENCODER_OUT_DIM * 3,
+                 out_channels=PROJ_DIM, dropout=0.3):
+        super().__init__()
+        self.net = nn.Sequential(
+            nn.Conv2d(in_channels, out_channels, kernel_size=1, bias=False),
+            nn.BatchNorm2d(out_channels),
+            nn.ReLU(),
+            nn.Dropout(dropout),
+        )
+
+    def forward(self, x):
+        """x: (B, 3*enc, T, J) → (B, PROJ_DIM, T, J)"""
+        return self.net(x)
+
+
+# ── Full Mid-Fusion Model ─────────────────────────────────────────────────
 
 NUM_EXERCISES = len(EXERCISE_REMAP)
 
-
-class STGCNEncoder(nn.Module):
+class STGCN_MidFusion(nn.Module):
     """
-    Single-camera branch.
+    ST-GCN with Mid-Fusion of 3 camera views.
 
-    Identical 9-block ST-GCN stack as the single-view model,
-    but stops BEFORE the regression head.
-    Outputs a normalised F-dim feature vector (B, F).
-
-    NOT weight-shared across cameras: each camera branch has its own
-    parameters, allowing each to specialise for its viewpoint.
+    Architecture:
+      C0 (B,T,J,6) ──[Encoder0]──► (B,T,J,64)  ─┐
+      C1 (B,T,J,6) ──[Encoder1]──► (B,T,J,64)  ──┤ concat
+      C2 (B,T,J,6) ──[Encoder2]──► (B,T,J,64)  ─┘
+                                       ↓
+                             (B, T, J, 192)
+                                       ↓
+                           [FusionProjection]
+                                       ↓
+                             (B, T, J, 64)
+                                       ↓
+                         [Data BN on input features]
+                                       ↓
+                           [9 × ST-GCN Blocks]
+                                       ↓
+                        [Global Average Pooling] → (B, 256)
+                                       ↓
+                     [Exercise Embedding (32-dim)]
+                                       ↓
+                         [Regression Head] → score ∈ [1,5]
     """
-    def __init__(self, in_features=6, K=3, dropout=0.5,
-                 out_features=FEATURE_DIM):
+    def __init__(self, K=3, dropout=0.5):
         super().__init__()
 
+        # Adjacency
         A = build_stgcn_adjacency(NUM_JOINTS, SKELETON_EDGES, center_joint=0)
         self.register_buffer('A', A)
 
-        self.data_bn = nn.BatchNorm1d(in_features * NUM_JOINTS)
+        # ── Mid-Fusion components ─────────────────────────────────────────
+        # Independent encoder per camera (each learns its own view embedding)
+        self.encoder_c0 = CameraEncoder(IN_FEATURES, ENCODER_OUT_DIM, dropout=0.3)
+        self.encoder_c1 = CameraEncoder(IN_FEATURES, ENCODER_OUT_DIM, dropout=0.3)
+        self.encoder_c2 = CameraEncoder(IN_FEATURES, ENCODER_OUT_DIM, dropout=0.3)
+
+        # Fusion projection: 192 → PROJ_DIM (64)
+        self.fusion_proj = FusionProjection(
+            in_channels  = ENCODER_OUT_DIM * 3,
+            out_channels = PROJ_DIM,
+            dropout      = 0.3,
+        )
+
+        # ── ST-GCN backbone (input dim = PROJ_DIM) ────────────────────────
+        # Data BN operates on (B, PROJ_DIM * J, T)
+        self.data_bn = nn.BatchNorm1d(PROJ_DIM * NUM_JOINTS)
 
         self.blocks = nn.ModuleList([
-            STGCNBlock(in_features, 64,  K=K, residual=False, dropout=dropout),
-            STGCNBlock(64,  64,          K=K,                 dropout=dropout),
-            STGCNBlock(64,  64,          K=K,                 dropout=dropout),
-            STGCNBlock(64,  128, K=K, stride=2,               dropout=dropout),
-            STGCNBlock(128, 128,         K=K,                 dropout=dropout),
-            STGCNBlock(128, 128,         K=K,                 dropout=dropout),
-            STGCNBlock(128, 256, K=K, stride=2,               dropout=dropout),
-            STGCNBlock(256, 256,         K=K,                 dropout=dropout),
-            STGCNBlock(256, 256,         K=K,                 dropout=dropout),
+            STGCNBlock(PROJ_DIM, 64,  K=K, residual=False, dropout=dropout),
+            STGCNBlock(64,       64,  K=K,                  dropout=dropout),
+            STGCNBlock(64,       64,  K=K,                  dropout=dropout),
+            STGCNBlock(64,  128, K=K, stride=2,             dropout=dropout),
+            STGCNBlock(128, 128,      K=K,                  dropout=dropout),
+            STGCNBlock(128, 128,      K=K,                  dropout=dropout),
+            STGCNBlock(128, 256, K=K, stride=2,             dropout=dropout),
+            STGCNBlock(256, 256,      K=K,                  dropout=dropout),
+            STGCNBlock(256, 256,      K=K,                  dropout=dropout),
         ])
 
-        self.gap  = nn.AdaptiveAvgPool2d(1)
+        self.gap = nn.AdaptiveAvgPool2d(1)
 
-        # Project 256 → F with LayerNorm for stable downstream fusion
-        self.proj = nn.Sequential(
-            nn.Linear(256, out_features),
-            nn.LayerNorm(out_features),
-            nn.ReLU(),
-        )
+        self.ex_embed = nn.Embedding(NUM_EXERCISES, 32)
 
-        self._init_weights()
-
-    def _init_weights(self):
-        for m in self.modules():
-            if isinstance(m, nn.Linear):
-                nn.init.xavier_uniform_(m.weight)
-                if m.bias is not None: nn.init.zeros_(m.bias)
-            elif isinstance(m, (nn.BatchNorm1d, nn.BatchNorm2d, nn.LayerNorm)):
-                nn.init.ones_(m.weight); nn.init.zeros_(m.bias)
-            elif isinstance(m, nn.Conv2d):
-                nn.init.kaiming_normal_(m.weight, mode='fan_out')
-                if m.bias is not None: nn.init.zeros_(m.bias)
-
-    def forward(self, x):
-        """x: (B, T, J, 6)  →  (B, F)"""
-        B, T, J, C = x.shape
-
-        x = x.permute(0, 3, 2, 1).reshape(B, C * J, T)
-        x = self.data_bn(x)
-        x = x.reshape(B, C, J, T).permute(0, 1, 3, 2)   # (B, C, T, J)
-
-        for block in self.blocks:
-            x = block(x, self.A)
-
-        feat = self.gap(x).squeeze(-1).squeeze(-1)        # (B, 256)
-        return self.proj(feat)                             # (B, F)
-
-
-class GatedTriViewFusion(nn.Module):
-    """
-    Middle-fusion model: 3 ST-GCN encoders fused via a learned gating network.
-
-    WHY GATING INSTEAD OF CROSS-ATTENTION:
-      Inspection of the data shows all 3 cameras produce nearly identical
-      3D reconstructions (MotionBERT already lifts each monocular view to 3D).
-      The complementary information is subtle, not structural.
-      Gating is the right choice: if cameras are redundant, gates converge
-      to (1/3, 1/3, 1/3); if one view is more useful for a given sample,
-      the gate up-weights it. Cross-attention would add unnecessary complexity
-      for signals this similar.
-
-    Architecture:
-      f0, f1, f2  →  concat (3F)
-                  →  Gate MLP  →  softmax(3)  →  weights w0, w1, w2
-                  →  fused = w0·f0 + w1·f1 + w2·f2           (B, F)
-                  →  cat(exercise_embed)                       (B, F+32)
-                  →  Regression MLP
-                  →  3 + 2·tanh(·)                            (B,)  ∈ [1,5]
-    """
-    def __init__(self, F=FEATURE_DIM, n_exercises=NUM_EXERCISES, dropout=0.3):
-        super().__init__()
-
-        # Three independent encoders (NOT weight-shared)
-        self.encoders = nn.ModuleList([
-            STGCNEncoder(in_features=6, K=3, dropout=0.5, out_features=F)
-            for _ in range(3)
-        ])
-
-        # Gating network: content-aware camera weighting
-        # Input = concat of all 3 feature vectors so gate sees the full picture
-        self.gate = nn.Sequential(
-            nn.Linear(3 * F, 3 * F // 2),
-            nn.ReLU(),
-            nn.Dropout(0.1),
-            nn.Linear(3 * F // 2, 3),    # logits for 3 cameras
-        )
-
-        # Exercise-conditioned embedding (same as single-view)
-        self.ex_embed = nn.Embedding(n_exercises, 32)
-
-        # Regression head (same depth as single-view)
         self.reg_head = nn.Sequential(
-            nn.Linear(F + 32, 128),
+            nn.Linear(256 + 32, 128),
             nn.LayerNorm(128),
             nn.ReLU(),
-            nn.Dropout(dropout),
+            nn.Dropout(0.3),
             nn.Linear(128, 64),
             nn.ReLU(),
             nn.Dropout(0.2),
@@ -1000,75 +994,87 @@ class GatedTriViewFusion(nn.Module):
         for m in self.modules():
             if isinstance(m, nn.Linear):
                 nn.init.xavier_uniform_(m.weight)
-                if m.bias is not None: nn.init.zeros_(m.bias)
-            elif isinstance(m, nn.LayerNorm):
-                nn.init.ones_(m.weight); nn.init.zeros_(m.bias)
+                if m.bias is not None:
+                    nn.init.zeros_(m.bias)
+            elif isinstance(m, (nn.BatchNorm1d, nn.BatchNorm2d, nn.LayerNorm)):
+                nn.init.ones_(m.weight)
+                nn.init.zeros_(m.bias)
+            elif isinstance(m, nn.Conv2d):
+                nn.init.kaiming_normal_(m.weight, mode='fan_out')
+                if m.bias is not None:
+                    nn.init.zeros_(m.bias)
 
-    def forward(self, x0, x1, x2, exercise_id):
+    def _prepare_camera(self, x):
         """
-        x0, x1, x2 : (B, T, J, 6) — one tensor per camera
-        exercise_id : (B,)
-        returns     : preds (B,), gate_weights (B, 3)
+        Reshape (B, T, J, C) → (B, C, T, J) for Conv2d operations.
         """
-        # ── Encode each camera independently ─────────────────────────────
-        f0 = self.encoders[0](x0)    # (B, F)
-        f1 = self.encoders[1](x1)
-        f2 = self.encoders[2](x2)
+        return x.permute(0, 3, 1, 2)   # (B, C, T, J)
 
-        # ── Content-aware gating ──────────────────────────────────────────
-        gate_input   = torch.cat([f0, f1, f2], dim=1)          # (B, 3F)
-        gate_logits  = self.gate(gate_input)                    # (B, 3)
-        gate_weights = F_func.softmax(gate_logits, dim=1)       # (B, 3) sums to 1
+    def forward(self, x_c0, x_c1, x_c2, exercise_id):
+        """
+        x_c0, x_c1, x_c2 : (B, T, J, 6)  — one tensor per camera
+        exercise_id       : (B,)
+        returns           : (B,)  quality scores in [1, 5]
+        """
+        B, T, J, C = x_c0.shape
 
-        # Weighted sum: (B,3,1) * (B,3,F) → sum over cameras → (B, F)
-        stacked = torch.stack([f0, f1, f2], dim=1)              # (B, 3, F)
-        fused   = (gate_weights.unsqueeze(-1) * stacked).sum(dim=1)  # (B, F)
+        # ── 1. Reformat to (B, C, T, J) for Conv2d ───────────────────────
+        f0 = self._prepare_camera(x_c0)   # (B, 6, T, J)
+        f1 = self._prepare_camera(x_c1)
+        f2 = self._prepare_camera(x_c2)
 
-        # ── Exercise-conditioned regression ───────────────────────────────
-        ex  = self.ex_embed(exercise_id)                        # (B, 32)
-        h   = torch.cat([fused, ex], dim=1)                     # (B, F+32)
+        # ── 2. Per-camera encoders → (B, 64, T, J) each ──────────────────
+        e0 = self.encoder_c0(f0)          # (B, 64, T, J)
+        e1 = self.encoder_c1(f1)
+        e2 = self.encoder_c2(f2)
+
+        # ── 3. Concatenate along feature dim → (B, 192, T, J) ────────────
+        fused = torch.cat([e0, e1, e2], dim=1)
+
+        # ── 4. Fusion projection → (B, PROJ_DIM=64, T, J) ────────────────
+        x = self.fusion_proj(fused)       # (B, 64, T, J)
+
+        # ── 5. Data BN: (B, 64, T, J) → (B, 64*J, T) → BN → back ────────
+        x = x.permute(0, 1, 3, 2).reshape(B, PROJ_DIM * J, T)   # (B, 64*J, T)
+        x = self.data_bn(x)
+        x = x.reshape(B, PROJ_DIM, J, T).permute(0, 1, 3, 2)    # (B, 64, T, J)
+
+        # ── 6. Nine ST-GCN blocks ─────────────────────────────────────────
+        for block in self.blocks:
+            x = block(x, self.A)          # (B, C', T', J)
+
+        # ── 7. Global average pool → (B, 256) ────────────────────────────
+        x = self.gap(x).squeeze(-1).squeeze(-1)
+
+        # ── 8. Exercise embedding + regression head ───────────────────────
+        ex  = self.ex_embed(exercise_id)                           # (B, 32)
+        h   = torch.cat([x, ex], dim=1)                           # (B, 288)
         out = 3.0 + 2.0 * torch.tanh(self.reg_head(h).squeeze(1))
-        return out, gate_weights
-
-    def get_encoder_params(self):
-        """Convenience: returns list of encoder parameter groups for LR scheduling."""
-        return [p for enc in self.encoders for p in enc.parameters()]
-
-    def get_fusion_params(self):
-        """Convenience: returns fusion + head parameters."""
-        return (list(self.gate.parameters()) +
-                list(self.ex_embed.parameters()) +
-                list(self.reg_head.parameters()))
+        return out
 
 
 # ── Sanity check ──────────────────────────────────────────────────────────
-_dummy_x  = torch.zeros(2, TARGET_FRAMES, NUM_JOINTS, 6)
+_dummy_c0 = torch.zeros(2, TARGET_FRAMES, NUM_JOINTS, IN_FEATURES)
+_dummy_c1 = torch.zeros(2, TARGET_FRAMES, NUM_JOINTS, IN_FEATURES)
+_dummy_c2 = torch.zeros(2, TARGET_FRAMES, NUM_JOINTS, IN_FEATURES)
 _dummy_ex = torch.zeros(2, dtype=torch.long)
-_model    = GatedTriViewFusion()
-_out, _gw = _model(_dummy_x, _dummy_x, _dummy_x, _dummy_ex)
-assert _out.shape == (2,),    f"Expected (2,), got {_out.shape}"
-assert _gw.shape  == (2, 3), f"Expected (2,3), got {_gw.shape}"
-print(f'\n✓ GatedTriViewFusion sanity check passed')
-print(f'  output shape     : {_out.shape}')
-print(f'  gate_weights shape: {_gw.shape}')
-
+_model    = STGCN_MidFusion()
+_out      = _model(_dummy_c0, _dummy_c1, _dummy_c2, _dummy_ex)
+assert _out.shape == (2,), f"Expected (2,), got {_out.shape}"
+print(f'\n✓ STGCN_MidFusion sanity check passed — output shape: {_out.shape}')
 total_params = sum(p.numel() for p in _model.parameters() if p.requires_grad)
-enc_params   = sum(p.numel() for p in _model.get_encoder_params() if p.requires_grad)
-fus_params   = sum(p.numel() for p in _model.get_fusion_params()  if p.requires_grad)
-print(f'  Total params     : {total_params:,}')
-print(f'    Encoders (×3)  : {enc_params:,}')
-print(f'    Fusion + head  : {fus_params:,}')
-print(f'  Single-view baseline: 3,069,224')
-del _dummy_x, _dummy_ex, _model, _out, _gw
+print(f'✓ Total trainable parameters: {total_params:,}')
+del _dummy_c0, _dummy_c1, _dummy_c2, _dummy_ex, _model, _out
 
-print('✓ STGCNEncoder and GatedTriViewFusion defined')
+print('\n✓ STGCN_MidFusion defined')
+print(f'  CameraEncoder : {IN_FEATURES} → {ENCODER_OUT_DIM}  ×3 independent encoders')
+print(f'  FusionProj    : {ENCODER_OUT_DIM*3} → {PROJ_DIM}')
+print(f'  ST-GCN input  : {PROJ_DIM} features per joint')
 
 
 # ══════════════════════════════════════════════════════════════════════════
-# Cell 12 — Device, centre_and_scale, run_epoch (tri-view)
+# Cell 12 — Device, normalisation & run_epoch  (multi-view version)
 # ══════════════════════════════════════════════════════════════════════════
-
-from scipy.stats import pearsonr
 
 DEVICE = 'cuda' if torch.cuda.is_available() else 'cpu'
 print(f'Device : {DEVICE}')
@@ -1078,15 +1084,15 @@ if DEVICE == 'cuda':
 
 def centre_and_scale(x):
     """
-    x: (B, T, J, 6) — first 3 = position, last 3 = velocity.
-    Centres on mid-hip, scales by torso height.
-    Identical normalisation to single-view.
+    x: (B, T, J, 6) — first 3 = position, last 3 = velocity
+    Centre on mid-hip, scale by torso height.
+    Identical to single-view version; called once per camera tensor.
     """
     pos = x[:, :, :, :3]
     vel = x[:, :, :, 3:]
 
-    hip     = (pos[:, :, 1:2, :] + pos[:, :, 4:5, :]) / 2.0
-    pos     = pos - hip
+    hip      = (pos[:, :, 1:2, :] + pos[:, :, 4:5, :]) / 2.0
+    pos      = pos - hip
     shoulder = (pos[:, :, 11:12, :] + pos[:, :, 14:15, :]) / 2.0
     torso_h  = shoulder[:, :, :, 1:2].abs().mean(dim=1, keepdim=True).clamp(min=1e-6)
     pos      = pos / torso_h
@@ -1095,23 +1101,23 @@ def centre_and_scale(x):
     return torch.cat([pos, vel], dim=-1)
 
 
-def run_epoch_triview(model, loader, reg_fn, is_train=True, optimiser=None):
+def run_epoch(model, loader, reg_fn, is_train=True, optimiser=None):
     model.train() if is_train else model.eval()
-    total_loss  = 0.0
+    total_loss = 0.0
     q_true, q_pred = [], []
-    gate_log = []   # collected during eval only
 
     ctx = torch.enable_grad() if is_train else torch.no_grad()
     with ctx:
-        for s0, s1, s2, qualities, exercise_ids in loader:
-            s0           = centre_and_scale(s0.to(DEVICE))
-            s1           = centre_and_scale(s1.to(DEVICE))
-            s2           = centre_and_scale(s2.to(DEVICE))
+        for skel_c0, skel_c1, skel_c2, qualities, exercise_ids in loader:
+            # Normalise each camera independently (same transform, separate scales)
+            skel_c0      = centre_and_scale(skel_c0.to(DEVICE))
+            skel_c1      = centre_and_scale(skel_c1.to(DEVICE))
+            skel_c2      = centre_and_scale(skel_c2.to(DEVICE))
             qualities    = qualities.to(DEVICE)
             exercise_ids = exercise_ids.to(DEVICE)
 
-            preds, gate_w = model(s0, s1, s2, exercise_ids)
-            loss          = reg_fn(preds, qualities)
+            preds = model(skel_c0, skel_c1, skel_c2, exercise_ids)
+            loss  = reg_fn(preds, qualities)
 
             if is_train:
                 optimiser.zero_grad()
@@ -1123,15 +1129,12 @@ def run_epoch_triview(model, loader, reg_fn, is_train=True, optimiser=None):
             q_true.extend(qualities.cpu().numpy())
             q_pred.extend(preds.detach().cpu().numpy())
 
-            if not is_train:
-                gate_log.append(gate_w.detach().cpu().numpy())
-
     n  = max(1, len(loader))
     qt = np.array(q_true)
     qp = np.array(q_pred)
     pcc = float(pearsonr(qt, qp)[0]) if len(qt) > 1 else 0.0
 
-    result = {
+    return {
         'loss': total_loss / n,
         'rmse': float(np.sqrt(np.mean((qt - qp) ** 2))),
         'mae' : float(np.mean(np.abs(qt - qp))),
@@ -1139,15 +1142,7 @@ def run_epoch_triview(model, loader, reg_fn, is_train=True, optimiser=None):
         'pcc' : pcc,
     }
 
-    if gate_log:
-        gate_arr            = np.concatenate(gate_log, axis=0)  # (N, 3)
-        result['gate_mean'] = gate_arr.mean(axis=0)             # (3,)
-        result['gate_std']  = gate_arr.std(axis=0)              # (3,)
-        result['gate_all']  = gate_arr
-
-    return result
-
-print('✓ centre_and_scale and run_epoch_triview defined')
+print('✓ centre_and_scale and run_epoch (multi-view) defined')
 
 
 # ══════════════════════════════════════════════════════════════════════════
@@ -1155,13 +1150,13 @@ print('✓ centre_and_scale and run_epoch_triview defined')
 # ══════════════════════════════════════════════════════════════════════════
 
 print("=" * 65)
-print("Quality score distribution audit")
+print("Quality score distribution audit (multi-view groups)")
 print("=" * 65)
 
 fig, axes = plt.subplots(2, 3, figsize=(15, 8))
 fig.suptitle("Quality Score Distributions per Split", fontsize=14, fontweight='bold')
 
-splits      = [('Train', train_df), ('Val', val_df), ('Test', test_df)]
+splits      = [('Train', train_mv), ('Val', val_mv), ('Test', test_mv)]
 trial_types = [('Correct (T≤2)',   lambda d: d[d['trial_num'] <= 2]),
                ('Erroneous (T≥3)', lambda d: d[d['trial_num'] >= 3])]
 
@@ -1183,8 +1178,10 @@ for col, (split_name, split_df) in enumerate(splits):
         ax.set_title(f'{split_name} — {type_name}\n'
                      f'n={len(sub)}  std={q.std():.3f}  '
                      f'[{q.min():.2f}, {q.max():.2f}]', fontsize=9)
-        ax.set_xlabel('Quality Score'); ax.set_ylabel('Count')
-        ax.legend(fontsize=8); ax.grid(alpha=0.3)
+        ax.set_xlabel('Quality Score')
+        ax.set_ylabel('Count')
+        ax.legend(fontsize=8)
+        ax.grid(alpha=0.3)
 
 plt.tight_layout()
 save_path = os.path.join(PLOTS_DIR, 'split_quality_distributions.png')
@@ -1214,30 +1211,9 @@ for split_name, split_df in splits:
     persons = sorted(split_df['person'].unique())
     print(f"  {split_name:<6}: {persons}")
 
-print("\nPer-person quality mean per split:")
-for split_name, split_df in splits:
-    print(f"\n  {split_name}:")
-    print(split_df.groupby('person')['quality']
-          .agg(['mean', 'std', 'count'])
-          .round(3).to_string())
-
-print("\n" + "=" * 65)
-print("Exercise balance across splits")
-print("=" * 65)
-ex_counts = pd.DataFrame({
-    name: split_df['exercise'].value_counts().sort_index()
-    for name, split_df in splits
-})
-ex_counts.index   = [f'E{i}' for i in ex_counts.index]
-ex_counts.columns = ['Train', 'Val', 'Test']
-ex_counts['Train%'] = (ex_counts['Train'] / ex_counts['Train'].sum() * 100).round(1)
-ex_counts['Val%']   = (ex_counts['Val']   / ex_counts['Val'].sum()   * 100).round(1)
-ex_counts['Test%']  = (ex_counts['Test']  / ex_counts['Test'].sum()  * 100).round(1)
-print(ex_counts.to_string())
-
 
 # ══════════════════════════════════════════════════════════════════════════
-# Cell 14 — Plotting helpers (regression, identical to single-view)
+# Cell 14 — Plotting helpers  (identical to single-view, no changes needed)
 # ══════════════════════════════════════════════════════════════════════════
 
 def save_and_show(fig, path):
@@ -1321,7 +1297,6 @@ def plot_regression_scatter(q_true, q_pred, split_name='Test', save_dir=None):
     r2   = float(r2_score(qt, qp)) if len(qt) > 1 else 0.0
     mae  = float(np.mean(np.abs(qt - qp)))
     rmse = float(np.sqrt(np.mean((qt - qp) ** 2)))
-
     fig, ax = plt.subplots(figsize=(6, 6))
     ax.scatter(qt, qp, alpha=0.6, edgecolors='black', linewidths=0.4,
                color='steelblue', s=60)
@@ -1361,62 +1336,14 @@ def plot_early_stop(history, stopped_epoch, best_epoch, save_dir):
     plt.tight_layout()
     save_and_show(fig, os.path.join(save_dir, 'early_stopping.png'))
 
-
-def plot_gate_weights(gate_weights_arr, save_dir):
-    """
-    gate_weights_arr: (N, 3) — one row per test sample.
-    Plots histogram of each camera's weight + mean bar chart.
-    """
-    fig, axes = plt.subplots(1, 4, figsize=(16, 4))
-    fig.suptitle('Learned Camera Gate Weights (Test Set)',
-                 fontsize=13, fontweight='bold')
-
-    cam_colors = ['steelblue', 'darkorange', 'limegreen']
-
-    for cam_idx in range(3):
-        ax = axes[cam_idx]
-        w  = gate_weights_arr[:, cam_idx]
-        ax.hist(w, bins=30, color=cam_colors[cam_idx],
-                edgecolor='black', alpha=0.85)
-        ax.axvline(w.mean(), color='red', linestyle='--', linewidth=2,
-                   label=f'mean={w.mean():.3f}±{w.std():.3f}')
-        ax.set_title(f'Camera {cam_idx}', fontweight='bold')
-        ax.set_xlabel('Gate Weight (softmax)')
-        ax.set_ylabel('Count')
-        ax.set_xlim(0, 1)
-        ax.legend(fontsize=9); ax.grid(alpha=0.3)
-
-    # Bar chart of mean weights
-    ax = axes[3]
-    means = gate_weights_arr.mean(axis=0)
-    stds  = gate_weights_arr.std(axis=0)
-    bars  = ax.bar(['C0', 'C1', 'C2'], means, yerr=stds,
-                   color=cam_colors, edgecolor='black',
-                   alpha=0.85, capsize=6)
-    ax.axhline(1/3, color='gray', linestyle=':', linewidth=1.5,
-               label='Uniform (1/3)')
-    for bar, v in zip(bars, means):
-        ax.text(bar.get_x() + bar.get_width()/2, bar.get_height() + 0.005,
-                f'{v:.3f}', ha='center', va='bottom', fontsize=10,
-                fontweight='bold')
-    ax.set_title('Mean Gate Weights', fontweight='bold')
-    ax.set_ylabel('Mean Weight')
-    ax.set_ylim(0, 0.6)
-    ax.legend(fontsize=9); ax.grid(axis='y', alpha=0.3)
-
-    plt.tight_layout()
-    path = os.path.join(save_dir, 'gate_weights.png')
-    save_and_show(fig, path)
-
 print('✓ Plotting helpers defined')
 
 
 # ══════════════════════════════════════════════════════════════════════════
-# Cell 15 — Early Stopping (identical to single-view)
+# Cell 15 — Early Stopping  (unchanged)
 # ══════════════════════════════════════════════════════════════════════════
 
 class EarlyStopping:
-    """Monitors val_mae (lower = better)."""
     def __init__(self, patience=PATIENCE, min_delta=MIN_DELTA):
         self.patience   = patience
         self.min_delta  = min_delta
@@ -1440,70 +1367,62 @@ print('✓ EarlyStopping defined (monitoring MAE)')
 
 
 # ══════════════════════════════════════════════════════════════════════════
-# Cell 16 — Training Loop (Tri-View Fusion)
+# Cell 16 — Training Loop  *** MID-FUSION VERSION ***
 # ══════════════════════════════════════════════════════════════════════════
 
 reg_fn = nn.SmoothL1Loss(beta=1.0)
 
-# ── Build datasets ────────────────────────────────────────────────────────
-print('\nBuilding TriViewDatasets...')
-train_ds = TriViewDataset(train_df, augment=True)
-val_ds   = TriViewDataset(val_df,   augment=False)
-test_ds  = TriViewDataset(test_df,  augment=False)
 
-
-# ── Weighted sampler: emphasise low-quality / erroneous samples ───────────
-def make_weighted_sampler(dataset):
+def make_weighted_sampler(df):
     """
-    Weight inversely proportional to quality score.
-    Uses quality < 4.0 as proxy for erroneous (trial_num not stored per triplet).
+    Weight each sample inversely proportional to quality score.
+    Erroneous trials (trial_num >= 3) get 2× weight.
     """
-    qualities   = np.array([s['quality']   for s in dataset.samples], dtype=np.float32)
-    trial_nums  = np.array([s['trial_num'] for s in dataset.samples], dtype=np.float32)
-
-    raw_weights  = (qualities.max() + 1.0) - qualities
-    erroneous    = (trial_nums >= 3).astype(np.float32)
-    raw_weights *= (1.0 + erroneous)    # ×2 for erroneous trials
-
-    sampler = torch.utils.data.WeightedRandomSampler(
-        weights     = torch.DoubleTensor(raw_weights),
-        num_samples = len(dataset),
+    q = df['quality'].values.astype(np.float32)
+    raw_weights    = (q.max() + 1.0) - q
+    erroneous_mask = (df['trial_num'].values >= 3).astype(np.float32)
+    raw_weights   *= (1.0 + erroneous_mask)
+    weights_tensor = torch.DoubleTensor(raw_weights)
+    return torch.utils.data.WeightedRandomSampler(
+        weights     = weights_tensor,
+        num_samples = len(df),
         replacement = True,
     )
-    return sampler
 
+
+train_sampler = make_weighted_sampler(train_mv)
 
 train_loader = DataLoader(
-    train_ds,
+    BZUDatasetMultiView(train_mv, augment=True),
     batch_size  = BATCH_SIZE,
-    sampler     = make_weighted_sampler(train_ds),
+    sampler     = train_sampler,
     num_workers = 0,
     pin_memory  = (DEVICE == 'cuda'),
 )
-val_loader  = DataLoader(val_ds,  batch_size=BATCH_SIZE,
-                         shuffle=False, num_workers=0,
-                         pin_memory=(DEVICE == 'cuda'))
-test_loader = DataLoader(test_ds, batch_size=BATCH_SIZE,
-                         shuffle=False, num_workers=0,
-                         pin_memory=(DEVICE == 'cuda'))
+val_loader = DataLoader(
+    BZUDatasetMultiView(val_mv, augment=False),
+    batch_size  = BATCH_SIZE,
+    shuffle     = False,
+    num_workers = 0,
+    pin_memory  = (DEVICE == 'cuda'),
+)
+test_loader = DataLoader(
+    BZUDatasetMultiView(test_mv, augment=False),
+    batch_size  = BATCH_SIZE,
+    shuffle     = False,
+    num_workers = 0,
+    pin_memory  = (DEVICE == 'cuda'),
+)
 
-# ── Model ─────────────────────────────────────────────────────────────────
-model = GatedTriViewFusion(
-    F           = FEATURE_DIM,
-    n_exercises = len(EXERCISE_REMAP),
-    dropout     = 0.3,
-).to(DEVICE)
+model = STGCN_MidFusion(K=3, dropout=0.5).to(DEVICE)
 
-total_params = sum(p.numel() for p in model.parameters() if p.requires_grad)
-print(f'\n✓ GatedTriViewFusion on {DEVICE}  |  params: {total_params:,}')
+optimiser = torch.optim.AdamW(
+    model.parameters(),
+    lr           = LR,
+    weight_decay = WEIGHT_DECAY,
+)
 
-# ── Optimiser: slightly higher LR for fusion head vs encoders ─────────────
-optimiser = torch.optim.AdamW([
-    {'params': model.get_encoder_params(), 'lr': LR,        'weight_decay': WEIGHT_DECAY},
-    {'params': model.get_fusion_params(),  'lr': LR * 2.0,  'weight_decay': WEIGHT_DECAY},
-], lr=LR)
-
-scheduler  = torch.optim.lr_scheduler.ReduceLROnPlateau(
+scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(
     optimiser, mode='min', factor=0.5,
     patience=50, min_lr=1e-6, verbose=True,
 )
@@ -1515,41 +1434,40 @@ history = {f'{s}_{m}': [] for s in SPLITS for m in METRICS}
 stopped_epoch = EPOCHS
 
 log.info('=' * 70)
-log.info('STARTING TRI-VIEW FUSION TRAINING  (Early Stopping on Val MAE)')
-log.info(f'train triplets={len(train_ds)}  val={len(val_ds)}  test={len(test_ds)}')
-log.info(f'F={FEATURE_DIM}  batch={BATCH_SIZE}  patience={PATIENCE}  LR={LR}')
+log.info('STARTING MID-FUSION MULTI-VIEW REGRESSION TRAINING')
+log.info(f'train={len(train_mv)} val={len(val_mv)} test={len(test_mv)} (groups)')
+log.info(f'Model: STGCN_MidFusion  |  Cameras: C0+C1+C2  |  '
+         f'Encoder: {IN_FEATURES}→{ENCODER_OUT_DIM}  |  Proj: {PROJ_DIM}')
 log.info('=' * 70)
 
-print(f'\n{"═"*72}')
-print(f'  Tri-View Fusion  |  F={FEATURE_DIM}  |  '
-      f'Train: {len(train_ds)}  Val: {len(val_ds)}  Test: {len(test_ds)}')
+print(f'\n{"═"*68}')
+print(f'  Mid-Fusion ST-GCN  |  C0 + C1 + C2')
+print(f'  Train: {len(train_mv)} groups  Val: {len(val_mv)}  Test: {len(test_mv)}')
+print(f'  Encoder: {IN_FEATURES}→{ENCODER_OUT_DIM}  Fusion: {ENCODER_OUT_DIM*3}→{PROJ_DIM}')
 print(f'  Patience: {PATIENCE}  |  LR: {LR}  |  Batch: {BATCH_SIZE}')
-print(f'  Single-view baseline → MAE=0.3834  R²=0.5823  PCC=0.8116')
-print(f'{"═"*72}')
+print(f'{"═"*68}')
 
 for epoch in range(1, EPOCHS + 1):
-    tr = run_epoch_triview(model, train_loader, reg_fn,
-                           is_train=True,  optimiser=optimiser)
-    vl = run_epoch_triview(model, val_loader,   reg_fn,
-                           is_train=False)
+    tr = run_epoch(model, train_loader, reg_fn, is_train=True,  optimiser=optimiser)
+    vl = run_epoch(model, val_loader,   reg_fn, is_train=False)
     scheduler.step(vl['mae'])
 
     for split, res in [('train', tr), ('val', vl)]:
-        for m in METRICS:
-            history[f'{split}_{m}'].append(res[m])
+        history[f'{split}_loss'].append(res['loss'])
+        history[f'{split}_rmse'].append(res['rmse'])
+        history[f'{split}_mae'].append(res['mae'])
+        history[f'{split}_r2'].append(res['r2'])
+        history[f'{split}_pcc'].append(res['pcc'])
 
     stop, improved = early_stop.step(vl['mae'], model, epoch)
 
-    gw  = vl.get('gate_mean', np.array([0.333, 0.333, 0.333]))
-    gate_str = f'gates=[{gw[0]:.2f},{gw[1]:.2f},{gw[2]:.2f}]'
     star = ' ★' if improved else ''
-
-    msg = (f'  Ep {epoch:3d}/{EPOCHS} | '
-           f'Tr loss={tr["loss"]:.4f} mae={tr["mae"]:.3f} '
-           f'r2={tr["r2"]:.3f} pcc={tr["pcc"]:.3f} | '
-           f'Vl loss={vl["loss"]:.4f} mae={vl["mae"]:.3f} '
-           f'r2={vl["r2"]:.3f} pcc={vl["pcc"]:.3f} | '
-           f'{gate_str} | ES {early_stop.counter}/{PATIENCE}{star}')
+    msg  = (f'  Ep {epoch:3d}/{EPOCHS} | '
+            f'Tr loss={tr["loss"]:.4f} mae={tr["mae"]:.3f} '
+            f'r2={tr["r2"]:.3f} pcc={tr["pcc"]:.3f} | '
+            f'Vl loss={vl["loss"]:.4f} mae={vl["mae"]:.3f} '
+            f'r2={vl["r2"]:.3f} pcc={vl["pcc"]:.3f} | '
+            f'ES {early_stop.counter}/{PATIENCE}{star}')
     print(msg)
     log.info(msg)
 
@@ -1570,8 +1488,8 @@ print('\n✓ Training complete!')
 model.load_state_dict(early_stop.best_wts)
 best_epoch = early_stop.best_epoch
 
-# ── Single final test evaluation with best weights ────────────────────────
-final_te = run_epoch_triview(model, test_loader, reg_fn, is_train=False)
+# ── Final test evaluation (best weights only) ─────────────────────────────
+final_te = run_epoch(model, test_loader, reg_fn, is_train=False)
 
 print(f'\n  ── Final Test Results (best epoch = {best_epoch}) ──────────────────')
 print(f'  Loss : {final_te["loss"]:.4f}')
@@ -1579,60 +1497,43 @@ print(f'  RMSE : {final_te["rmse"]:.4f}')
 print(f'  MAE  : {final_te["mae"]:.4f}')
 print(f'  R²   : {final_te["r2"]:.4f}')
 print(f'  PCC  : {final_te["pcc"]:.4f}')
-gw = final_te.get('gate_mean', np.array([0.333]*3))
-gs = final_te.get('gate_std',  np.array([0.0]*3))
-print(f'  Gate weights: C0={gw[0]:.3f}±{gs[0]:.3f}  '
-      f'C1={gw[1]:.3f}±{gs[1]:.3f}  C2={gw[2]:.3f}±{gs[2]:.3f}')
 
-# ── Collect test predictions ──────────────────────────────────────────────
+# ── Collect predictions for scatter plot ──────────────────────────────────
 model.eval()
 all_true_q, all_pred_q, all_exercise_ids = [], [], []
-all_gate_weights = []
-
 with torch.no_grad():
-    for s0, s1, s2, qualities, exercise_ids in test_loader:
-        s0           = centre_and_scale(s0.to(DEVICE))
-        s1           = centre_and_scale(s1.to(DEVICE))
-        s2           = centre_and_scale(s2.to(DEVICE))
+    for skel_c0, skel_c1, skel_c2, qualities, exercise_ids in test_loader:
+        skel_c0      = centre_and_scale(skel_c0.to(DEVICE))
+        skel_c1      = centre_and_scale(skel_c1.to(DEVICE))
+        skel_c2      = centre_and_scale(skel_c2.to(DEVICE))
         exercise_ids = exercise_ids.to(DEVICE)
-        preds, gate_w = model(s0, s1, s2, exercise_ids)
+        preds        = model(skel_c0, skel_c1, skel_c2, exercise_ids)
         all_true_q.extend(qualities.numpy())
         all_pred_q.extend(preds.cpu().numpy())
         all_exercise_ids.extend(exercise_ids.cpu().numpy())
-        all_gate_weights.append(gate_w.cpu().numpy())
 
-all_gate_weights = np.concatenate(all_gate_weights, axis=0)   # (N_test, 3)
-
-# ── Save all standard plots ───────────────────────────────────────────────
+# ── Save all plots ────────────────────────────────────────────────────────
 plot_loss_curves(history, PLOTS_DIR,  test_loss=final_te['loss'])
-plot_rmse_mae(history, PLOTS_DIR,     test_rmse=final_te['rmse'],
-                                      test_mae=final_te['mae'])
+plot_rmse_mae(history, PLOTS_DIR,     test_rmse=final_te['rmse'], test_mae=final_te['mae'])
 plot_r2(history, PLOTS_DIR,           test_r2=final_te['r2'])
 plot_pcc(history, PLOTS_DIR,          test_pcc=final_te['pcc'])
-plot_regression_scatter(all_true_q, all_pred_q,
-                        split_name='Test', save_dir=PLOTS_DIR)
+plot_regression_scatter(all_true_q, all_pred_q, split_name='Test', save_dir=PLOTS_DIR)
 plot_early_stop(history, stopped_epoch, best_epoch, PLOTS_DIR)
-plot_gate_weights(all_gate_weights, PLOTS_DIR)
 
-# ── Save history JSON ─────────────────────────────────────────────────────
 json_path = os.path.join(LOGS_DIR, 'training_history.json')
 with open(json_path, 'w') as f:
     json.dump(history, f, indent=2)
-print(f'  ✓ History JSON → {json_path}')
+print(f'  ✓ History → {json_path}')
 
-# ── Save history NPZ ──────────────────────────────────────────────────────
 npz_history_path = os.path.join(LOGS_DIR, 'training_history.npz')
 np.savez(npz_history_path, **{k: np.array(v) for k, v in history.items()})
 print(f'  ✓ History NPZ → {npz_history_path}')
 
-# ── Save test predictions NPZ ─────────────────────────────────────────────
 npz_preds_path = os.path.join(LOGS_DIR, 'test_predictions.npz')
 np.savez(npz_preds_path,
          q_true       = np.array(all_true_q),
          q_pred       = np.array(all_pred_q),
-         exercise_ids = np.array(all_exercise_ids),
-         gate_weights = all_gate_weights,
-)
+         exercise_ids = np.array(all_exercise_ids))
 print(f'  ✓ Test predictions NPZ → {npz_preds_path}')
 
 
@@ -1656,12 +1557,10 @@ for ex_id in unique_exercises:
     qt   = all_true_q_arr[mask]
     qp   = all_pred_q_arr[mask]
     n    = mask.sum()
-
     mae  = float(np.mean(np.abs(qt - qp)))
     rmse = float(np.sqrt(np.mean((qt - qp) ** 2)))
     r2   = float(r2_score(qt, qp))    if n > 1 else float('nan')
     pcc  = float(pearsonr(qt, qp)[0]) if n > 1 else float('nan')
-
     per_ex_results[ex_id] = dict(n=n, mae=mae, rmse=rmse, r2=r2, pcc=pcc)
     print(f'  E{ex_id:<11} {n:>5} {mae:>8.4f} {rmse:>8.4f} {r2:>8.4f} {pcc:>8.4f}')
 
@@ -1671,11 +1570,8 @@ print(f'  {"Overall":<12} {len(all_true_q_arr):>5} '
       f'{final_te["r2"]:>8.4f} {final_te["pcc"]:>8.4f}')
 print('=' * 72)
 
-# ── Save per-exercise metrics CSV ─────────────────────────────────────────
-per_ex_df  = pd.DataFrame([
-    {'exercise': f'E{ex}', **vals}
-    for ex, vals in per_ex_results.items()
-])
+per_ex_df  = pd.DataFrame([{'exercise': f'E{ex}', **vals}
+                            for ex, vals in per_ex_results.items()])
 per_ex_csv = os.path.join(LOGS_DIR, 'per_exercise_metrics.csv')
 per_ex_df.to_csv(per_ex_csv, index=False)
 print(f'\n  ✓ Per-exercise CSV → {per_ex_csv}')
@@ -1684,7 +1580,6 @@ print(f'\n  ✓ Per-exercise CSV → {per_ex_csv}')
 n_ex   = len(unique_exercises)
 n_cols = 3
 n_rows = int(np.ceil(n_ex / n_cols))
-
 fig, axes = plt.subplots(n_rows, n_cols, figsize=(5 * n_cols, 4.5 * n_rows))
 axes = axes.flatten()
 fig.suptitle('Per-Exercise: True vs Predicted Quality (Test Set)',
@@ -1696,24 +1591,20 @@ for i, ex_id in enumerate(unique_exercises):
     qt   = all_true_q_arr[mask]
     qp   = all_pred_q_arr[mask]
     res  = per_ex_results[ex_id]
-
     ax.scatter(qt, qp, alpha=0.65, edgecolors='black',
                linewidths=0.4, color='steelblue', s=55)
     lo = min(qt.min(), qp.min()) - 0.2
     hi = max(qt.max(), qp.max()) + 0.2
     ax.plot([lo, hi], [lo, hi], 'r--', linewidth=1.5, label='Perfect')
     ax.set_xlim(lo, hi); ax.set_ylim(lo, hi)
-    ax.set_title(f'Exercise E{ex_id}  (n={res["n"]})',
-                 fontsize=10, fontweight='bold')
+    ax.set_title(f'Exercise E{ex_id}  (n={res["n"]})', fontsize=10, fontweight='bold')
     ax.set_xlabel('True Quality', fontsize=9)
     ax.set_ylabel('Predicted Quality', fontsize=9)
     ax.grid(alpha=0.3)
-    textstr = (f'MAE  = {res["mae"]:.3f}\n'
-               f'RMSE = {res["rmse"]:.3f}\n'
-               f'R²   = {res["r2"]:.3f}\n'
-               f'PCC  = {res["pcc"]:.3f}')
-    ax.text(0.05, 0.97, textstr, transform=ax.transAxes,
-            fontsize=8, verticalalignment='top',
+    textstr = (f'MAE  = {res["mae"]:.3f}\nRMSE = {res["rmse"]:.3f}\n'
+               f'R²   = {res["r2"]:.3f}\nPCC  = {res["pcc"]:.3f}')
+    ax.text(0.05, 0.97, textstr, transform=ax.transAxes, fontsize=8,
+            verticalalignment='top',
             bbox=dict(boxstyle='round', facecolor='wheat', alpha=0.7))
 
 for j in range(i + 1, len(axes)):
@@ -1727,8 +1618,8 @@ print(f'  ✓ Per-exercise scatter grid → {scatter_grid_path}')
 
 # ── Per-exercise bar chart ────────────────────────────────────────────────
 fig, axes = plt.subplots(1, 4, figsize=(16, 4))
-fig.suptitle('Per-Exercise Test Metrics — Tri-View Fusion', fontsize=13, fontweight='bold')
-
+fig.suptitle('Per-Exercise Test Metrics (Mid-Fusion ST-GCN)',
+             fontsize=13, fontweight='bold')
 ex_labels = [f'E{ex}' for ex in unique_exercises]
 colors    = plt.cm.tab10(np.linspace(0, 1, len(unique_exercises)))
 
@@ -1743,13 +1634,12 @@ for ax, metric, ylabel, ylim in [
                   linewidth=0.6, alpha=0.85)
     ax.set_title(ylabel, fontweight='bold')
     ax.set_ylabel(ylabel); ax.set_xlabel('Exercise')
-    ax.tick_params(axis='x', rotation=45)
-    ax.grid(axis='y', alpha=0.3)
+    ax.tick_params(axis='x', rotation=45); ax.grid(axis='y', alpha=0.3)
     if ylim:
         ax.set_ylim(ylim)
     for bar, v in zip(bars, vals):
         va_pos = bar.get_height() + 0.01 if v >= 0 else bar.get_height() - 0.04
-        ax.text(bar.get_x() + bar.get_width()/2, va_pos,
+        ax.text(bar.get_x() + bar.get_width() / 2, va_pos,
                 f'{v:.3f}', ha='center', va='bottom', fontsize=8)
 
 for ax, metric in zip(axes, ['mae', 'rmse', 'r2', 'pcc']):
@@ -1764,7 +1654,6 @@ plt.savefig(bar_path, dpi=150, bbox_inches='tight')
 plt.close()
 print(f'  ✓ Per-exercise bar chart → {bar_path}')
 
-# ── Save per-exercise metrics NPZ ─────────────────────────────────────────
 npz_per_ex_path = os.path.join(LOGS_DIR, 'per_exercise_metrics.npz')
 np.savez(npz_per_ex_path,
          exercise_ids = np.array(unique_exercises),
@@ -1772,124 +1661,48 @@ np.savez(npz_per_ex_path,
          mae          = np.array([per_ex_results[e]['mae']  for e in unique_exercises]),
          rmse         = np.array([per_ex_results[e]['rmse'] for e in unique_exercises]),
          r2           = np.array([per_ex_results[e]['r2']   for e in unique_exercises]),
-         pcc          = np.array([per_ex_results[e]['pcc']  for e in unique_exercises]),
-)
+         pcc          = np.array([per_ex_results[e]['pcc']  for e in unique_exercises]))
 print(f'  ✓ Per-exercise metrics NPZ → {npz_per_ex_path}')
-
-
-# ══════════════════════════════════════════════════════════════════════════
-# DIAGNOSTIC — Data analysis
-# ══════════════════════════════════════════════════════════════════════════
-
-from collections import defaultdict
-
-print("=" * 60)
-print("DIAGNOSTIC 1: Per-exercise skeleton variance")
-print("=" * 60)
-
-axis_var = defaultdict(list)
-for _, row in df_index.sample(min(300, len(df_index)), random_state=0).iterrows():
-    skel = load_skeleton(row['filepath'])
-    if skel is None:
-        continue
-    axis_var[row['exercise']].append({
-        'x_var': skel[:,:,0].var(),
-        'y_var': skel[:,:,1].var(),
-        'z_var': skel[:,:,2].var(),
-    })
-
-print(f"{'Exercise':>10} {'X-var':>10} {'Y-var':>10} {'Z-var':>10} {'Z/X ratio':>10}")
-print("-" * 55)
-for ex in sorted(axis_var.keys()):
-    vals = axis_var[ex]
-    xv = np.mean([v['x_var'] for v in vals])
-    yv = np.mean([v['y_var'] for v in vals])
-    zv = np.mean([v['z_var'] for v in vals])
-    print(f"{f'E{ex}':>10} {xv:>10.4f} {yv:>10.4f} {zv:>10.4f} {zv/max(xv,1e-6):>10.3f}")
-
-print()
-print("=" * 60)
-print("DIAGNOSTIC 2: Quality score distribution per split")
-print("=" * 60)
-for name, df_ in [('Train', train_df), ('Val', val_df), ('Test', test_df)]:
-    q = df_['quality']
-    tc = (df_['trial_num'] <= 2).sum()
-    te = (df_['trial_num'] >= 3).sum()
-    print(f"{name:>6}: mean={q.mean():.3f} std={q.std():.3f} "
-          f"min={q.min():.2f} max={q.max():.2f} | "
-          f"correct={tc} erroneous={te}")
-
-print()
-print("=" * 60)
-print("DIAGNOSTIC 3: Triplet counts per split")
-print("=" * 60)
-print(f"  Train triplets : {len(train_ds)}")
-print(f"  Val   triplets : {len(val_ds)}")
-print(f"  Test  triplets : {len(test_ds)}")
-print(f"  (vs single-view files: {len(train_df)}, {len(val_df)}, {len(test_df)})")
 
 
 # ══════════════════════════════════════════════════════════════════════════
 # Cell 17 — Final Summary
 # ══════════════════════════════════════════════════════════════════════════
 
-bv           = best_epoch - 1
+bv            = best_epoch - 1
 best_val_mae  = history['val_mae'][bv]
 best_val_rmse = history['val_rmse'][bv]
 best_val_r2   = history['val_r2'][bv]
 best_val_pcc  = history['val_pcc'][bv]
 
-print('=' * 65)
-print('  TRAINING SUMMARY — Gated Tri-View ST-GCN Fusion')
-print('=' * 65)
+print('=' * 60)
+print('  TRAINING SUMMARY — ST-GCN Mid-Fusion (C0 + C1 + C2)')
+print('=' * 60)
 print(f'  Best Epoch       : {best_epoch}  (stopped at {stopped_epoch})')
 print(f'  Best Val MAE     : {best_val_mae:.4f}')
 print(f'  Best Val RMSE    : {best_val_rmse:.4f}')
 print(f'  Best Val R²      : {best_val_r2:.4f}')
 print(f'  Best Val PCC     : {best_val_pcc:.4f}')
-print('─' * 65)
+print('─' * 60)
 print(f'  Test MAE         : {final_te["mae"]:.4f}')
 print(f'  Test RMSE        : {final_te["rmse"]:.4f}')
 print(f'  Test R²          : {final_te["r2"]:.4f}')
 print(f'  Test PCC         : {final_te["pcc"]:.4f}')
-print('─' * 65)
-gw = final_te.get('gate_mean', np.array([0.333]*3))
-gs = final_te.get('gate_std',  np.array([0.0]*3))
-print(f'  Mean gate weights:')
-print(f'    C0 = {gw[0]:.3f} ± {gs[0]:.3f}')
-print(f'    C1 = {gw[1]:.3f} ± {gs[1]:.3f}')
-print(f'    C2 = {gw[2]:.3f} ± {gs[2]:.3f}')
-print('─' * 65)
-print(f'  vs Single-View baseline:')
-sv = {'mae': 0.3834, 'rmse': 0.5267, 'r2': 0.5823, 'pcc': 0.8116}
-for m, sv_val in sv.items():
-    fu_val = final_te[m]
-    if m in ['mae', 'rmse']:
-        arrow = '↓ improved' if fu_val < sv_val else '↑ worse'
-    else:
-        arrow = '↑ improved' if fu_val > sv_val else '↓ worse'
-    print(f'    {m.upper():<5}: {sv_val:.4f} → {fu_val:.4f}  ({arrow})')
-print('=' * 65)
+print('=' * 60)
 
 log.info(f'Best Epoch={best_epoch}  stopped_epoch={stopped_epoch}')
 log.info(f'Test MAE={final_te["mae"]:.4f}')
 log.info(f'Test RMSE={final_te["rmse"]:.4f}')
 log.info(f'Test R²={final_te["r2"]:.4f}')
 log.info(f'Test PCC={final_te["pcc"]:.4f}')
-log.info(f'Gate weights: C0={gw[0]:.3f} C1={gw[1]:.3f} C2={gw[2]:.3f}')
 
-# ── Save summary CSV ──────────────────────────────────────────────────────
 summary_path = os.path.join(OUT_DIR, 'training_summary.csv')
 rows = [{'split': 'test_overall', 'exercise': 'all',
          'best_epoch': best_epoch, 'stopped_epoch': stopped_epoch,
-         'val_mae':  best_val_mae,  'val_rmse': best_val_rmse,
-         'val_r2':   best_val_r2,   'val_pcc':  best_val_pcc,
+         'val_mae': best_val_mae,  'val_rmse': best_val_rmse,
+         'val_r2':  best_val_r2,   'val_pcc':  best_val_pcc,
          'test_mae': final_te['mae'], 'test_rmse': final_te['rmse'],
-         'test_r2':  final_te['r2'], 'test_pcc':  final_te['pcc'],
-         'gate_c0':  float(gw[0]),   'gate_c1':  float(gw[1]),
-         'gate_c2':  float(gw[2]),
-         'sv_mae': sv['mae'], 'sv_r2': sv['r2'],  # single-view baseline
-         }]
+         'test_r2':  final_te['r2'], 'test_pcc':  final_te['pcc']}]
 
 for ex, vals in per_ex_results.items():
     rows.append({'split': 'test_per_exercise', 'exercise': f'E{ex}',
@@ -1898,7 +1711,7 @@ for ex, vals in per_ex_results.items():
                  'n': vals['n']})
 
 pd.DataFrame(rows).to_csv(summary_path, index=False)
-print(f'\n✓ Summary CSV (overall + per-exercise) → {summary_path}')
+print(f'\n✓ Summary CSV → {summary_path}')
 
 sys.stdout.restore()
 print('✓ Log file closed and saved.')
