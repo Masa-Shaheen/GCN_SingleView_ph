@@ -1810,6 +1810,106 @@ np.savez(npz_per_ex_path,
          pcc          = np.array([per_ex_results[e]['pcc']  for e in unique_exercises]),
 )
 print(f'  ✓ Per-exercise metrics NPZ → {npz_per_ex_path}')
+
+
+# ══════════════════════════════════════════════════════════════════════════
+# Cell 16.6 — Train / Val / Test full evaluation (overfitting check)
+# ══════════════════════════════════════════════════════════════════════════
+
+model.eval()
+
+def collect_predictions(loader):
+    all_true, all_pred, all_ex = [], [], []
+    with torch.no_grad():
+        for skels, qualities, exercise_ids in loader:
+            skels        = centre_and_scale(skels.to(DEVICE))
+            exercise_ids = exercise_ids.to(DEVICE)
+            preds        = model(skels, exercise_ids)
+            all_true.extend(qualities.numpy())
+            all_pred.extend(preds.cpu().numpy())
+            all_ex.extend(exercise_ids.cpu().numpy())
+    return np.array(all_true), np.array(all_pred), np.array(all_ex)
+
+# ── Collect predictions for all three splits ─────────────────────────────
+# Note: train_loader uses weighted sampler → use a clean loader for eval
+train_eval_loader = DataLoader(
+    make_ds(train_df, aug=False),   # no augmentation, no sampler
+    batch_size=BATCH_SIZE, shuffle=False,
+    num_workers=0, pin_memory=(DEVICE == 'cuda'),
+)
+
+split_preds = {
+    'Train' : collect_predictions(train_eval_loader),
+    'Val'   : collect_predictions(val_loader),
+    'Test'  : collect_predictions(test_loader),
+}
+
+# ── Per-split overall metrics ─────────────────────────────────────────────
+print('\n' + '=' * 72)
+print(f'  {"Split":<8} {"n":>6} {"MAE":>8} {"RMSE":>8} {"R²":>8} {"PCC":>8}')
+print('─' * 72)
+
+summary_rows = []
+for split_name, (qt, qp, qe) in split_preds.items():
+    mae  = float(np.mean(np.abs(qt - qp)))
+    rmse = float(np.sqrt(np.mean((qt - qp) ** 2)))
+    r2   = float(r2_score(qt, qp))
+    pcc  = float(pearsonr(qt, qp)[0])
+    print(f'  {split_name:<8} {len(qt):>6} {mae:>8.4f} {rmse:>8.4f} {r2:>8.4f} {pcc:>8.4f}')
+    summary_rows.append({
+        'split': split_name, 'exercise': 'all', 'n': len(qt),
+        'mae': mae, 'rmse': rmse, 'r2': r2, 'pcc': pcc,
+    })
+    plot_regression_scatter(qt, qp, split_name=split_name, save_dir=PLOTS_DIR)
+
+print('=' * 72)
+
+# ── Per-exercise metrics for each split ──────────────────────────────────
+print('\n' + '=' * 72)
+print('Per-exercise breakdown across splits')
+print('=' * 72)
+print(f'  {"Split":<8} {"Exercise":<12} {"n":>5} {"MAE":>8} {"RMSE":>8} {"R²":>8} {"PCC":>8}')
+print('─' * 72)
+
+for split_name, (qt, qp, qe) in split_preds.items():
+    for ex_id in sorted(np.unique(qe)):
+        mask = qe == ex_id
+        qt_ex, qp_ex = qt[mask], qp[mask]
+        n    = mask.sum()
+        mae  = float(np.mean(np.abs(qt_ex - qp_ex)))
+        rmse = float(np.sqrt(np.mean((qt_ex - qp_ex) ** 2)))
+        r2   = float(r2_score(qt_ex, qp_ex))   if n > 1 else float('nan')
+        pcc  = float(pearsonr(qt_ex, qp_ex)[0]) if n > 1 else float('nan')
+        print(f'  {split_name:<8} E{ex_id:<11} {n:>5} {mae:>8.4f} {rmse:>8.4f} {r2:>8.4f} {pcc:>8.4f}')
+        summary_rows.append({
+            'split': split_name, 'exercise': f'E{ex_id}', 'n': int(n),
+            'mae': mae, 'rmse': rmse, 'r2': r2, 'pcc': pcc,
+        })
+    print('─' * 72)
+
+# ── Save combined table ───────────────────────────────────────────────────
+all_splits_df = pd.DataFrame(summary_rows)
+all_splits_csv = os.path.join(LOGS_DIR, 'all_splits_metrics.csv')
+all_splits_df.to_csv(all_splits_csv, index=False)
+print(f'\n✓ All-splits metrics → {all_splits_csv}')
+
+# ── Overfitting summary ───────────────────────────────────────────────────
+tr_row = all_splits_df[(all_splits_df['split'] == 'Train') & (all_splits_df['exercise'] == 'all')].iloc[0]
+vl_row = all_splits_df[(all_splits_df['split'] == 'Val')   & (all_splits_df['exercise'] == 'all')].iloc[0]
+te_row = all_splits_df[(all_splits_df['split'] == 'Test')  & (all_splits_df['exercise'] == 'all')].iloc[0]
+
+print('\n' + '=' * 50)
+print('  Overfitting check  (Train → Val gap)')
+print('=' * 50)
+print(f'  MAE  gap : {vl_row["mae"]  - tr_row["mae"]:+.4f}  '
+      f'(Train={tr_row["mae"]:.4f}  Val={vl_row["mae"]:.4f})')
+print(f'  RMSE gap : {vl_row["rmse"] - tr_row["rmse"]:+.4f}  '
+      f'(Train={tr_row["rmse"]:.4f}  Val={vl_row["rmse"]:.4f})')
+print(f'  R²   gap : {vl_row["r2"]   - tr_row["r2"]:+.4f}  '
+      f'(Train={tr_row["r2"]:.4f}  Val={vl_row["r2"]:.4f})')
+print(f'  PCC  gap : {vl_row["pcc"]  - tr_row["pcc"]:+.4f}  '
+      f'(Train={tr_row["pcc"]:.4f}  Val={vl_row["pcc"]:.4f})')
+print('=' * 50)
 # ══════════════════════════════════════════════════════════════════════════
 # Cell 17 — Final Summary
 # ══════════════════════════════════════════════════════════════════════════
