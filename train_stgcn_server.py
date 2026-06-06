@@ -27,7 +27,7 @@ SEED = 42
  
 # ── Exercise Filter ───────────────────────────────────────────────────────
 # EXCLUDED_EXERCISES = {3, 7, 9}          # E3, E7, E9 removed from all splits
-EXCLUDED_EXERCISES = {1, 2, 3, 4, 5, 6, 7, 8, 9}
+EXCLUDED_EXERCISES = {0, 2, 3, 4, 5, 6, 7, 8, 9}
 EXERCISE_REMAP     = {}                  # filled automatically in Cell 7
 
 
@@ -432,11 +432,12 @@ remaining_exercises = sorted(
     set(val_df['exercise'].unique())   |
     set(test_df['exercise'].unique())
 )
-EXERCISE_REMAP = {orig: new for new, orig in enumerate(remaining_exercises)}
-print(f'\n  Exercise ID remap : {EXERCISE_REMAP}')
+# ── STEP 5: keep original exercise IDs, no remap ─────────────────────────
+EXERCISE_REMAP = {ex: ex for ex in remaining_exercises}   # identity map
+NUM_EXERCISES  = max(remaining_exercises) + 1             # e.g. 10 for E0–E9
 
 for df_ in [train_df, val_df, test_df]:
-    df_['exercise'] = df_['exercise'].map(EXERCISE_REMAP)
+    df_['exercise'] = df_['exercise']   # no change
 
 # ── STEP 6: Combine & leakage check ──────────────────────────────────────
 df_index = pd.concat([train_df, val_df, test_df], ignore_index=True)
