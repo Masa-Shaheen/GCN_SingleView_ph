@@ -34,7 +34,7 @@ ALL_CAMERAS = [0, 1, 2]
 CAM_FEATURE_DIM = 64      # ← the "16 features" you mentioned; set to 64 here
 
 # ── Exercise Filter ───────────────────────────────────────────────────────
-EXCLUDED_EXERCISES = {1, 2, 3, 4, 5, 6, 7, 8, 9}
+EXCLUDED_EXERCISES = {0, 2, 3, 4, 5, 6, 7, 8, 9} #0 then E1
 EXERCISE_REMAP     = {}    # filled automatically in Cell 7
 
 print('✓ Configuration loaded  (MID FUSION)')
