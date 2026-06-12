@@ -29,7 +29,7 @@ SEED = 42
 ALL_CAMERAS = [0, 1, 2]    # early fusion uses all 3
 
 # ── Exercise Filter ───────────────────────────────────────────────────────
-EXCLUDED_EXERCISES = {0, 2, 3, 4, 5, 6, 7, 8, 9}
+EXCLUDED_EXERCISES = {1, 2, 3, 4, 5, 6, 7, 8, 9}
 EXERCISE_REMAP     = {}    # filled automatically in Cell 7
 
 print('✓ Configuration loaded')
@@ -1403,7 +1403,7 @@ elif final_tr['mae'] > 0.40 and final_te['mae'] > 0.40:
     print('  ⚠  UNDERFITTING likely')
 else:
     print('  ✓  Fit looks reasonable')
-    
+
 pd.DataFrame(rows).to_csv(summary_path, index=False)
 print(f'\n✓ Summary CSV → {summary_path}')
 
