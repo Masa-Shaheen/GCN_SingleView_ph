@@ -363,8 +363,8 @@ remaining_exercises = sorted(
     set(val_df['exercise'].unique())   |
     set(test_df['exercise'].unique())
 )
-#EXERCISE_REMAP = {orig: new for new, orig in enumerate(remaining_exercises)}
-EXERCISE_REMAP = {orig: orig for orig in remaining_exercises}
+EXERCISE_REMAP = {orig: new for new, orig in enumerate(remaining_exercises)}
+
 print(f'\n  Exercise ID remap : {EXERCISE_REMAP}')
 
 for df_ in [train_df, val_df, test_df]:
