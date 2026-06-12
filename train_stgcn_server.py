@@ -36,7 +36,7 @@ ALL_CAMERAS = [0, 1, 2]
 LATE_FUSION_MODE = 'weighted'   # ← change to 'mean' / 'weighted' / 'mlp'
 
 # ── Exercise Filter ───────────────────────────────────────────────────────
-EXCLUDED_EXERCISES = {1, 2, 3, 4, 5, 6, 7, 8, 9}#E0 THEN E1
+EXCLUDED_EXERCISES = {0, 2, 3, 4, 5, 6, 7, 8, 9}#E0 THEN E1
 EXERCISE_REMAP     = {}    # filled automatically in Cell 7
 
 print('✓ Configuration loaded  (LATE FUSION)')
