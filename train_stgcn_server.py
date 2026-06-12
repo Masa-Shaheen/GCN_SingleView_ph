@@ -1342,21 +1342,32 @@ print(f'  MAE  : {final_te["mae"]:.4f}')
 print(f'  R²   : {final_te["r2"]:.4f}')
 print(f'  PCC  : {final_te["pcc"]:.4f}')
 
-# Collect predictions
+# ── Collect train predictions ─────────────────────────────────────────────
 model.eval()
-all_true_q, all_pred_q, all_exercise_ids = [], [], []
+all_true_train, all_pred_train, all_ex_train = [], [], []
 with torch.no_grad():
-    for x_c0, x_c1, x_c2, qualities, exercise_ids in test_loader:
+    for x_c0, x_c1, x_c2, qualities, exercise_ids in train_loader:
         x_c0         = centre_and_scale(x_c0.to(DEVICE))
         x_c1         = centre_and_scale(x_c1.to(DEVICE))
         x_c2         = centre_and_scale(x_c2.to(DEVICE))
         exercise_ids = exercise_ids.to(DEVICE)
         preds        = model(x_c0, x_c1, x_c2, exercise_ids)
-        all_true_q.extend(qualities.numpy())
-        all_pred_q.extend(preds.cpu().numpy())
-        all_exercise_ids.extend(exercise_ids.cpu().numpy())
+        all_true_train.extend(qualities.numpy())
+        all_pred_train.extend(preds.cpu().numpy())
+        all_ex_train.extend(exercise_ids.cpu().numpy())
 
-
+# ── Collect val predictions ───────────────────────────────────────────────
+all_true_val, all_pred_val, all_ex_val = [], [], []
+with torch.no_grad():
+    for x_c0, x_c1, x_c2, qualities, exercise_ids in val_loader:
+        x_c0         = centre_and_scale(x_c0.to(DEVICE))
+        x_c1         = centre_and_scale(x_c1.to(DEVICE))
+        x_c2         = centre_and_scale(x_c2.to(DEVICE))
+        exercise_ids = exercise_ids.to(DEVICE)
+        preds        = model(x_c0, x_c1, x_c2, exercise_ids)
+        all_true_val.extend(qualities.numpy())
+        all_pred_val.extend(preds.cpu().numpy())
+        all_ex_val.extend(exercise_ids.cpu().numpy())
 # ══════════════════════════════════════════════════════════════════════════
 # Cell 19 — Save plots & results  (identical to single-view)
 # ══════════════════════════════════════════════════════════════════════════
@@ -1367,6 +1378,8 @@ plot_r2(history, PLOTS_DIR, test_r2=final_te['r2'])
 plot_pcc(history, PLOTS_DIR, test_pcc=final_te['pcc'])
 plot_regression_scatter(all_true_q, all_pred_q, split_name='Test', save_dir=PLOTS_DIR)
 plot_early_stop(history, stopped_epoch, best_epoch, PLOTS_DIR)
+plot_regression_scatter(all_true_train, all_pred_train, split_name='Train', save_dir=PLOTS_DIR)
+plot_regression_scatter(all_true_val,   all_pred_val,   split_name='Val',   save_dir=PLOTS_DIR)
 
 json_path = os.path.join(LOGS_DIR, 'training_history.json')
 with open(json_path, 'w') as f:
@@ -1377,6 +1390,12 @@ np.savez(os.path.join(LOGS_DIR, 'training_history.npz'),
 np.savez(os.path.join(LOGS_DIR, 'test_predictions.npz'),
          q_true=np.array(all_true_q), q_pred=np.array(all_pred_q),
          exercise_ids=np.array(all_exercise_ids))
+np.savez(os.path.join(LOGS_DIR, 'train_predictions.npz'),
+         q_true=np.array(all_true_train), q_pred=np.array(all_pred_train),
+         exercise_ids=np.array(all_ex_train))
+np.savez(os.path.join(LOGS_DIR, 'val_predictions.npz'),
+         q_true=np.array(all_true_val), q_pred=np.array(all_pred_val),
+         exercise_ids=np.array(all_ex_val))
 print('✓ History and predictions saved')
 
 # ══════════════════════════════════════════════════════════════════════════
@@ -1567,6 +1586,36 @@ for ex, vals in per_ex_results.items():
                  'test_r2': vals['r2'],   'test_pcc': vals['pcc'],
                  'n': vals['n']})
 
+final_tr = {
+    'mae' : float(np.mean(np.abs(np.array(all_true_train) - np.array(all_pred_train)))),
+    'rmse': float(np.sqrt(np.mean((np.array(all_true_train) - np.array(all_pred_train))**2))),
+    'r2'  : float(r2_score(all_true_train, all_pred_train)),
+    'pcc' : float(pearsonr(all_true_train, all_pred_train)[0]),
+}
+final_vl = {
+    'mae' : float(np.mean(np.abs(np.array(all_true_val) - np.array(all_pred_val)))),
+    'rmse': float(np.sqrt(np.mean((np.array(all_true_val) - np.array(all_pred_val))**2))),
+    'r2'  : float(r2_score(all_true_val, all_pred_val)),
+    'pcc' : float(pearsonr(all_true_val, all_pred_val)[0]),
+}
+
+print('=' * 60)
+print('  FIT DIAGNOSIS (best weights)')
+print('=' * 60)
+print(f'  {"Metric":<8}  {"Train":>8}  {"Val":>8}  {"Test":>8}')
+print('─' * 60)
+for m in ['mae', 'rmse', 'r2', 'pcc']:
+    print(f'  {m.upper():<8}  {final_tr[m]:>8.4f}  {final_vl[m]:>8.4f}  {final_te[m]:>8.4f}')
+print('=' * 60)
+# Quick diagnosis
+mae_gap = final_tr['mae'] - final_te['mae']
+if final_tr['mae'] < 0.15 and final_te['mae'] > 0.40:
+    print('  ⚠  OVERFITTING likely — large train/test MAE gap')
+elif final_tr['mae'] > 0.40 and final_te['mae'] > 0.40:
+    print('  ⚠  UNDERFITTING likely — both train and test MAE are high')
+else:
+    print('  ✓  Fit looks reasonable')
+    
 summary_path = os.path.join(OUT_DIR, 'training_summary.csv')
 pd.DataFrame(rows).to_csv(summary_path, index=False)
 print(f'\n✓ Summary CSV → {summary_path}')
