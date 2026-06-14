@@ -627,7 +627,7 @@ class SpatialGraphConv(nn.Module):
 
 class STGCNBlock(nn.Module):
     def __init__(self, in_channels, out_channels, K=3,
-                 temporal_kernel=9, stride=1, dropout=0.1, residual=True):
+                 temporal_kernel=9, stride=1, dropout=0.2, residual=True):
         super().__init__()
         pad = (temporal_kernel - 1) // 2
         self.spatial  = SpatialGraphConv(in_channels, out_channels, K)
@@ -674,7 +674,7 @@ class STGCN_EarlyFusion(nn.Module):
     The only change vs. single-view is in_features=18 instead of 6.
     Everything else (9 ST-GCN blocks, GAP, regression head) is identical.
     """
-    def __init__(self, in_features=EARLY_FUSION_CHANNELS, K=3, dropout=0.1):
+    def __init__(self, in_features=EARLY_FUSION_CHANNELS, K=3, dropout=0.2):
         super().__init__()
 
         A = build_stgcn_adjacency(NUM_JOINTS, SKELETON_EDGES, center_joint=0)
@@ -1063,7 +1063,7 @@ test_loader = DataLoader(
 model = STGCN_EarlyFusion(
     in_features = EARLY_FUSION_CHANNELS,
     K           = 3,
-    dropout     = 0.1,
+    dropout     = 0.2,
 ).to(DEVICE)
 
 optimiser = torch.optim.AdamW(
