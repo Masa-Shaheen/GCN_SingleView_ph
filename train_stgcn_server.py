@@ -934,7 +934,7 @@ class STGCNBlock(nn.Module):
           └─[Residual]─────────────→ skip connection
     """
     def __init__(self, in_channels, out_channels, K=3,
-                 temporal_kernel=9, stride=1, dropout=0.1, residual=True):
+                 temporal_kernel=9, stride=1, dropout=0.3, residual=True):
         super().__init__()
 
         pad = (temporal_kernel - 1) // 2
@@ -994,7 +994,7 @@ class STGCN_Regression(nn.Module):
     NO GRU — temporal information is captured purely through
     the temporal convolution inside each ST-GCN block.
     """
-    def __init__(self, in_features=6, K=3, dropout=0.1):
+    def __init__(self, in_features=6, K=3, dropout=0.3):
         super().__init__()
 
         # K=3 partition adjacency (centripetal / centrifugal / self)
@@ -1029,7 +1029,7 @@ class STGCN_Regression(nn.Module):
             nn.Linear(256 + 32, 128),
             nn.LayerNorm(128),
             nn.ReLU(),
-            nn.Dropout(0.1),
+            nn.Dropout(0.2),
             nn.Linear(128, 64),
             nn.ReLU(),
             nn.Dropout(0.1),
@@ -1483,7 +1483,7 @@ val_loader  = DataLoader(make_ds(val_df,  False), batch_size=BATCH_SIZE,
 test_loader = DataLoader(make_ds(test_df, False), batch_size=BATCH_SIZE,
                          shuffle=False, num_workers=0, pin_memory=(DEVICE=='cuda'))
 
-model = STGCN_Regression(in_features=6, K=3, dropout=0.1).to(DEVICE)
+model = STGCN_Regression(in_features=6, K=3, dropout=0.3).to(DEVICE)
 
 optimiser = torch.optim.AdamW(
     model.parameters(),
