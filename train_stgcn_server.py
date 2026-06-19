@@ -13,7 +13,7 @@ TRAIN_RATIO   = 0.70
 VAL_RATIO     = 0.15
 EPOCHS        = 300
 LR            = 1e-4
-BATCH_SIZE    = 32          # ← reduced: each sample is now 3× heavier (3 cams)
+BATCH_SIZE    = 32
 WEIGHT_DECAY  = 1e-4
 OUT_DIR       = "/mvdlph/masa/GCN_SingleView_Regression_Results"
 
@@ -26,20 +26,26 @@ WARMUP_EPOCHS = 20
 SEED = 42
 
 # ── Camera setup ─────────────────────────────────────────────────────────
-ALL_CAMERAS = [0, 1, 2]    # early fusion uses all 3
+ALL_CAMERAS = [0, 1, 2]
+
+# ── Mid-Fusion: feature dim per camera backbone ───────────────────────────
+# Each camera's ST-GCN outputs this many features before the fusion point.
+# You can change this (e.g. 32, 64, 128) — larger = more capacity per view.
+CAM_FEATURE_DIM = 64      # ← the "16 features" you mentioned; set to 64 here
 
 # ── Exercise Filter ───────────────────────────────────────────────────────
-EXCLUDED_EXERCISES = { 1,2,3,4,5,6,7,8, 9}#E1 then E0
+EXCLUDED_EXERCISES = { 1,2,3,4,5,6,7,8, 9}# #E0 then E1
 EXERCISE_REMAP     = {}    # filled automatically in Cell 7
 
-print('✓ Configuration loaded')
-print(f'  DATASET_DIR : {DATASET_DIR}')
-print(f'  SPLIT_DIR   : {SPLIT_DIR}')
-print(f'  NPZ_KEY     : {NPZ_KEY}')
-print(f'  CAMERAS     : {ALL_CAMERAS}  (Early Fusion)')
-print(f'  EXISTS      : {os.path.exists(DATASET_DIR)}')
-print(f'  SPLIT EXISTS: {os.path.exists(SPLIT_DIR)}')
-print(f'  PATIENCE    : {PATIENCE} epochs')
+print('✓ Configuration loaded  (MID FUSION)')
+print(f'  DATASET_DIR    : {DATASET_DIR}')
+print(f'  SPLIT_DIR      : {SPLIT_DIR}')
+print(f'  NPZ_KEY        : {NPZ_KEY}')
+print(f'  CAMERAS        : {ALL_CAMERAS}')
+print(f'  CAM_FEATURE_DIM: {CAM_FEATURE_DIM}  (features per camera before fusion)')
+print(f'  EXISTS         : {os.path.exists(DATASET_DIR)}')
+print(f'  SPLIT EXISTS   : {os.path.exists(SPLIT_DIR)}')
+print(f'  PATIENCE       : {PATIENCE} epochs')
 
 
 # ══════════════════════════════════════════════════════════════════════════
@@ -164,10 +170,11 @@ logging.basicConfig(
     format   = "%(asctime)s | %(levelname)s | %(message)s",
     handlers = [logging.FileHandler(log_file), logging.StreamHandler()],
 )
-log = logging.getLogger("GCN-EarlyFusion")
+log = logging.getLogger("GCN-MidFusion")
 log.info("=" * 70)
-log.info("ST-GCN Multi-View EARLY FUSION Regression | BZU Physiotherapy Dataset")
+log.info("ST-GCN Multi-View MID FUSION Regression | BZU Physiotherapy Dataset")
 log.info(f"Cameras : {ALL_CAMERAS}  |  Epochs : {EPOCHS}  |  Patience : {PATIENCE}")
+log.info(f"CAM_FEATURE_DIM : {CAM_FEATURE_DIM} features per camera")
 log.info(f"Log file : {log_file}")
 log.info("=" * 70)
 
@@ -214,11 +221,6 @@ print('✓ parse_filename and load_skeleton defined')
 
 # ══════════════════════════════════════════════════════════════════════════
 # Cell 7 — Build dataset index FROM PRE-SPLIT DIRECTORIES
-#
-#   KEY CHANGE FOR EARLY FUSION:
-#   build_index_from_split now loads ALL cameras (camera_id=None).
-#   Downstream we group by trial_key and keep only groups with all 3 cameras.
-#   The Dataset will look up the 3 filepaths per (trial_key, segment).
 # ══════════════════════════════════════════════════════════════════════════
 
 def build_index_from_split(split_name, df_csv, camera_id=None):
@@ -248,7 +250,6 @@ def build_index_from_split(split_name, df_csv, camera_id=None):
         ]
         meta['quality']   = float(row.iloc[0]['mean']) if len(row) > 0 else np.nan
         meta['trial_key'] = f"E{meta['exercise']}_{meta['person']}_{meta['trial_id']}"
-        # ← segment key: uniquely identifies one multi-view sample
         meta['sample_key'] = f"{meta['trial_key']}_seg{meta['segment']}"
         meta['split']     = split_name
         records.append(meta)
@@ -273,27 +274,15 @@ def build_index_from_split(split_name, df_csv, camera_id=None):
 
 
 def build_multiview_index(df, label=''):
-    """
-    Converts a per-file DataFrame into a per-SAMPLE DataFrame where
-    each row represents one (exercise, person, trial, segment) tuple
-    and has columns  filepath_c0 / filepath_c1 / filepath_c2.
-
-    Only rows with all 3 cameras are kept.
-    """
     REQUIRED = set(ALL_CAMERAS)
-
-    # Group by sample_key  →  one row per (trial, segment)
-    groups = df.groupby('sample_key')
-
-    rows = []
-    skipped = 0
+    groups   = df.groupby('sample_key')
+    rows     = []
+    skipped  = 0
     for key, grp in groups:
         cams = set(grp['camera'].values)
         if not REQUIRED.issubset(cams):
             skipped += 1
             continue
-
-        # One representative row for metadata
         rep = grp.iloc[0]
         row = {
             'sample_key' : key,
@@ -309,7 +298,6 @@ def build_multiview_index(df, label=''):
         for cam in ALL_CAMERAS:
             fp = grp.loc[grp['camera'] == cam, 'filepath'].values[0]
             row[f'filepath_c{cam}'] = fp
-
         rows.append(row)
 
     if skipped:
@@ -323,7 +311,6 @@ def build_multiview_index(df, label=''):
 
 
 def remove_corrupted_mv(df, label=''):
-    """Drop rows where ANY of the 3 camera files fails to load."""
     bad_keys = set()
     for _, row in df.iterrows():
         for cam in ALL_CAMERAS:
@@ -362,7 +349,7 @@ train_df = remove_corrupted_mv(train_df, 'TRAIN')
 val_df   = remove_corrupted_mv(val_df,   'VALID')
 test_df  = remove_corrupted_mv(test_df,  'TEST')
 
-# ── STEP 4: Exclude E3, E7, E9 ───────────────────────────────────────────
+# ── STEP 4: Exclude exercises ─────────────────────────────────────────────
 print('\nExcluding exercises...')
 train_df = exclude_exercises(train_df, label='TRAIN')
 val_df   = exclude_exercises(val_df,   label='VALID')
@@ -406,7 +393,7 @@ print('\n✓ Multi-view index ready  →  train / val / test DataFrames built')
 
 
 # ══════════════════════════════════════════════════════════════════════════
-# Cell 8 — Skeleton visualisation helpers  (unchanged)
+# Cell 8 — Skeleton visualisation helpers
 # ══════════════════════════════════════════════════════════════════════════
 
 SKELETON_EDGES = [
@@ -441,25 +428,25 @@ print('✓ Skeleton visualisation helpers defined')
 
 
 # ══════════════════════════════════════════════════════════════════════════
-# Cell 10 — BZUMultiViewDataset  (EARLY FUSION)
+# Cell 10 — BZUMultiViewDataset  (MID FUSION)
 #
-#   Each __getitem__ loads skeletons from ALL 3 cameras and
-#   concatenates them along the CHANNEL dimension BEFORE the network:
+#   KEY DIFFERENCE FROM EARLY FUSION:
+#   __getitem__ returns a TUPLE of 3 separate tensors, one per camera.
+#   Each tensor has shape (T, J, 6)  — position + velocity.
+#   The cameras are NOT concatenated here; fusion happens inside the model.
 #
-#       C0: (T, J, 6)  ─┐
-#       C1: (T, J, 6)  ──┤ cat on last dim → (T, J, 18)
-#       C2: (T, J, 6)  ─┘
-#
-#   "Early" means we fuse at the raw feature level, so the backbone
-#   sees joint positions/velocities from all viewpoints simultaneously.
+#   Early fusion  →  data returns (T, J, 18), model sees all views at once.
+#   Mid   fusion  →  data returns [(T,J,6), (T,J,6), (T,J,6)],
+#                    each camera has its OWN ST-GCN backbone,
+#                    features are merged AFTER the backbone.
 # ══════════════════════════════════════════════════════════════════════════
 
 class BZUMultiViewDataset(Dataset):
     """
-    Returns (fused_skeleton, quality_score, exercise_id)
-    where fused_skeleton has shape (T, J, 6 * num_cameras).
+    Returns (cam_skels, quality_score, exercise_id) where:
+      cam_skels : list of 3 tensors, each (T, J, 6)  — one per camera
     """
-    NUM_CAMERAS = len(ALL_CAMERAS)      # 3
+    NUM_CAMERAS = len(ALL_CAMERAS)    # 3
 
     def __init__(self, df, target_frames=TARGET_FRAMES, augment=False):
         self.df            = df.reset_index(drop=True)
@@ -472,33 +459,32 @@ class BZUMultiViewDataset(Dataset):
     def __getitem__(self, idx):
         row = self.df.iloc[idx]
 
-        # ── Load all 3 cameras ────────────────────────────────────────────
+        # ── Load & normalise each camera separately ───────────────────────
         skels = []
         for cam in ALL_CAMERAS:
             skel = load_skeleton(row[f'filepath_c{cam}'])
             if skel is None:
-                skel = np.zeros((self.target_frames, NUM_JOINTS, 3), dtype=np.float32)
-            skel = self._normalise_length(skel)     # → (T, J, 3)
+                skel = np.zeros((self.target_frames, NUM_JOINTS, 3),
+                                dtype=np.float32)
+            skel = self._normalise_length(skel)          # (T, J, 3)
             skels.append(skel)
 
-        # ── Optional augmentation: same warp applied to ALL cameras ──────
+        # ── Optional augmentation: same warp for all cameras ─────────────
         if self.augment:
             skels = self._augment_multiview(skels)
 
-        # ── Compute velocity per camera and stack ─────────────────────────
-        fused_parts = []
+        # ── Add velocity channel per camera → (T, J, 6) each ─────────────
+        cam_tensors = []
         for skel in skels:
-            velocity       = np.zeros_like(skel)
-            velocity[1:]   = skel[1:] - skel[:-1]
-            fused_parts.append(np.concatenate([skel, velocity], axis=-1))   # (T,J,6)
+            velocity     = np.zeros_like(skel)
+            velocity[1:] = skel[1:] - skel[:-1]
+            feat = np.concatenate([skel, velocity], axis=-1)   # (T, J, 6)
+            cam_tensors.append(torch.tensor(feat, dtype=torch.float32))
 
-        # ── Early fusion: concatenate on channel axis → (T, J, 6*3=18) ──
-        fused = np.concatenate(fused_parts, axis=-1)   # (T, J, 18)
-
-        skel_tensor = torch.tensor(fused,            dtype=torch.float32)
-        quality     = torch.tensor(row['quality'],   dtype=torch.float32)
-        exercise_id = torch.tensor(row['exercise'],  dtype=torch.long)
-        return skel_tensor, quality, exercise_id
+        # cam_tensors : list of 3 × (T, J, 6)  — kept SEPARATE for mid fusion
+        quality     = torch.tensor(row['quality'],  dtype=torch.float32)
+        exercise_id = torch.tensor(row['exercise'], dtype=torch.long)
+        return cam_tensors, quality, exercise_id
 
     # ── helpers ───────────────────────────────────────────────────────────
 
@@ -516,47 +502,67 @@ class BZUMultiViewDataset(Dataset):
         return out
 
     def _augment_multiview(self, skels):
-        """
-        Apply the SAME temporal warp to every camera so inter-camera
-        correspondences are preserved.
-        """
+        """Same temporal warp applied to every camera."""
         T = skels[0].shape[0]
-
-        # Speed warp
         speed = np.random.uniform(0.75, 1.25)
         n_new = max(10, int(T * speed))
         idxs  = np.linspace(0, T - 1, n_new).astype(int)
         skels = [self._normalise_length(s[idxs]) for s in skels]
 
-        # Frame drop
         keep_ratio = np.random.uniform(0.80, 1.0)
         n_keep     = max(10, int(self.target_frames * keep_ratio))
         keep_idxs  = np.sort(
             np.random.choice(self.target_frames, n_keep, replace=False))
         skels = [self._normalise_length(s[keep_idxs]) for s in skels]
-
         return skels
 
-print('✓ BZUMultiViewDataset defined  (Early Fusion, 3 cameras → 18 channels)')
+
+def mid_fusion_collate(batch):
+    """
+    Custom collate: batch is a list of (cam_tensors, quality, exercise_id).
+    cam_tensors is a list of 3 × (T, J, 6).
+    Returns:
+      cam_batch  : list of 3 tensors, each (B, T, J, 6)
+      qualities  : (B,)
+      exercise_ids: (B,)
+    """
+    n_cams      = len(batch[0][0])
+    cam_batch   = [torch.stack([item[0][c] for item in batch]) for c in range(n_cams)]
+    qualities   = torch.stack([item[1] for item in batch])
+    exercise_ids = torch.stack([item[2] for item in batch])
+    return cam_batch, qualities, exercise_ids
+
+
+print('✓ BZUMultiViewDataset defined  '
+      '(Mid Fusion — 3 separate (T,J,6) tensors per sample)')
+print('✓ mid_fusion_collate defined')
 
 
 # ══════════════════════════════════════════════════════════════════════════
-# Cell 11 — TRUE ST-GCN backbone + Early-Fusion Model
+# Cell 11 — ST-GCN backbone + MID FUSION Model
 #
-#   The architecture is identical to the single-view version EXCEPT:
+#   Architecture overview
+#   ─────────────────────
 #
-#     in_features = 18  (6 pos+vel channels × 3 cameras)
+#   C0 skeleton (T,J,6) ──► STGCNCameraBackbone ──► feat_c0 (B, CAM_FEATURE_DIM)─┐
+#   C1 skeleton (T,J,6) ──► STGCNCameraBackbone ──► feat_c1 (B, CAM_FEATURE_DIM)─┤ concat
+#   C2 skeleton (T,J,6) ──► STGCNCameraBackbone ──► feat_c2 (B, CAM_FEATURE_DIM)─┘
+#                                                              │
+#                                              fused (B, CAM_FEATURE_DIM × 3)
+#                                                              │
+#                                   ┌──────────────── exercise embedding (32) ──┤
+#                                   ▼
+#                           FusionMLP  →  quality score ∈ [1, 5]
 #
-#   instead of 6.  All other blocks (SpatialGraphConv, STGCNBlock,
-#   regression head, exercise embedding) are unchanged.
-#
-#   Why this works:  each joint node now carries information from THREE
-#   viewing angles simultaneously.  The graph convolution mixes these
-#   multi-view features across neighbouring joints, so the network can
-#   reason about 3D motion even from 2-D projections.
+#   Fusion point: AFTER the per-camera GAP → compact feature vector.
+#   Each backbone is independent (no shared weights by default).
+#   You can optionally share backbone weights (see SHARED_BACKBONE flag).
 # ══════════════════════════════════════════════════════════════════════════
 
 from collections import deque
+
+# ── Set to True to tie backbone weights across cameras (fewer params) ─────
+SHARED_BACKBONE = False
 
 def get_joint_distances(num_joints, edges, center_joint=0):
     adj = {i: [] for i in range(num_joints)}
@@ -658,23 +664,23 @@ class STGCNBlock(nn.Module):
         return self.relu(x + res)
 
 
-NUM_EXERCISES = len(EXERCISE_REMAP)
+# ────────────────────────────────────────────────────────────────────────
+# STGCNCameraBackbone
+#
+#   Processes ONE camera's skeleton (B, T, J, 6) and outputs a
+#   compact feature vector (B, CAM_FEATURE_DIM).
+#
+#   It is a standard 9-block ST-GCN followed by GAP and a linear
+#   projection to CAM_FEATURE_DIM.  Note in_features=6 (single camera).
+# ────────────────────────────────────────────────────────────────────────
 
-# ── in_features = 18 for Early Fusion (6 channels × 3 cameras) ──────────
-EARLY_FUSION_CHANNELS = 6 * len(ALL_CAMERAS)   # = 18
-
-
-class STGCN_EarlyFusion(nn.Module):
+class STGCNCameraBackbone(nn.Module):
     """
-    ST-GCN with EARLY FUSION of 3 camera views.
-
-    Input  : (B, T, J, 18)  — 3 cameras × (xyz + velocity)
-    Output : (B,)            — quality score ∈ [1, 5]
-
-    The only change vs. single-view is in_features=18 instead of 6.
-    Everything else (9 ST-GCN blocks, GAP, regression head) is identical.
+    Single-camera ST-GCN backbone.
+    Input  : (B, T, J, 6)
+    Output : (B, CAM_FEATURE_DIM)
     """
-    def __init__(self, in_features=EARLY_FUSION_CHANNELS, K=3, dropout=0.3):
+    def __init__(self, in_features=6, feature_dim=CAM_FEATURE_DIM, K=3, dropout=0.3):
         super().__init__()
 
         A = build_stgcn_adjacency(NUM_JOINTS, SKELETON_EDGES, center_joint=0)
@@ -696,17 +702,11 @@ class STGCN_EarlyFusion(nn.Module):
 
         self.gap = nn.AdaptiveAvgPool2d(1)
 
-        self.ex_embed = nn.Embedding(NUM_EXERCISES, 32)
-
-        self.reg_head = nn.Sequential(
-            nn.Linear(256 + 32, 128),
-            nn.LayerNorm(128),
+        # Project 256-dim GAP output → compact CAM_FEATURE_DIM
+        self.proj = nn.Sequential(
+            nn.Linear(256, feature_dim),
+            nn.LayerNorm(feature_dim),
             nn.ReLU(),
-            nn.Dropout(0.1),
-            nn.Linear(128, 64),
-            nn.ReLU(),
-            nn.Dropout(0.1),
-            nn.Linear(64, 1),
         )
 
         self._init_weights()
@@ -725,42 +725,142 @@ class STGCN_EarlyFusion(nn.Module):
                 if m.bias is not None:
                     nn.init.zeros_(m.bias)
 
-    def forward(self, x, exercise_id):
+    def forward(self, x):
         """
-        x           : (B, T, J, C)   C = 18 for early fusion
-        exercise_id : (B,)
-        returns     : (B,)
+        x : (B, T, J, 6)
+        returns : (B, CAM_FEATURE_DIM)
         """
         B, T, J, C = x.shape
-
         x = x.permute(0, 3, 2, 1).reshape(B, C * J, T)
         x = self.data_bn(x)
-        x = x.reshape(B, C, J, T).permute(0, 1, 3, 2)     # (B, C, T, J)
+        x = x.reshape(B, C, J, T).permute(0, 1, 3, 2)   # (B, C, T, J)
 
         for block in self.blocks:
             x = block(x, self.A)
 
-        x   = self.gap(x).squeeze(-1).squeeze(-1)           # (B, 256)
-        ex  = self.ex_embed(exercise_id)                     # (B, 32)
-        h   = torch.cat([x, ex], dim=1)                      # (B, 288)
-        out = 3.0 + 2.0 * torch.tanh(self.reg_head(h).squeeze(1))
+        x = self.gap(x).squeeze(-1).squeeze(-1)           # (B, 256)
+        return self.proj(x)                                # (B, CAM_FEATURE_DIM)
+
+
+# ────────────────────────────────────────────────────────────────────────
+# STGCN_MidFusion  — the full model
+#
+#   FUSION POINT is after backbone GAP+proj.
+#   Each camera produces (B, CAM_FEATURE_DIM); they are concatenated to
+#   (B, CAM_FEATURE_DIM × 3), then a shared MLP produces the quality score.
+# ────────────────────────────────────────────────────────────────────────
+
+NUM_EXERCISES   = len(EXERCISE_REMAP)
+FUSED_DIM       = CAM_FEATURE_DIM * len(ALL_CAMERAS)   # e.g. 64*3 = 192
+
+
+class STGCN_MidFusion(nn.Module):
+    """
+    ST-GCN with MID FUSION of 3 camera views.
+
+    Forward inputs:
+      cam_skels    : list of 3 tensors, each (B, T, J, 6)
+      exercise_id  : (B,)
+
+    Forward output:
+      quality score : (B,)  ∈ [1, 5]
+
+    Fusion happens AFTER each camera's backbone compresses the skeleton
+    sequence into a CAM_FEATURE_DIM-dimensional vector.
+    The three vectors are concatenated and fed to a shared MLP head.
+    """
+    def __init__(self,
+                 feature_dim    = CAM_FEATURE_DIM,
+                 K              = 3,
+                 dropout        = 0.3,
+                 shared_backbone= SHARED_BACKBONE):
+        super().__init__()
+
+        self.shared_backbone = shared_backbone
+
+        if shared_backbone:
+            # One backbone shared across all cameras (weight-tied)
+            self.backbone = STGCNCameraBackbone(
+                in_features=6, feature_dim=feature_dim, K=K, dropout=dropout)
+        else:
+            # Independent backbone per camera (more capacity, more params)
+            self.backbones = nn.ModuleList([
+                STGCNCameraBackbone(
+                    in_features=6, feature_dim=feature_dim, K=K, dropout=dropout)
+                for _ in ALL_CAMERAS
+            ])
+
+        fused_dim = feature_dim * len(ALL_CAMERAS)
+
+        self.ex_embed = nn.Embedding(NUM_EXERCISES, 32)
+
+        # ── Fusion MLP (takes concatenated camera features + exercise emb) ─
+        self.fusion_mlp = nn.Sequential(
+            nn.Linear(fused_dim + 32, 256),
+            nn.LayerNorm(256),
+            nn.ReLU(),
+            nn.Dropout(0.3),
+            nn.Linear(256, 128),
+            nn.ReLU(),
+            nn.Dropout(0.2),
+            nn.Linear(128, 64),
+            nn.ReLU(),
+            nn.Linear(64, 1),
+        )
+
+        self._init_fusion_weights()
+
+    def _init_fusion_weights(self):
+        for m in self.fusion_mlp.modules():
+            if isinstance(m, nn.Linear):
+                nn.init.xavier_uniform_(m.weight)
+                if m.bias is not None:
+                    nn.init.zeros_(m.bias)
+            elif isinstance(m, nn.LayerNorm):
+                nn.init.ones_(m.weight)
+                nn.init.zeros_(m.bias)
+        nn.init.normal_(self.ex_embed.weight, 0, 0.01)
+
+    def forward(self, cam_skels, exercise_id):
+        """
+        cam_skels   : list of 3 tensors, each (B, T, J, 6)
+        exercise_id : (B,)
+        returns     : (B,)
+        """
+        cam_features = []
+        for i, skel in enumerate(cam_skels):
+            if self.shared_backbone:
+                feat = self.backbone(skel)
+            else:
+                feat = self.backbones[i](skel)
+            cam_features.append(feat)                   # each (B, CAM_FEATURE_DIM)
+
+        # ── Mid-fusion: concatenate at feature level ──────────────────────
+        fused = torch.cat(cam_features, dim=1)          # (B, CAM_FEATURE_DIM × 3)
+
+        ex  = self.ex_embed(exercise_id)                # (B, 32)
+        h   = torch.cat([fused, ex], dim=1)             # (B, fused_dim + 32)
+
+        out = 3.0 + 2.0 * torch.tanh(self.fusion_mlp(h).squeeze(1))
         return out
 
 
 # ── Sanity check ──────────────────────────────────────────────────────────
-_dummy_x  = torch.zeros(2, TARGET_FRAMES, NUM_JOINTS, EARLY_FUSION_CHANNELS)
-_dummy_ex = torch.zeros(2, dtype=torch.long)
-_model    = STGCN_EarlyFusion()
-_out      = _model(_dummy_x, _dummy_ex)
+_dummy_cams = [torch.zeros(2, TARGET_FRAMES, NUM_JOINTS, 6) for _ in ALL_CAMERAS]
+_dummy_ex   = torch.zeros(2, dtype=torch.long)
+_model      = STGCN_MidFusion()
+_out        = _model(_dummy_cams, _dummy_ex)
 assert _out.shape == (2,), f"Expected (2,), got {_out.shape}"
-print(f'\n✓ Early-Fusion ST-GCN sanity check passed — output shape: {_out.shape}')
+print(f'\n✓ Mid-Fusion ST-GCN sanity check passed — output shape: {_out.shape}')
 
 total_params = sum(p.numel() for p in _model.parameters() if p.requires_grad)
 print(f'✓ Total trainable parameters: {total_params:,}')
-del _dummy_x, _dummy_ex, _model, _out
+print(f'✓ Shared backbone: {SHARED_BACKBONE}')
+print(f'✓ CAM_FEATURE_DIM={CAM_FEATURE_DIM}  FUSED_DIM={FUSED_DIM}')
+del _dummy_cams, _dummy_ex, _model, _out
 
-print(f'✓ STGCN_EarlyFusion defined  '
-      f'(in_features={EARLY_FUSION_CHANNELS} = 6 × {len(ALL_CAMERAS)} cameras)')
+print(f'✓ STGCN_MidFusion defined  '
+      f'(3 × STGCNCameraBackbone → concat({CAM_FEATURE_DIM}×3={FUSED_DIM}) → FusionMLP → score)')
 
 
 # ══════════════════════════════════════════════════════════════════════════
@@ -773,31 +873,31 @@ if DEVICE == 'cuda':
     print(f'GPU    : {torch.cuda.get_device_name(0)}')
 
 
-def centre_and_scale(x):
+def centre_and_scale_single(x):
     """
-    x : (B, T, J, C)  where C = 18  (6 channels × 3 cameras)
-
-    Normalise each camera's 3 position channels independently using the
-    hip midpoint and torso height from that camera.
-    Velocity channels are scaled by the same torso height.
+    Normalise ONE camera's tensor.
+    x : (B, T, J, 6)   — pos(3) + vel(3)
+    Returns normalised (B, T, J, 6).
     """
-    C_per_cam = 6   # pos(3) + vel(3)
-    parts = []
-    for i, _ in enumerate(ALL_CAMERAS):
-        s = i * C_per_cam
-        pos = x[:, :, :, s    : s + 3]
-        vel = x[:, :, :, s + 3: s + 6]
+    pos = x[:, :, :, :3]
+    vel = x[:, :, :, 3:]
 
-        hip      = (pos[:, :, 1:2, :] + pos[:, :, 4:5, :]) / 2.0
-        pos      = pos - hip
-        shoulder = (pos[:, :, 11:12, :] + pos[:, :, 14:15, :]) / 2.0
-        torso_h  = shoulder[:, :, :, 1:2].abs().mean(dim=1, keepdim=True).clamp(min=1e-6)
-        pos      = pos / torso_h
-        vel      = vel / torso_h
+    hip     = (pos[:, :, 1:2, :] + pos[:, :, 4:5, :]) / 2.0
+    pos     = pos - hip
+    shoulder = (pos[:, :, 11:12, :] + pos[:, :, 14:15, :]) / 2.0
+    torso_h = shoulder[:, :, :, 1:2].abs().mean(dim=1, keepdim=True).clamp(min=1e-6)
+    pos     = pos / torso_h
+    vel     = vel / torso_h
+    return torch.cat([pos, vel], dim=-1)
 
-        parts.append(torch.cat([pos, vel], dim=-1))   # (B, T, J, 6)
 
-    return torch.cat(parts, dim=-1)   # (B, T, J, 18)
+def centre_and_scale_multiview(cam_skels):
+    """
+    Apply centre_and_scale independently to each camera tensor.
+    cam_skels : list of 3 × (B, T, J, 6)
+    Returns   : list of 3 × (B, T, J, 6)  normalised
+    """
+    return [centre_and_scale_single(s) for s in cam_skels]
 
 
 def run_epoch(model, loader, reg_fn, is_train=True, optimiser=None):
@@ -807,12 +907,14 @@ def run_epoch(model, loader, reg_fn, is_train=True, optimiser=None):
 
     ctx = torch.enable_grad() if is_train else torch.no_grad()
     with ctx:
-        for skels, qualities, exercise_ids in loader:
-            skels        = centre_and_scale(skels.to(DEVICE))
+        for cam_skels, qualities, exercise_ids in loader:
+            # Move each camera tensor to device
+            cam_skels    = [s.to(DEVICE) for s in cam_skels]
+            cam_skels    = centre_and_scale_multiview(cam_skels)
             qualities    = qualities.to(DEVICE)
             exercise_ids = exercise_ids.to(DEVICE)
 
-            preds = model(skels, exercise_ids)
+            preds = model(cam_skels, exercise_ids)
             loss  = reg_fn(preds, qualities)
 
             if is_train:
@@ -838,11 +940,11 @@ def run_epoch(model, loader, reg_fn, is_train=True, optimiser=None):
         'pcc' : pcc,
     }
 
-print('✓ centre_and_scale (multi-view) and run_epoch defined')
+print('✓ centre_and_scale_multiview (per-camera independent) and run_epoch defined')
 
 
 # ══════════════════════════════════════════════════════════════════════════
-# Cell 13.5 — Split quality distribution audit  (unchanged)
+# Cell 13.5 — Split quality distribution audit
 # ══════════════════════════════════════════════════════════════════════════
 
 print("=" * 65)
@@ -870,7 +972,7 @@ for split_name, split_df in splits:
 
 
 # ══════════════════════════════════════════════════════════════════════════
-# Cell 14 — Plotting helpers  (identical to single-view version)
+# Cell 14 — Plotting helpers
 # ══════════════════════════════════════════════════════════════════════════
 
 def save_and_show(fig, path):
@@ -891,7 +993,7 @@ def plot_loss_curves(history, save_dir, test_loss=None):
     ax.plot(epochs, history['val_loss'],   label='Validation', color='darkorange')
     if test_loss is not None:
         _add_test_line(ax, test_loss, 'Loss')
-    ax.set_title('Regression Loss (SmoothL1)', fontsize=13, fontweight='bold')
+    ax.set_title('Regression Loss (SmoothL1) — Mid Fusion', fontsize=13, fontweight='bold')
     ax.set_xlabel('Epoch'); ax.set_ylabel('Loss')
     ax.legend(); ax.grid(alpha=0.3)
     plt.tight_layout()
@@ -901,7 +1003,8 @@ def plot_loss_curves(history, save_dir, test_loss=None):
 def plot_rmse_mae(history, save_dir, test_rmse=None, test_mae=None):
     epochs = range(1, len(history['val_rmse']) + 1)
     fig, axes = plt.subplots(1, 2, figsize=(12, 4))
-    fig.suptitle('RMSE & MAE — Train / Val / Test', fontsize=14, fontweight='bold')
+    fig.suptitle('RMSE & MAE — Train / Val / Test  (Mid Fusion)',
+                 fontsize=14, fontweight='bold')
     for ax, metric, title, test_val in [
         (axes[0], 'rmse', 'RMSE', test_rmse),
         (axes[1], 'mae',  'MAE',  test_mae),
@@ -925,7 +1028,7 @@ def plot_r2(history, save_dir, test_r2=None):
         _add_test_line(ax, test_r2, 'R²')
     ax.axhline(1.0, color='gray', linestyle=':', linewidth=1, label='Perfect (R²=1)')
     ax.axhline(0.0, color='red',  linestyle=':', linewidth=1, label='Baseline (R²=0)')
-    ax.set_title('R² Score', fontsize=13, fontweight='bold')
+    ax.set_title('R² Score — Mid Fusion', fontsize=13, fontweight='bold')
     ax.set_xlabel('Epoch'); ax.set_ylabel('R²')
     ax.legend(fontsize=8); ax.grid(alpha=0.3)
     plt.tight_layout()
@@ -941,7 +1044,8 @@ def plot_pcc(history, save_dir, test_pcc=None):
         _add_test_line(ax, test_pcc, 'PCC')
     ax.axhline(1.0, color='gray', linestyle=':', linewidth=1)
     ax.axhline(0.0, color='red',  linestyle=':', linewidth=1)
-    ax.set_title('Pearson Correlation Coefficient', fontsize=13, fontweight='bold')
+    ax.set_title('Pearson Correlation Coefficient — Mid Fusion',
+                 fontsize=13, fontweight='bold')
     ax.set_xlabel('Epoch'); ax.set_ylabel('PCC')
     ax.legend(fontsize=8); ax.grid(alpha=0.3)
     plt.tight_layout()
@@ -963,7 +1067,7 @@ def plot_regression_scatter(q_true, q_pred, split_name='Test', save_dir=None):
     ax.set_xlim(lo, hi); ax.set_ylim(lo, hi)
     ax.set_xlabel('True Quality Score',      fontsize=12)
     ax.set_ylabel('Predicted Quality Score', fontsize=12)
-    ax.set_title(f'{split_name} Set — True vs Predicted Quality',
+    ax.set_title(f'{split_name} Set — True vs Predicted Quality (Mid Fusion)',
                  fontsize=13, fontweight='bold')
     ax.legend(fontsize=9); ax.grid(alpha=0.3)
     textstr = f'R²   = {r2:.4f}\nMAE  = {mae:.4f}\nRMSE = {rmse:.4f}'
@@ -987,7 +1091,7 @@ def plot_early_stop(history, stopped_epoch, best_epoch, save_dir):
                label=f'Best epoch ({best_epoch})')
     ax.axvline(stopped_epoch, color='red',    linestyle='--', linewidth=2,
                label=f'Early stop ({stopped_epoch})')
-    ax.set_title('MAE + Early Stopping', fontsize=13, fontweight='bold')
+    ax.set_title('MAE + Early Stopping — Mid Fusion', fontsize=13, fontweight='bold')
     ax.set_xlabel('Epoch'); ax.set_ylabel('MAE')
     ax.legend(); ax.grid(alpha=0.3)
     plt.tight_layout()
@@ -1042,28 +1146,33 @@ def make_weighted_sampler(df):
 
 train_sampler = make_weighted_sampler(train_df)
 
+# ── DataLoaders — note collate_fn=mid_fusion_collate ─────────────────────
 train_loader = DataLoader(
     BZUMultiViewDataset(train_df, augment=True),
-    batch_size  = BATCH_SIZE,
-    sampler     = train_sampler,
-    num_workers = 0,
-    pin_memory  = (DEVICE == 'cuda'),
+    batch_size   = BATCH_SIZE,
+    sampler      = train_sampler,
+    num_workers  = 0,
+    pin_memory   = (DEVICE == 'cuda'),
+    collate_fn   = mid_fusion_collate,
 )
 val_loader  = DataLoader(
     BZUMultiViewDataset(val_df,  augment=False),
     batch_size=BATCH_SIZE, shuffle=False,
     num_workers=0, pin_memory=(DEVICE == 'cuda'),
+    collate_fn=mid_fusion_collate,
 )
 test_loader = DataLoader(
     BZUMultiViewDataset(test_df, augment=False),
     batch_size=BATCH_SIZE, shuffle=False,
     num_workers=0, pin_memory=(DEVICE == 'cuda'),
+    collate_fn=mid_fusion_collate,
 )
 
-model = STGCN_EarlyFusion(
-    in_features = EARLY_FUSION_CHANNELS,
-    K           = 3,
-    dropout     = 0.3,
+model = STGCN_MidFusion(
+    feature_dim     = CAM_FEATURE_DIM,
+    K               = 3,
+    dropout         = 0.3,
+    shared_backbone = SHARED_BACKBONE,
 ).to(DEVICE)
 
 optimiser = torch.optim.AdamW(
@@ -1081,13 +1190,17 @@ history = {f'{s}_{m}': [] for s in SPLITS for m in METRICS}
 stopped_epoch = EPOCHS
 
 log.info('=' * 70)
-log.info('STARTING EARLY-FUSION REGRESSION TRAINING')
+log.info('STARTING MID-FUSION REGRESSION TRAINING')
 log.info('=' * 70)
 log.info(f'train={len(train_df)} val={len(val_df)} test={len(test_df)} '
-         f'(multi-view samples, each = 3 cameras fused)')
+         f'(multi-view samples, 3 cameras — mid fusion)')
+log.info(f'CAM_FEATURE_DIM={CAM_FEATURE_DIM}  FUSED_DIM={FUSED_DIM}  '
+         f'SHARED_BACKBONE={SHARED_BACKBONE}')
 
 print(f'\n{"═"*70}')
-print(f'  Early Fusion  |  Cameras: {ALL_CAMERAS}  |  in_features={EARLY_FUSION_CHANNELS}')
+print(f'  Mid Fusion  |  Cameras: {ALL_CAMERAS}  |  '
+      f'CAM_FEATURE_DIM={CAM_FEATURE_DIM}  FUSED={FUSED_DIM}')
+print(f'  Shared backbone: {SHARED_BACKBONE}')
 print(f'  Train: {len(train_df)}  Val: {len(val_df)}  Test: {len(test_df)}')
 print(f'  Patience: {PATIENCE}  |  LR: {LR}  |  Batch: {BATCH_SIZE}')
 print(f'{"═"*70}')
@@ -1140,37 +1253,24 @@ print(f'  MAE  : {final_te["mae"]:.4f}')
 print(f'  R²   : {final_te["r2"]:.4f}')
 print(f'  PCC  : {final_te["pcc"]:.4f}')
 
-# ── Collect test predictions ──────────────────────────────────────────────
-model.eval()
-all_true_q, all_pred_q, all_exercise_ids = [], [], []
-with torch.no_grad():
-    for skels, qualities, exercise_ids in test_loader:
-        skels        = centre_and_scale(skels.to(DEVICE))
-        exercise_ids = exercise_ids.to(DEVICE)
-        preds        = model(skels, exercise_ids)
-        all_true_q.extend(qualities.numpy())
-        all_pred_q.extend(preds.cpu().numpy())
-        all_exercise_ids.extend(exercise_ids.cpu().numpy())
+# ── Collect predictions ───────────────────────────────────────────────────
+def collect_predictions(loader):
+    model.eval()
+    all_true, all_pred, all_ex = [], [], []
+    with torch.no_grad():
+        for cam_skels, qualities, exercise_ids in loader:
+            cam_skels    = [s.to(DEVICE) for s in cam_skels]
+            cam_skels    = centre_and_scale_multiview(cam_skels)
+            exercise_ids = exercise_ids.to(DEVICE)
+            preds        = model(cam_skels, exercise_ids)
+            all_true.extend(qualities.numpy())
+            all_pred.extend(preds.cpu().numpy())
+            all_ex.extend(exercise_ids.cpu().numpy())
+    return all_true, all_pred, all_ex
 
-# ── Collect train predictions ─────────────────────────────────────────────
-all_true_train, all_pred_train = [], []
-with torch.no_grad():
-    for skels, qualities, exercise_ids in train_loader:
-        skels        = centre_and_scale(skels.to(DEVICE))
-        exercise_ids = exercise_ids.to(DEVICE)
-        preds        = model(skels, exercise_ids)
-        all_true_train.extend(qualities.numpy())
-        all_pred_train.extend(preds.cpu().numpy())
-
-# ── Collect val predictions ───────────────────────────────────────────────
-all_true_val, all_pred_val = [], []
-with torch.no_grad():
-    for skels, qualities, exercise_ids in val_loader:
-        skels        = centre_and_scale(skels.to(DEVICE))
-        exercise_ids = exercise_ids.to(DEVICE)
-        preds        = model(skels, exercise_ids)
-        all_true_val.extend(qualities.numpy())
-        all_pred_val.extend(preds.cpu().numpy())
+all_true_q,     all_pred_q,     all_exercise_ids = collect_predictions(test_loader)
+all_true_train, all_pred_train, _                = collect_predictions(train_loader)
+all_true_val,   all_pred_val,   _                = collect_predictions(val_loader)
 
 # ── Save plots ────────────────────────────────────────────────────────────
 plot_loss_curves(history, PLOTS_DIR,  test_loss=final_te['loss'])
@@ -1201,6 +1301,7 @@ np.savez(os.path.join(LOGS_DIR, 'val_predictions.npz'),
          q_true = np.array(all_true_val),
          q_pred = np.array(all_pred_val))
 print('  ✓ NPZ files saved')
+
 
 # ══════════════════════════════════════════════════════════════════════════
 # Cell 16.5 — Per-exercise test metrics
@@ -1247,7 +1348,7 @@ n_cols = 3
 n_rows = int(np.ceil(n_ex / n_cols))
 fig, axes = plt.subplots(n_rows, n_cols, figsize=(5 * n_cols, 4.5 * n_rows))
 axes = axes.flatten()
-fig.suptitle('Per-Exercise: True vs Predicted Quality (Test Set)',
+fig.suptitle('Per-Exercise: True vs Predicted Quality — Test Set (Mid Fusion)',
              fontsize=14, fontweight='bold')
 
 for i, ex_id in enumerate(unique_exercises):
@@ -1283,7 +1384,7 @@ print(f'  ✓ Per-exercise scatter grid → {scatter_grid_path}')
 
 # ── Bar chart ─────────────────────────────────────────────────────────────
 fig, axes = plt.subplots(1, 4, figsize=(16, 4))
-fig.suptitle('Per-Exercise Test Metrics (Early Fusion)', fontsize=13, fontweight='bold')
+fig.suptitle('Per-Exercise Test Metrics (Mid Fusion)', fontsize=13, fontweight='bold')
 ex_labels = [f'E{ex}' for ex in unique_exercises]
 colors    = plt.cm.tab10(np.linspace(0, 1, len(unique_exercises)))
 
@@ -1341,10 +1442,13 @@ best_val_r2   = history['val_r2'][bv]
 best_val_pcc  = history['val_pcc'][bv]
 
 print('=' * 65)
-print('  TRAINING SUMMARY — ST-GCN Early Fusion (3 cameras)')
+print('  TRAINING SUMMARY — ST-GCN Mid Fusion (3 cameras)')
 print('=' * 65)
 print(f'  Cameras          : {ALL_CAMERAS}')
-print(f'  in_features      : {EARLY_FUSION_CHANNELS}  (6 × {len(ALL_CAMERAS)})')
+print(f'  Fusion type      : MID  (feature-level)')
+print(f'  CAM_FEATURE_DIM  : {CAM_FEATURE_DIM}  (per camera)')
+print(f'  FUSED_DIM        : {FUSED_DIM}  ({CAM_FEATURE_DIM} × {len(ALL_CAMERAS)})')
+print(f'  Shared backbone  : {SHARED_BACKBONE}')
 print(f'  Best Epoch       : {best_epoch}  (stopped at {stopped_epoch})')
 print(f'  Best Val MAE     : {best_val_mae:.4f}')
 print(f'  Best Val RMSE    : {best_val_rmse:.4f}')
@@ -1362,7 +1466,9 @@ log.info(f'Test MAE={final_te["mae"]:.4f}  RMSE={final_te["rmse"]:.4f}  '
          f'R²={final_te["r2"]:.4f}  PCC={final_te["pcc"]:.4f}')
 
 summary_path = os.path.join(OUT_DIR, 'training_summary.csv')
-rows = [{'split': 'test_overall', 'exercise': 'all', 'fusion': 'early',
+rows = [{'split': 'test_overall', 'exercise': 'all', 'fusion': 'mid',
+         'cam_feature_dim': CAM_FEATURE_DIM, 'fused_dim': FUSED_DIM,
+         'shared_backbone': SHARED_BACKBONE,
          'best_epoch': best_epoch, 'stopped_epoch': stopped_epoch,
          'val_mae': best_val_mae,  'val_rmse': best_val_rmse,
          'val_r2':  best_val_r2,   'val_pcc':  best_val_pcc,
@@ -1371,7 +1477,7 @@ rows = [{'split': 'test_overall', 'exercise': 'all', 'fusion': 'early',
 
 for ex, vals in per_ex_results.items():
     rows.append({'split': 'test_per_exercise', 'exercise': f'E{ex}',
-                 'fusion': 'early',
+                 'fusion': 'mid',
                  'test_mae': vals['mae'], 'test_rmse': vals['rmse'],
                  'test_r2':  vals['r2'],  'test_pcc':  vals['pcc'],
                  'n': vals['n']})
