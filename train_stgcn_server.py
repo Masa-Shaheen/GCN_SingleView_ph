@@ -968,7 +968,7 @@ class CameraFusionTransformer(nn.Module):
         ])
         self.norm = nn.LayerNorm(d_model)   # final norm before pooling
 
-    def forward(self, cam_features: list[torch.Tensor]) -> torch.Tensor:
+    def forward(self, cam_features):
         """
         cam_features: list of 3 tensors, each (B, D)
         returns     : (B, D)  — mean-pooled fused representation

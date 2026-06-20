@@ -5,7 +5,7 @@ nohup: ignoring input
   FUSION           : MID (per-camera encoder 6→64, then concat → 192 channels)
   EXISTS           : True
   SPLIT EXISTS     : True
-✓ Run directory: /mvdlph/masa/GCN_SingleView_Regression_Results/run_2026_06_19_13_06_19
+✓ Run directory: /mvdlph/masa/GCN_SingleView_Regression_Results/run_2026_06_20_22_27_17
 ✓ Global seed fixed to 42
 Total NPZ files found : 15375
 First file keys: ['keypoints_3d', 'fps', 'video_shape', 'video_name']
@@ -547,9 +547,9 @@ Shape  : (531, 7)
 527       E9    P15    T3     C1            4  4.4250  1.3566
 528       E9    P15    T4     C1            4  3.6500  1.7029
 529       E9    P15    T5     C1            4  2.7750  1.7466
-530       E9    P15    T6     C1            4  3.3750  1.90392026-06-19 13:06:19,185 | INFO | ======================================================================
-2026-06-19 13:06:19,185 | INFO | ST-GCN Mid-Fusion Multi-View Regression | BZU Physiotherapy Dataset
-2026-06-19 13:06:19,186 | INFO | ======================================================================
+530       E9    P15    T6     C1            4  3.3750  1.90392026-06-20 22:27:17,877 | INFO | ======================================================================
+2026-06-20 22:27:17,877 | INFO | ST-GCN Mid-Fusion Multi-View Regression | BZU Physiotherapy Dataset
+2026-06-20 22:27:17,878 | INFO | ======================================================================
 
 ============================================================
 Quality stats per person:
@@ -612,7 +612,7 @@ P6: correct= 29 rows | erroneous=  0 rows | quality mean=4.571
 P7: correct= 29 rows | erroneous=  0 rows | quality mean=4.657
 P8: correct= 29 rows | erroneous=  0 rows | quality mean=4.603
 P9: correct= 29 rows | erroneous=  0 rows | quality mean=4.413
-✓ Logging to /mvdlph/masa/GCN_SingleView_Regression_Results/run_2026_06_19_13_06_19/logs/training_20260619_130619.log
+✓ Logging to /mvdlph/masa/GCN_SingleView_Regression_Results/run_2026_06_20_22_27_17/logs/training_20260620_222717.log
 ✓ parse_filename and load_skeleton defined
 ✓ Skeleton visualisation helpers defined
 
@@ -779,15 +779,6 @@ Val   0         3.5421  0.8099    294
       4         4.5072  0.2006    312
       5         4.4658  0.2797    281
       6         4.9000  0.0000    181
-train_stgcn_server.py:793: RuntimeWarning: divide by zero encountered in power
-  d_inv_sq = np.where(row_sum > 0, np.power(row_sum, -0.5), 0.0)
-train_stgcn_server.py:793: RuntimeWarning: divide by zero encountered in power
-  d_inv_sq = np.where(row_sum > 0, np.power(row_sum, -0.5), 0.0)
-2026-06-19 13:06:50,693 | INFO | ======================================================================
-2026-06-19 13:06:50,694 | INFO | STARTING MID-FUSION ST-GCN TRAINING  (Early Stopping on MAE)
-2026-06-19 13:06:50,695 | INFO |   Encoder: 6→64 per camera  |  Fused: 192 channels
-2026-06-19 13:06:50,696 | INFO |   train=2061  val=651  test=751
-2026-06-19 13:06:50,696 | INFO | ======================================================================
 Frame length distribution (sample of 500 files):
   min    = 31
   max    = 917
@@ -824,8 +815,8 @@ Skeleton shape : (61, 17, 3)
 X range : [-0.369, 0.592]
 Y range : [-0.193, 0.198]
 Z range : [0.000, 0.994]
-  ✓ Skeleton plot saved → /mvdlph/masa/GCN_SingleView_Regression_Results/run_2026_06_19_13_06_19/plots/sample_skeleton_3views.png
-  ✓ Motion frames saved → /mvdlph/masa/GCN_SingleView_Regression_Results/run_2026_06_19_13_06_19/plots/sample_skeleton_motion.png
+  ✓ Skeleton plot saved → /mvdlph/masa/GCN_SingleView_Regression_Results/run_2026_06_20_22_27_17/plots/sample_skeleton_3views.png
+  ✓ Motion frames saved → /mvdlph/masa/GCN_SingleView_Regression_Results/run_2026_06_20_22_27_17/plots/sample_skeleton_motion.png
 Axis ranges across all frames:
 X: [-0.369, 0.592] — likely left/right
 Y: [-0.193, 0.198] — likely ???
@@ -854,115 +845,9 @@ Camera 2:
   X range: [-0.37, 0.59]
   Z range: [0.00, 0.99]
 ✓ BZUMultiViewDataset defined
-
-✓ STGCN_MidFusion sanity check passed — output shape: torch.Size([2])
-✓ Total trainable parameters: 3,112,988
-✓ STGCN_MidFusion defined
-Device : cuda
-GPU    : Tesla V100-PCIE-32GB
-✓ centre_and_scale and run_epoch defined
-=================================================================
-Quality score distribution audit
-=================================================================
-  ✓ Saved → /mvdlph/masa/GCN_SingleView_Regression_Results/run_2026_06_19_13_06_19/plots/split_quality_distributions.png
-
-Split    Type              n    mean     std    min    25%    50%    75%    max
-----------------------------------------------------------------------
-Train    Correct (T≤2)   3925   4.654   0.319   3.68   4.48   4.74   4.90   5.00
-Train    Erroneous (T≥3)   2365   3.301   0.759   1.34   2.86   3.44   3.84   4.67
-
-Val      Correct (T≤2)   1347   4.674   0.338   3.56   4.64   4.82   4.90   5.00
-Val      Erroneous (T≥3)    654   3.216   0.557   2.28   2.72   3.20   3.72   4.06
-
-Test     Correct (T≤2)   1417   4.610   0.367   3.58   4.38   4.72   4.88   5.00
-Test     Erroneous (T≥3)    869   3.171   0.495   2.18   2.70   3.22   3.48   4.28
-
-=================================================================
-Person distribution across splits
-=================================================================
-  Train : ['P0', 'P10', 'P14', 'P15', 'P2', 'P3', 'P4', 'P5', 'P7']
-  Val   : ['P1', 'P11', 'P6']
-  Test  : ['P12', 'P13', 'P8', 'P9']
-
-Per-person quality mean per split:
-
-  Train:
-         mean    std  count
-person                     
-P0      4.572  0.395    521
-P10     3.290  0.862   1041
-P14     3.676  0.814    948
-P15     3.582  0.745    947
-P2      4.836  0.104    544
-P3      4.646  0.200    511
-P4      4.643  0.254    577
-P5      4.756  0.236    607
-P7      4.747  0.204    594
-
-  Val:
-         mean    std  count
-person                     
-P1      4.861  0.095    606
-P11     3.412  0.669    814
-P6      4.605  0.318    581
-
-  Test:
-         mean    std  count
-person                     
-P12     3.139  0.592    530
-P13     3.632  0.620    555
-P8      4.736  0.247    598
-P9      4.606  0.363    603
-
-=================================================================
-Exercise balance across splits
-=================================================================
-    Train  Val  Test  Train%  Val%  Test%
-E0    961  294   464    15.3  14.7   20.3
-E1    965  316   326    15.3  15.8   14.3
-E2    769  295   258    12.2  14.7   11.3
-E3    970  322   286    15.4  16.1   12.5
-E4    904  312   321    14.4  15.6   14.0
-E5    934  281   314    14.8  14.0   13.7
-E6    787  181   317    12.5   9.0   13.9
-✓ Plotting helpers defined
-✓ EarlyStopping defined
-
-════════════════════════════════════════════════════════════════════
-  MID-FUSION | Train: 2061  Val: 651  Test: 751
-  Encoder: 6→64 per cam → concat 192 channels → ST-GCN
-  Patience: 300  |  LR: 0.0001  |  Batch: 24
-════════════════════════════════════════════════════════════════════
 Traceback (most recent call last):
-  File "/root/.local/lib/python3.8/site-packages/pandas/core/indexes/base.py", line 3080, in get_loc
-    return self._engine.get_loc(casted_key)
-  File "pandas/_libs/index.pyx", line 70, in pandas._libs.index.IndexEngine.get_loc
-  File "pandas/_libs/index.pyx", line 101, in pandas._libs.index.IndexEngine.get_loc
-  File "pandas/_libs/hashtable_class_helper.pxi", line 4554, in pandas._libs.hashtable.PyObjectHashTable.get_item
-  File "pandas/_libs/hashtable_class_helper.pxi", line 4562, in pandas._libs.hashtable.PyObjectHashTable.get_item
-KeyError: 'filepath_c0'
-
-The above exception was the direct cause of the following exception:
-
-Traceback (most recent call last):
-  File "train_stgcn_server.py", line 1399, in <module>
-    tr = run_epoch(model, train_loader, reg_fn, is_train=True,  optimiser=optimiser)
-  File "train_stgcn_server.py", line 1052, in run_epoch
-    for x_c0, x_c1, x_c2, qualities, exercise_ids in loader:
-  File "/usr/local/lib/python3.8/dist-packages/torch/utils/data/dataloader.py", line 628, in __next__
-    data = self._next_data()
-  File "/usr/local/lib/python3.8/dist-packages/torch/utils/data/dataloader.py", line 671, in _next_data
-    data = self._dataset_fetcher.fetch(index)  # may raise StopIteration
-  File "/usr/local/lib/python3.8/dist-packages/torch/utils/data/_utils/fetch.py", line 58, in fetch
-    data = [self.dataset[idx] for idx in possibly_batched_index]
-  File "/usr/local/lib/python3.8/dist-packages/torch/utils/data/_utils/fetch.py", line 58, in <listcomp>
-    data = [self.dataset[idx] for idx in possibly_batched_index]
-  File "train_stgcn_server.py", line 689, in __getitem__
-    skel = load_skeleton(row[f'filepath_c{cam}'])
-  File "/root/.local/lib/python3.8/site-packages/pandas/core/series.py", line 853, in __getitem__
-    return self._get_value(key)
-  File "/root/.local/lib/python3.8/site-packages/pandas/core/series.py", line 961, in _get_value
-    loc = self.index.get_loc(label)
-  File "/root/.local/lib/python3.8/site-packages/pandas/core/indexes/base.py", line 3082, in get_loc
-    raise KeyError(key) from err
-KeyError: 'filepath_c0'
+  File "train_stgcn_server.py", line 938, in <module>
+    class CameraFusionTransformer(nn.Module):
+  File "train_stgcn_server.py", line 971, in CameraFusionTransformer
+    def forward(self, cam_features: list[torch.Tensor]) -> torch.Tensor:
+TypeError: 'type' object is not subscriptable
