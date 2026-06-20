@@ -686,7 +686,7 @@ class BZUMultiViewDataset(Dataset):
 
         skels = []
         for cam in CAMERAS:
-            skel = load_skeleton(row[f'filepath_c{cam}'])
+            skel = load_skeleton(row[f'path_c{cam}'])
             if skel is None:
                 skel = np.zeros((self.target_frames, NUM_JOINTS, 3), dtype=np.float32)
             skel = self._normalise_length(skel)
@@ -732,22 +732,28 @@ print('✓ BZUMultiViewDataset defined')
 
 
 # ══════════════════════════════════════════════════════════════════════════
-# Cell 11 — True ST-GCN backbone + Mid-Fusion model
+# Cell 11 — ST-GCN backbone + Camera Cross-Transformer Fusion
 #
-# Mid-Fusion strategy (mirrors the BiLSTM description exactly):
-#
-#   C0: (B, T, J, 6) ──┐   per-camera PointWise encoder
-#   C1: (B, T, J, 6) ──┤── FC(6→64) + ReLU + Dropout  (applied per-joint, per-frame)
-#   C2: (B, T, J, 6) ──┘
-#                          ↓  concat along feature axis
-#                   (B, T, J, 192)   ← fused LEARNED features
-#                          ↓
-#              shared ST-GCN backbone  (in_features=192)
-#                          ↓
-#                 regression head → quality score
-#
-# The key difference from early fusion is that raw 6-dim features are first
-# passed through a small trainable encoder before fusion.
+# Mid-Fusion بعد التعديل:
+#   C0: (B, T, J, 6) → per-camera PointWise FC (6→64) ──┐
+#   C1: (B, T, J, 6) → per-camera PointWise FC (6→64) ──┤→ concat (B,T,J,192)
+#   C2: (B, T, J, 6) → per-camera PointWise FC (6→64) ──┘
+#                                   ↓
+#                     Shared ST-GCN Backbone → (B, 256) per camera
+#                     [كل كاميرا تعطي token مستقل]
+#                                   ↓
+#                ┌─────────────────────────────────────────┐
+#                │  CameraFusionTransformer                │
+#                │   Input:  (B, 3, 256)  [3 cam tokens]  │
+#                │   Cross-Attention: each cam attends     │
+#                │   to the other two                      │
+#                │   Output: (B, 3, 256)  → mean pool      │
+#                │           → (B, 256)                    │
+#                └─────────────────────────────────────────┘
+#                                   ↓
+#                    Exercise Embedding (32)
+#                                   ↓
+#                    Regression Head → quality ∈ [1, 5]
 # ══════════════════════════════════════════════════════════════════════════
 
 from collections import deque
@@ -795,6 +801,8 @@ def build_stgcn_adjacency(num_joints, edges, center_joint=0):
         A[k]     = D_inv_sq @ A[k] @ D_inv_sq
     return torch.tensor(A, dtype=torch.float32)
 
+
+# ── Spatial Graph Convolution ─────────────────────────────────────────────
 
 class SpatialGraphConv(nn.Module):
     def __init__(self, in_channels, out_channels, K=3):
@@ -850,12 +858,8 @@ class STGCNBlock(nn.Module):
 
 class CameraEncoder(nn.Module):
     """
-    Point-wise (per-joint, per-frame) encoder:
-        FC(in_features → encoder_dim) + ReLU + Dropout
-
-    Applied identically to every (frame, joint) position.
-    This is the mid-fusion "feature extractor" before concatenation.
-    Implemented as a Conv2d(kernel=1) so it operates on (B, C, T, J).
+    Point-wise encoder: FC(in_features → encoder_dim) + BN + ReLU + Dropout
+    Applied per (frame, joint).
     """
     def __init__(self, in_features=IN_FEATURES, encoder_dim=ENCODER_DIM, dropout=0.3):
         super().__init__()
@@ -871,62 +875,225 @@ class CameraEncoder(nn.Module):
         return self.encoder(x)
 
 
-# ── Full Mid-Fusion Model ─────────────────────────────────────────────────
+# ══════════════════════════════════════════════════════════════════════════
+# ── Camera Fusion Transformer  ────────────────────────────────────────────
+#
+# Input:  (B, 3, D)  — 3 camera tokens, each a 256-dim vector
+# Output: (B, 3, D)  — updated tokens after cross-attention
+#
+# Each camera "queries" the other two via multi-head cross-attention.
+# Stacks L identical layers of:
+#    1. Pre-norm cross-attention (each cam → all cams)
+#    2. Pre-norm Feed-Forward Network
+# ══════════════════════════════════════════════════════════════════════════
 
-NUM_EXERCISES = 0   # filled after EXERCISE_REMAP is built (Cell 7)
+class CameraFusionTransformerLayer(nn.Module):
+    """
+    Single cross-attention layer for N camera tokens.
+
+    - Uses standard nn.MultiheadAttention with Q=K=V from the same set
+      of camera tokens (self-attention across cameras).
+      This lets each camera token attend to all others (cross-camera).
+    - Pre-LayerNorm residual connections for stable training.
+    - Pointwise FFN expands to ffn_dim then contracts back.
+    """
+    def __init__(self, d_model: int, num_heads: int, ffn_dim: int, dropout: float = 0.1):
+        super().__init__()
+
+        # Cross-attention: Q, K, V all come from camera tokens
+        # Each token attends to every other token (including itself)
+        self.attn    = nn.MultiheadAttention(
+            embed_dim   = d_model,
+            num_heads   = num_heads,
+            dropout     = dropout,
+            batch_first = True,   # (B, N, D) convention
+        )
+        self.norm1 = nn.LayerNorm(d_model)
+        self.norm2 = nn.LayerNorm(d_model)
+
+        # Feed-Forward Network
+        self.ffn = nn.Sequential(
+            nn.Linear(d_model, ffn_dim),
+            nn.GELU(),
+            nn.Dropout(dropout),
+            nn.Linear(ffn_dim, d_model),
+            nn.Dropout(dropout),
+        )
+
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
+        """
+        x: (B, N, D)   N = number of cameras (3)
+        returns: (B, N, D)
+        """
+        # ── Cross-attention (pre-norm) ─────────────────────────────────
+        h     = self.norm1(x)
+        attn_out, _ = self.attn(h, h, h)   # Q=K=V → each cam attends all
+        x     = x + attn_out               # residual
+
+        # ── FFN (pre-norm) ────────────────────────────────────────────
+        x     = x + self.ffn(self.norm2(x))
+        return x
+
+
+class CameraFusionTransformer(nn.Module):
+    """
+    Stack of L cross-attention layers over camera tokens.
+
+    Takes the GAP output of each camera's ST-GCN backbone —
+    3 vectors of shape (B, D) — stacks them into (B, 3, D),
+    runs L transformer layers, then mean-pools back to (B, D).
+
+    Args:
+        d_model   : feature dim from ST-GCN backbone (256)
+        num_heads : attention heads (must divide d_model evenly)
+        num_layers: how many cross-attention layers to stack
+        ffn_dim   : inner FFN dimension (typically 2×–4× d_model)
+        dropout   : dropout inside attention and FFN
+    """
+    def __init__(
+        self,
+        d_model:    int = 256,
+        num_heads:  int = 8,
+        num_layers: int = 2,
+        ffn_dim:    int = 512,
+        dropout:    float = 0.1,
+    ):
+        super().__init__()
+        assert d_model % num_heads == 0, \
+            f"d_model ({d_model}) must be divisible by num_heads ({num_heads})"
+
+        self.layers = nn.ModuleList([
+            CameraFusionTransformerLayer(d_model, num_heads, ffn_dim, dropout)
+            for _ in range(num_layers)
+        ])
+        self.norm = nn.LayerNorm(d_model)   # final norm before pooling
+
+    def forward(self, cam_features: list[torch.Tensor]) -> torch.Tensor:
+        """
+        cam_features: list of 3 tensors, each (B, D)
+        returns     : (B, D)  — mean-pooled fused representation
+        """
+        # Stack: [(B,D), (B,D), (B,D)] → (B, 3, D)
+        x = torch.stack(cam_features, dim=1)
+
+        # Pass through L cross-attention layers
+        for layer in self.layers:
+            x = layer(x)
+
+        x = self.norm(x)            # (B, 3, D)
+
+        # Mean-pool over camera tokens → (B, D)
+        return x.mean(dim=1)
+
+
+# ══════════════════════════════════════════════════════════════════════════
+# ── Full Model: ST-GCN + CameraFusionTransformer ─────────────────────────
+# ══════════════════════════════════════════════════════════════════════════
+
+NUM_EXERCISES = 0   # filled after EXERCISE_REMAP is built
 
 
 class STGCN_MidFusion(nn.Module):
     """
-    ST-GCN Mid-Fusion Multi-View Regression.
+    ST-GCN Mid-Fusion + Cross-Transformer Regression.
 
     Architecture:
-      C0 (B, T, J, 6) ──┐
-      C1 (B, T, J, 6) ──┤→ 3× CameraEncoder(6→64)
-      C2 (B, T, J, 6) ──┘        ↓
-                          concat → (B, 192, T, J)
-                                   ↓
-                          DataBN on 192*J channels
-                                   ↓
-                          9× ST-GCN Block (in=192→64→…→256)
-                                   ↓
-                          Global Average Pool → (B, 256)
-                                   ↓
-                          ExerciseEmbedding(32) concat
-                                   ↓
-                          Regression Head → quality ∈ [1, 5]
+      C0 (B,T,J,6) ──┐
+      C1 (B,T,J,6) ──┤→ 3× CameraEncoder(6→64)
+      C2 (B,T,J,6) ──┘        ↓
+                       concat → (B, 192, T, J)
+                               ↓
+                       DataBN (192×J)
+                               ↓
+                       Shared ST-GCN 9 blocks → (B, 256, T', J')
+                               ↓
+                       GAP per camera branch split:
+                           [Wait — we run ONE shared backbone on the concat,
+                            so we get ONE (B,256) global vector. To get 3
+                            separate camera tokens we run 3 INDEPENDENT
+                            backbones, one per camera.]
+
+    NOTE: to get 3 meaningful camera-specific tokens for the cross-transformer
+    we run each camera through its own ST-GCN backbone (sharing weights saves
+    params and acts as regularisation — set share_backbone=True).
+
+    share_backbone=True  → 1 backbone, weights tied across cameras
+    share_backbone=False → 3 independent backbones
     """
-    def __init__(self, in_features=IN_FEATURES, encoder_dim=ENCODER_DIM,
-                 K=3, dropout=0.5):
+    def __init__(
+        self,
+        in_features:    int   = IN_FEATURES,
+        encoder_dim:    int   = ENCODER_DIM,
+        K:              int   = 3,
+        dropout:        float = 0.5,
+        # Cross-Transformer args
+        xfmr_heads:     int   = 8,
+        xfmr_layers:    int   = 2,
+        xfmr_ffn_dim:   int   = 512,
+        xfmr_dropout:   float = 0.1,
+        share_backbone: bool  = True,
+    ):
         super().__init__()
 
         A = build_stgcn_adjacency(NUM_JOINTS, SKELETON_EDGES, center_joint=0)
         self.register_buffer('A', A)
 
-        fused_channels = encoder_dim * len(CAMERAS)   # 64 × 3 = 192
+        self.share_backbone = share_backbone
 
-        # ── Per-camera encoders (independent weights, no sharing) ──────────
+        # ── Per-camera encoders (6 → 64) ─────────────────────────────
         self.encoder_c0 = CameraEncoder(in_features, encoder_dim, dropout=0.3)
         self.encoder_c1 = CameraEncoder(in_features, encoder_dim, dropout=0.3)
         self.encoder_c2 = CameraEncoder(in_features, encoder_dim, dropout=0.3)
 
-        # ── Input BN on fused channels ─────────────────────────────────────
-        self.data_bn = nn.BatchNorm1d(fused_channels * NUM_JOINTS)
+        # ── Input BN on fused channels ────────────────────────────────
+        # When feeding each camera independently: each cam has encoder_dim channels
+        self.data_bn = nn.BatchNorm1d(encoder_dim * NUM_JOINTS)
 
-        # ── Shared ST-GCN backbone ─────────────────────────────────────────
-        self.blocks = nn.ModuleList([
-            STGCNBlock(fused_channels, 64,  K=K, residual=False, dropout=dropout),
-            STGCNBlock(64,  64,              K=K,                 dropout=dropout),
-            STGCNBlock(64,  64,              K=K,                 dropout=dropout),
-            STGCNBlock(64,  128, K=K, stride=2,                   dropout=dropout),
-            STGCNBlock(128, 128,             K=K,                 dropout=dropout),
-            STGCNBlock(128, 128,             K=K,                 dropout=dropout),
-            STGCNBlock(128, 256, K=K, stride=2,                   dropout=dropout),
-            STGCNBlock(256, 256,             K=K,                 dropout=dropout),
-            STGCNBlock(256, 256,             K=K,                 dropout=dropout),
-        ])
+        # ── ST-GCN Backbone(s) ────────────────────────────────────────
+        # Each backbone takes encoder_dim (64) channels → 256 channels
+        backbone_cfg = [
+            dict(in_c=encoder_dim, out_c=64,  stride=1, residual=False),
+            dict(in_c=64,          out_c=64,  stride=1),
+            dict(in_c=64,          out_c=64,  stride=1),
+            dict(in_c=64,          out_c=128, stride=2),
+            dict(in_c=128,         out_c=128, stride=1),
+            dict(in_c=128,         out_c=128, stride=1),
+            dict(in_c=128,         out_c=256, stride=2),
+            dict(in_c=256,         out_c=256, stride=1),
+            dict(in_c=256,         out_c=256, stride=1),
+        ]
 
-        self.gap      = nn.AdaptiveAvgPool2d(1)
+        def _make_backbone():
+            blocks = []
+            for cfg in backbone_cfg:
+                residual = cfg.get('residual', True)
+                blocks.append(STGCNBlock(
+                    cfg['in_c'], cfg['out_c'],
+                    K=K, stride=cfg['stride'],
+                    dropout=dropout, residual=residual,
+                ))
+            return nn.ModuleList(blocks)
+
+        if share_backbone:
+            # One set of weights, called 3 times
+            self.backbone = _make_backbone()
+        else:
+            self.backbone_c0 = _make_backbone()
+            self.backbone_c1 = _make_backbone()
+            self.backbone_c2 = _make_backbone()
+
+        self.gap = nn.AdaptiveAvgPool2d(1)
+
+        # ── Camera Fusion Transformer ─────────────────────────────────
+        self.camera_transformer = CameraFusionTransformer(
+            d_model    = 256,
+            num_heads  = xfmr_heads,
+            num_layers = xfmr_layers,
+            ffn_dim    = xfmr_ffn_dim,
+            dropout    = xfmr_dropout,
+        )
+
+        # ── Regression Head ───────────────────────────────────────────
         self.ex_embed = nn.Embedding(NUM_EXERCISES, 32)
         self.reg_head = nn.Sequential(
             nn.Linear(256 + 32, 128),
@@ -955,46 +1122,64 @@ class STGCN_MidFusion(nn.Module):
                     nn.init.zeros_(m.bias)
 
     def _prep(self, x):
-        """(B, T, J, 6) → (B, 6, T, J)  — standard ST-GCN channel order"""
+        """(B, T, J, 6) → (B, 6, T, J)"""
         return x.permute(0, 3, 1, 2)
+
+    def _run_backbone(self, x, cam_idx=None):
+        """
+        x: (B, encoder_dim, T, J)
+        returns: (B, 256)  via GAP
+        """
+        B  = x.shape[0]
+        J  = x.shape[3]
+        FC = x.shape[1]   # encoder_dim = 64
+
+        # Data BatchNorm
+        xbn = x.reshape(B, FC * J, x.shape[2])
+        xbn = self.data_bn(xbn)
+        xbn = xbn.reshape(B, FC, J, x.shape[2]).permute(0, 1, 3, 2)  # (B,FC,T,J)
+
+        # ST-GCN blocks
+        if self.share_backbone:
+            blocks = self.backbone
+        else:
+            blocks = [self.backbone_c0, self.backbone_c1, self.backbone_c2][cam_idx]
+
+        for block in blocks:
+            xbn = block(xbn, self.A)
+
+        # Global Average Pool → (B, 256)
+        return self.gap(xbn).squeeze(-1).squeeze(-1)
 
     def forward(self, x_c0, x_c1, x_c2, exercise_id):
         """
-        x_c0, x_c1, x_c2 : (B, T, J, 6)  — one tensor per camera
+        x_c0, x_c1, x_c2 : (B, T, J, 6)
         exercise_id       : (B,)
-        returns           : (B,)  quality scores in [1, 5]
+        returns           : (B,)  quality scores ∈ [1, 5]
         """
-        B, T, J, C = x_c0.shape
-
-        # ── Step 1: per-camera point-wise encoding ────────────────────────
-        # Each (B, T, J, 6) → (B, 6, T, J) → encoder → (B, 64, T, J)
+        # ── Step 1: per-camera point-wise encoding ─────────────────
         f0 = self.encoder_c0(self._prep(x_c0))   # (B, 64, T, J)
-        f1 = self.encoder_c1(self._prep(x_c1))   # (B, 64, T, J)
-        f2 = self.encoder_c2(self._prep(x_c2))   # (B, 64, T, J)
+        f1 = self.encoder_c1(self._prep(x_c1))
+        f2 = self.encoder_c2(self._prep(x_c2))
 
-        # ── Step 2: concatenate along channel axis ────────────────────────
-        # → (B, 192, T, J)  — fused LEARNED features (mid-fusion point)
-        x = torch.cat([f0, f1, f2], dim=1)
+        # ── Step 2: each camera through ST-GCN → (B, 256) ──────────
+        g0 = self._run_backbone(f0, cam_idx=0)   # (B, 256)
+        g1 = self._run_backbone(f1, cam_idx=1)
+        g2 = self._run_backbone(f2, cam_idx=2)
 
-        # ── Step 3: data BatchNorm ────────────────────────────────────────
-        FC = x.shape[1]   # 192
-        x  = x.reshape(B, FC * J, T)
-        x  = self.data_bn(x)
-        x  = x.reshape(B, FC, J, T).permute(0, 1, 3, 2)   # (B, FC, T, J)
+        # ── Step 3: Camera Fusion Transformer ──────────────────────
+        # Input:  [(B,256), (B,256), (B,256)]
+        # Output: (B, 256)  — cross-attended and mean-pooled
+        fused = self.camera_transformer([g0, g1, g2])   # (B, 256)
 
-        # ── Step 4: shared ST-GCN blocks ─────────────────────────────────
-        for block in self.blocks:
-            x = block(x, self.A)
-
-        # ── Step 5: global pool + regression ─────────────────────────────
-        x   = self.gap(x).squeeze(-1).squeeze(-1)          # (B, 256)
-        ex  = self.ex_embed(exercise_id)                   # (B, 32)
-        h   = torch.cat([x, ex], dim=1)                    # (B, 288)
+        # ── Step 4: exercise embedding + regression ─────────────────
+        ex  = self.ex_embed(exercise_id)                # (B, 32)
+        h   = torch.cat([fused, ex], dim=1)             # (B, 288)
         out = 3.0 + 2.0 * torch.tanh(self.reg_head(h).squeeze(1))
         return out
 
 
-# ── Patch NUM_EXERCISES now that EXERCISE_REMAP is known ──────────────────
+# ── Patch NUM_EXERCISES ───────────────────────────────────────────────────
 NUM_EXERCISES = len(EXERCISE_REMAP)
 
 # ── Sanity check ──────────────────────────────────────────────────────────
@@ -1002,16 +1187,27 @@ _c0  = torch.zeros(2, TARGET_FRAMES, NUM_JOINTS, 6)
 _c1  = torch.zeros(2, TARGET_FRAMES, NUM_JOINTS, 6)
 _c2  = torch.zeros(2, TARGET_FRAMES, NUM_JOINTS, 6)
 _ex  = torch.zeros(2, dtype=torch.long)
-_mdl = STGCN_MidFusion()
+_mdl = STGCN_MidFusion(share_backbone=True)
 _out = _mdl(_c0, _c1, _c2, _ex)
 assert _out.shape == (2,), f"Expected (2,), got {_out.shape}"
 total_params = sum(p.numel() for p in _mdl.parameters() if p.requires_grad)
-print(f'\n✓ STGCN_MidFusion sanity check passed — output shape: {_out.shape}')
+print(f'\n✓ STGCN_MidFusion + CameraFusionTransformer — output: {_out.shape}')
 print(f'✓ Total trainable parameters: {total_params:,}')
+
+# ── Model parameter breakdown ─────────────────────────────────────────────
+def count_params(module):
+    return sum(p.numel() for p in module.parameters() if p.requires_grad)
+
+print(f'\n  Parameter breakdown:')
+print(f'  Camera encoders     : {count_params(_mdl.encoder_c0)*3:,}  (×3)')
+if _mdl.share_backbone:
+    print(f'  Shared backbone     : {count_params(nn.ModuleList(_mdl.backbone)):,}')
+print(f'  Camera Transformer  : {count_params(_mdl.camera_transformer):,}')
+print(f'  Exercise embedding  : {count_params(_mdl.ex_embed):,}')
+print(f'  Regression head     : {count_params(_mdl.reg_head):,}')
+
 del _c0, _c1, _c2, _ex, _mdl, _out
-
-print('✓ STGCN_MidFusion defined')
-
+print('\n✓ STGCN_MidFusion with Cross-Transformer defined')
 
 # ══════════════════════════════════════════════════════════════════════════
 # Cell 12 — Device, normalisation & run_epoch
@@ -1362,12 +1558,17 @@ val_loader  = DataLoader(make_ds(val_mv,  False), batch_size=BATCH_SIZE,
                          shuffle=False, num_workers=0, pin_memory=(DEVICE=='cuda'))
 test_loader = DataLoader(make_ds(test_mv, False), batch_size=BATCH_SIZE,
                          shuffle=False, num_workers=0, pin_memory=(DEVICE=='cuda'))
-
+# بعد:
 model = STGCN_MidFusion(
-    in_features  = IN_FEATURES,
-    encoder_dim  = ENCODER_DIM,
-    K            = 3,
-    dropout      = 0.5,
+    in_features    = IN_FEATURES,
+    encoder_dim    = ENCODER_DIM,
+    K              = 3,
+    dropout        = 0.5,
+    xfmr_heads     = 8,      # عدد attention heads (256/8=32 dim per head)
+    xfmr_layers    = 2,      # عدد cross-attention layers
+    xfmr_ffn_dim   = 512,    # inner FFN dimension
+    xfmr_dropout   = 0.1,    # dropout داخل الـ transformer
+    share_backbone = True,   # True = backbone مشترك، False = 3 backbones مستقلة
 ).to(DEVICE)
 
 optimiser = torch.optim.AdamW(model.parameters(), lr=LR, weight_decay=WEIGHT_DECAY)
