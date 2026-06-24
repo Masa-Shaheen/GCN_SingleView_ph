@@ -40,7 +40,7 @@ TRANSFORMER_FFN_DIM      = 256     # feed-forward hidden dim inside transformer
 TRANSFORMER_DROPOUT      = 0.2
 
 # ── Exercise Filter ───────────────────────────────────────────────────────
-EXCLUDED_EXERCISES = { 1,2,3,4,5,6,7,8, 9}# #E0 then E1
+EXCLUDED_EXERCISES = { 0,2,3,4,5,6,7,8, 9}# #E0 then E1
 EXERCISE_REMAP     = {}    # filled automatically in Cell 7
 
 print('✓ Configuration loaded  (MID FUSION — CROSS-VIEW TRANSFORMER)')
